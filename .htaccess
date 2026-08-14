@@ -16,6 +16,15 @@ RewriteEngine On
 # bot24.io's parent rules would otherwise hijack this subfolder.
 RewriteOptions IgnoreInherit
 
+# PHP runs as CGI/FPM here, which silently drops the Authorization header —
+# every authenticated API call comes back "Authorization required" without this.
+# Both forms are set because which one survives depends on the SAPI.
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>
+RewriteCond %{HTTP:Authorization} .
+RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
 # Anyone hitting a .php URL directly gets bounced to the clean one, so the
 # extension can never leak into a link, a bookmark or a search index.
 RewriteCond %{THE_REQUEST} "\s/+(.*?)/(api|webhooks)/([a-z-]+)\.php(?:\?action=([a-z-]+))?" [NC]

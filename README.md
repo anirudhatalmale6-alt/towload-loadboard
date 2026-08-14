@@ -9,6 +9,22 @@ Separate product from TowMasters, designed to integrate with it.
 
 ---
 
+## Live
+
+**https://bot24.io/towload/** — deployed and working against a real database.
+
+Demo logins:
+- Tower — `demo.tower@towload.test` / `TowLoad2026!`
+- Provider — `demo.provider@towload.test` / `TowLoad2026!`
+
+Launch market is fenced to **Miami-Dade County** (35-mile radius from 25.61, -80.30).
+Signups and postings outside it are refused.
+
+> **Temporary database.** The app currently lives in the pre-existing empty
+> `towmasters` database because a new one can only be created from the DreamHost
+> panel. Move it to a dedicated `towload` database when one exists: mysqldump,
+> import, change four values in `config/env.php`. No code changes.
+
 ## Status
 
 Foundation is built and tested end to end against a real MySQL instance.
@@ -27,6 +43,8 @@ Foundation is built and tested end to end against a real MySQL instance.
 | Stripe Connect onboarding + payouts | Built, needs live keys |
 | Provider funding (ACH + card) | Built, needs live keys |
 | Stripe webhooks | Built, needs live keys |
+| Clean URLs (no `.php` anywhere) | Done |
+| Miami-Dade launch geofence | Done |
 | Compliance doc review UI | Not started |
 | TowMasters dispatch push | Schema in place, sync not written |
 | Push notifications | Table in place, delivery not wired |
@@ -85,14 +103,34 @@ webhooks; double-crediting a balance is the worst bug this system could have.
 
 ---
 
+## URLs
+
+No `.php` appears anywhere. `.htaccess` maps `/api/{file}/{action}` onto
+`api/{file}.php?action={action}`, and any direct `.php` URL 301s to its clean
+form so the extension cannot leak into a link or a search index.
+
+    /                        the app
+    /api/auth/login          api/auth.php?action=login
+    /api/calls/board?radius= api/calls.php?action=board&radius=
+    /webhooks/stripe         webhooks/stripe.php
+
+Two gotchas that cost real debugging time here, both handled in `.htaccess`:
+
+1. **PHP runs as CGI/FPM on this host and drops the `Authorization` header.**
+   Every authenticated call returns "Authorization required" until it is passed
+   through explicitly. The API also accepts `X-Auth-Token` as a fallback.
+2. **`RewriteRule ^$` loses to mod_dir**, so the folder root 403s. Use
+   `DirectoryIndex`, not a rewrite, to serve the app.
+
 ## Layout
 
 ```
-config/     app, database, stripe
+config/     app, database, stripe, env.php (server-only, gitignored)
 includes/   helpers, escrow engine, matching rules, stripe wrapper
 api/        auth, calls, bids, wallet, connect
 webhooks/   stripe
-web/        loadboard UI (demo)
+index.html  the loadboard UI
+.htaccess   clean URLs + hardening
 schema.sql
 ```
 
