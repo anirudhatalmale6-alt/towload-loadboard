@@ -29,7 +29,7 @@ if ($action === 'quote') {
     $dropoffLng = isset($in['dropoff_lng']) ? (float)$in['dropoff_lng'] : null;
 
     if ($pickupLat === null || $pickupLng === null) {
-        errorResponse('We need your location to price the job');
+        errorResponse(t('err.need_location'));
     }
     if ($msg = outsideLaunchArea($pickupLat, $pickupLng)) errorResponse($msg, 422);
 
@@ -52,7 +52,7 @@ if ($action === 'quote') {
         'wheels_lock'    => array_key_exists('wheels_lock', $in) ? !empty($in['wheels_lock']) : true,
         'is_underground' => !empty($in['is_underground']),
     ]);
-    if (empty($quote['ok'])) errorResponse($quote['error'], 422);
+    if (empty($quote['ok'])) errorResponse(t('err.no_pricing'), 422);
 
     // How many trucks could actually take this right now. An honest count beats
     // a price for a job nobody will run.
@@ -79,7 +79,7 @@ if ($action === 'quote') {
         'weekend'       => $quote['weekend'],
         'goa_amount'    => $quote['goa_amount'],
         'trucks_nearby' => $nearby,
-        'note'          => 'Your card is only charged once the job is done. Nothing is taken up front.',
+        'note'          => t('note.not_charged_yet'),
     ]);
 }
 
@@ -116,7 +116,7 @@ if ($method === 'POST' && $action === 'request') {
         'is_accident' => !empty($in['is_accident']), 'has_keys' => $hasKeys,
         'wheels_lock' => $wheelsLock, 'is_underground' => !empty($in['is_underground']),
     ]);
-    if (empty($quote['ok'])) errorResponse($quote['error'], 422);
+    if (empty($quote['ok'])) errorResponse(t('err.no_pricing'), 422);
 
     $total = $quote['total'];
     $goa   = (float)setting('consumer_goa_amount', 55.00);
@@ -222,7 +222,7 @@ if ($method === 'POST' && $action === 'request') {
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
-        errorResponse('Could not create your request: ' . $e->getMessage(), 500);
+        errorResponse(t('err.request_failed', ['detail' => $e->getMessage()]), 500);
     }
 
     successResponse([
@@ -236,13 +236,13 @@ if ($method === 'POST' && $action === 'request') {
         'client_secret'  => $clientSecret,
         'publishable_key'=> STRIPE_PUBLISHABLE_KEY,
         'payment_ready'  => $paymentIntentId !== null,
-    ], 'Finding you a truck');
+    ], t('ok.finding_truck'));
 }
 
 // ═══ TRACK — the customer's own view, by token ═══════════════════════════════
 if ($action === 'track') {
     $token = $_GET['token'] ?? '';
-    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse('Invalid tracking link', 404);
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse(t('err.bad_tracking'), 404);
 
     $stmt = getDB()->prepare(
         "SELECT c.*, t.name AS tower_name, t.phone AS tower_phone, t.rating_avg AS tower_rating,
@@ -252,7 +252,7 @@ if ($action === 'track') {
     );
     $stmt->execute([':tok' => $token]);
     $call = $stmt->fetch();
-    if (!$call) errorResponse('We could not find that job', 404);
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
 
     $stmt = getDB()->prepare(
         "SELECT event_type, detail, created_at FROM call_events
@@ -261,17 +261,10 @@ if ($action === 'track') {
     );
     $stmt->execute([':c' => $call['id']]);
 
-    $friendly = [
-        'open'        => 'Finding you a truck',
-        'awarded'     => 'Driver assigned',
-        'en_route'    => 'Driver on the way',
-        'on_scene'    => 'Driver has arrived',
-        'in_progress' => 'Working on your vehicle',
-        'completed'   => 'Job complete',
-        'goa'         => 'Driver arrived, vehicle not found',
-        'canceled'    => 'Cancelled',
-        'expired'     => 'No truck available — you were not charged',
-    ];
+    $friendly = [];
+    foreach (['open','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired'] as $st) {
+        $friendly[$st] = t('status.' . $st);
+    }
 
     successResponse([
         'call_number'   => $call['call_number'],
@@ -301,16 +294,16 @@ if ($action === 'track') {
 if ($method === 'POST' && $action === 'cancel') {
     $in = jsonInput();
     $token = $in['token'] ?? '';
-    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse('Invalid tracking link', 404);
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse(t('err.bad_tracking'), 404);
 
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT * FROM calls WHERE tracking_token = :tok");
     $stmt->execute([':tok' => $token]);
     $call = $stmt->fetch();
-    if (!$call) errorResponse('We could not find that job', 404);
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
 
     if (in_array($call['status'], ['completed','canceled','goa','expired'], true)) {
-        errorResponse('That job is already closed', 409);
+        errorResponse(t('err.job_closed'), 409);
     }
 
     // Free to cancel until a driver is rolling. After that the tower has burned
@@ -355,9 +348,9 @@ if ($method === 'POST' && $action === 'cancel') {
     successResponse([
         'charged' => money($charged),
         'message' => $charged > 0
-            ? 'Cancelled. A $' . money($charged) . ' call-out fee applies because a driver was already on the way.'
-            : 'Cancelled. You have not been charged.',
-    ], 'Cancelled');
+            ? t('msg.canceled_fee', ['amount' => money($charged)])
+            : t('msg.canceled_free'),
+    ], t('ok.job_canceled'));
 }
 
 errorResponse('Unknown action', 404);

@@ -60,13 +60,13 @@ function quoteConsumerJob(array $opts): array {
 
     $rule = getPricingRule($service, $class);
     if (!$rule) {
-        return ['ok' => false, 'error' => 'We do not price that service yet. Please call us.'];
+        return ['ok' => false, 'error' => t('err.no_pricing')];
     }
 
     $lines = [];
 
     $base = (float)$rule['base_fee'];
-    $lines[] = ['label' => 'Base service fee', 'amount' => round($base, 2)];
+    $lines[] = ['label' => t('price.base'), 'amount' => round($base, 2)];
     $subtotal = $base;
 
     // Mileage, only beyond what the base fee already covers.
@@ -75,7 +75,7 @@ function quoteConsumerJob(array $opts): array {
         $billableMiles = round($miles - (float)$rule['included_miles'], 1);
         $mileCost = round($billableMiles * (float)$rule['per_mile'], 2);
         $lines[] = [
-            'label'  => $billableMiles . ' mi beyond the first ' . (float)$rule['included_miles'],
+            'label'  => t('price.miles', ['n' => $billableMiles, 'inc' => (float)$rule['included_miles']]),
             'amount' => $mileCost,
         ];
         $subtotal += $mileCost;
@@ -84,15 +84,15 @@ function quoteConsumerJob(array $opts): array {
     // Condition surcharges — these reflect real extra work for the driver, and
     // they are shown individually so the price never looks arbitrary.
     $surcharges = [
-        'accident_surcharge'       => [!empty($opts['is_accident']),                    'Accident recovery'],
-        'no_keys_surcharge'        => [array_key_exists('has_keys', $opts) && !$opts['has_keys'], 'No keys available'],
-        'wheels_locked_surcharge'  => [array_key_exists('wheels_lock', $opts) && !$opts['wheels_lock'], 'Wheels will not roll'],
-        'underground_surcharge'    => [!empty($opts['is_underground']),                 'Underground / low clearance'],
+        'accident_surcharge'       => [!empty($opts['is_accident']),                    'price.accident'],
+        'no_keys_surcharge'        => [array_key_exists('has_keys', $opts) && !$opts['has_keys'], 'price.no_keys'],
+        'wheels_locked_surcharge'  => [array_key_exists('wheels_lock', $opts) && !$opts['wheels_lock'], 'price.wheels'],
+        'underground_surcharge'    => [!empty($opts['is_underground']),                 'price.underground'],
     ];
-    foreach ($surcharges as $col => [$applies, $label]) {
+    foreach ($surcharges as $col => [$applies, $labelKey]) {
         $amt = (float)$rule[$col];
         if ($applies && $amt > 0) {
-            $lines[] = ['label' => $label, 'amount' => round($amt, 2)];
+            $lines[] = ['label' => t($labelKey), 'amount' => round($amt, 2)];
             $subtotal += $amt;
         }
     }
@@ -102,15 +102,15 @@ function quoteConsumerJob(array $opts): array {
     $multiplierLabel = null;
     if (isAfterHours()) {
         $multiplier = (float)$rule['after_hours_multiplier'];
-        $multiplierLabel = 'After-hours rate';
+        $multiplierLabel = 'price.after_hours';
     } elseif (isWeekend()) {
         $multiplier = (float)$rule['weekend_multiplier'];
-        $multiplierLabel = 'Weekend rate';
+        $multiplierLabel = 'price.weekend';
     }
     if ($multiplier > 1.0) {
         $uplift = round($subtotal * ($multiplier - 1), 2);
         $lines[] = [
-            'label'  => $multiplierLabel . ' (' . rtrim(rtrim(number_format($multiplier, 2), '0'), '.') . 'x)',
+            'label'  => t($multiplierLabel, ['x' => rtrim(rtrim(number_format($multiplier, 2), '0'), '.')]),
             'amount' => $uplift,
         ];
         $subtotal += $uplift;
@@ -119,7 +119,7 @@ function quoteConsumerJob(array $opts): array {
     $total = round($subtotal, 2);
     $minimum = (float)$rule['minimum_total'];
     if ($total < $minimum) {
-        $lines[] = ['label' => 'Minimum charge adjustment', 'amount' => round($minimum - $total, 2)];
+        $lines[] = ['label' => t('price.minimum'), 'amount' => round($minimum - $total, 2)];
         $total = $minimum;
     }
 
@@ -140,11 +140,11 @@ function quoteConsumerJob(array $opts): array {
     ];
 }
 
-// Consumer jobs carry a bigger cut than board jobs: the platform paid for the
-// ad click that produced this customer, the board did not.
+// The platform's cut. Defaults mirror the live settings so a missing row can
+// never silently charge a different rate than the one that was agreed.
 function consumerFee(float $total): float {
-    $pct = (float)setting('consumer_fee_percent', 20.0);
-    $min = (float)setting('consumer_fee_minimum', 15.00);
+    $pct = (float)setting('consumer_fee_percent', 10.0);
+    $min = (float)setting('consumer_fee_minimum', 5.00);
     $fee = round($total * $pct / 100, 2);
     if ($fee < $min) $fee = $min;
     if ($fee > $total) $fee = $total;

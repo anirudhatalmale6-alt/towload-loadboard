@@ -59,11 +59,10 @@ function towerCanAccept(int $accountId): array {
     $doc = $stmt->fetch();
 
     if (!$doc) {
-        return ['ok' => false, 'reason' => 'No approved liability insurance certificate on file.'];
+        return ['ok' => false, 'reason' => t('err.no_insurance')];
     }
     if ($doc['expires_at'] && strtotime($doc['expires_at']) < time()) {
-        return ['ok' => false, 'reason' => 'Your liability insurance expired on ' . $doc['expires_at']
-            . '. Upload a current certificate to keep accepting calls.'];
+        return ['ok' => false, 'reason' => t('err.insurance_expired', ['date' => $doc['expires_at']])];
     }
     return ['ok' => true];
 }

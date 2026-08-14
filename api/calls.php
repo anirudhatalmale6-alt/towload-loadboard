@@ -14,7 +14,7 @@ if ($method === 'POST' && $action === 'create') {
     requireAccountType($user, 'provider');
     requireRole($user, ['owner', 'dispatcher']);
     if ((string)setting('providers_enabled', '0') !== '1') {
-        errorResponse('Job posting by dispatchers is disabled. All jobs now come directly from customers.', 403);
+        errorResponse(t('err.posting_closed'), 403);
     }
     $in = jsonInput();
 
@@ -293,7 +293,7 @@ if ($method === 'POST' && $action === 'accept') {
     if (!$eligibility['ok']) errorResponse($eligibility['reason'], 403);
 
     $etaMinutes = (int)($in['eta_minutes'] ?? 0);
-    if ($etaMinutes <= 0) errorResponse('eta_minutes is required — the provider needs to know when you will be there');
+    if ($etaMinutes <= 0) errorResponse(t('err.eta_required'));
 
     $pdo = getDB();
     $pdo->beginTransaction();
@@ -304,9 +304,9 @@ if ($method === 'POST' && $action === 'accept') {
         $stmt->execute([':id' => $callId]);
         $call = $stmt->fetch();
 
-        if (!$call)                            throw new RuntimeException('Call not found');
-        if ($call['status'] !== 'open')        throw new RuntimeException('This call has already been taken');
-        if (strtotime($call['expires_at']) < time()) throw new RuntimeException('This call has expired');
+        if (!$call)                            throw new RuntimeException(t('err.job_not_found'));
+        if ($call['status'] !== 'open')        throw new RuntimeException(t('err.job_taken'));
+        if (strtotime($call['expires_at']) < time()) throw new RuntimeException(t('err.job_expired'));
         if ($call['pricing_mode'] !== 'accept') throw new RuntimeException('This call is bid-only — submit a bid instead');
 
         $pdo->prepare(
@@ -343,7 +343,7 @@ if ($method === 'POST' && $action === 'accept') {
         'customer_phone' => $call['customer_phone'],
         'pickup_address' => $call['pickup_address'],
         'dropoff_address' => $call['dropoff_address'],
-    ], 'Call accepted — details unlocked');
+    ], t('ok.job_accepted'));
 }
 
 // ═══ AWARD A BID (provider) ══════════════════════════════════════════════════
@@ -435,7 +435,7 @@ if ($method === 'POST' && $action === 'status') {
     if (!$call) errorResponse('Call not found or not assigned to you', 404);
 
     if (in_array($call['status'], ['completed', 'canceled', 'goa', 'expired'], true)) {
-        errorResponse('This call is already closed', 409);
+        errorResponse(t('err.job_closed'), 409);
     }
 
     $timestampColumn = ['en_route' => 'en_route_at', 'on_scene' => 'on_scene_at', 'in_progress' => null];
@@ -452,7 +452,7 @@ if ($method === 'POST' && $action === 'status') {
     notify((int)$call['provider_account_id'], 'call_status',
         $call['call_number'] . ' — ' . $labels[$status], $user['account_name'], $callId);
 
-    successResponse(['status' => $status], 'Status updated');
+    successResponse(['status' => $status], t('ok.status_updated'));
 }
 
 // ═══ COMPLETE (tower) ════════════════════════════════════════════════════════
@@ -470,9 +470,9 @@ if ($method === 'POST' && $action === 'complete') {
         $stmt->execute([':id' => $callId, ':t' => $user['account_id']]);
         $call = $stmt->fetch();
         if (!$call) throw new RuntimeException('Call not found or not assigned to you');
-        if ($call['status'] === 'completed') throw new RuntimeException('This call is already completed');
+        if ($call['status'] === 'completed') throw new RuntimeException(t('err.job_done'));
         if (in_array($call['status'], ['canceled', 'goa', 'expired'], true)) {
-            throw new RuntimeException('This call is closed');
+            throw new RuntimeException(t('err.job_closed'));
         }
 
         $amount = (float)$call['awarded_amount'];
@@ -525,7 +525,7 @@ if ($method === 'POST' && $action === 'complete') {
         'platform_fee' => money($result['fee']),
         'net_to_you' => money($result['net']),
         'payout_id' => $result['payout_id'],
-    ], 'Call completed — payout queued');
+    ], t('ok.job_completed'));
 }
 
 // ═══ GOA — GONE ON ARRIVAL (tower) ═══════════════════════════════════════════
@@ -547,7 +547,7 @@ if ($method === 'POST' && $action === 'goa') {
         );
         $stmt->execute([':c' => $callId]);
         if ((int)$stmt->fetch()['n'] === 0) {
-            errorResponse('Upload a photo from the scene before claiming GOA — it is what protects you if the provider disputes it', 422);
+            errorResponse(t('err.goa_photo'), 422);
         }
     }
 
@@ -558,11 +558,11 @@ if ($method === 'POST' && $action === 'goa') {
         $call = $stmt->fetch();
         if (!$call) throw new RuntimeException('Call not found or not assigned to you');
         if (in_array($call['status'], ['completed', 'canceled', 'goa', 'expired'], true)) {
-            throw new RuntimeException('This call is already closed');
+            throw new RuntimeException(t('err.job_closed'));
         }
 
         $goa = (float)$call['goa_amount'];
-        if ($goa <= 0) throw new RuntimeException('This call has no GOA amount set — open a dispute instead');
+        if ($goa <= 0) throw new RuntimeException(t('err.goa_no_amount'));
 
         $result = escrowPartialRelease($callId, $goa, 'GOA');
 
@@ -603,7 +603,7 @@ if ($method === 'POST' && $action === 'goa') {
         'goa_amount' => money($result['tower_gross']),
         'net_to_you' => money($result['tower_net']),
         'returned_to_provider' => money($result['provider_refund']),
-    ], 'GOA recorded');
+    ], t('ok.goa_recorded'));
 }
 
 // ═══ CANCEL (provider) ═══════════════════════════════════════════════════════
@@ -620,9 +620,9 @@ if ($method === 'POST' && $action === 'cancel') {
         $stmt = $pdo->prepare("SELECT * FROM calls WHERE id = :id AND provider_account_id = :p FOR UPDATE");
         $stmt->execute([':id' => $callId, ':p' => $user['account_id']]);
         $call = $stmt->fetch();
-        if (!$call) throw new RuntimeException('Call not found');
+        if (!$call) throw new RuntimeException(t('err.job_not_found'));
         if (in_array($call['status'], ['completed', 'canceled', 'goa', 'expired'], true)) {
-            throw new RuntimeException('This call is already closed');
+            throw new RuntimeException(t('err.job_closed'));
         }
 
         // Cancelling on a tower who is already rolling isn't free. They get the
@@ -668,7 +668,7 @@ if ($method === 'POST' && $action === 'cancel') {
         errorResponse('Could not cancel: ' . $e->getMessage(), 500);
     }
 
-    successResponse(['tower_compensated' => money($towerCompensated)], 'Call canceled');
+    successResponse(['tower_compensated' => money($towerCompensated)], t('ok.job_canceled'));
 }
 
 // ═══ MY CALLS ════════════════════════════════════════════════════════════════

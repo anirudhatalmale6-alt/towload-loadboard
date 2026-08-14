@@ -20,7 +20,9 @@ INSERT INTO platform_settings (setting_key, setting_value, description) VALUES
 -- Master switch for the whole broker/motor-club side: signup, posting, bidding.
 ('providers_enabled', '0', 'Allow provider/motor-club accounts to register and post jobs'),
 -- With the platform setting the price there is nothing to bid on.
-('bidding_enabled',   '0', 'Allow towers to counter-offer instead of accepting a fixed price')
+('bidding_enabled',   '0', 'Allow towers to counter-offer instead of accepting a fixed price'),
+-- Spanish is the default language, so the market name needs a Spanish form too.
+('launch_area_name_es', 'el Condado de Miami-Dade', 'Launch market name shown in Spanish')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value);
 
 -- A consumer account has no email — the phone number is the contact and the

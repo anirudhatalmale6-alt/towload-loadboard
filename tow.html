@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Need a tow? Get a truck now — TowLoad</title>
-<meta name="description" content="Get a real price in seconds and a tow truck on the way. No calls, no haggling. Your card is only charged when the job is done.">
+<title>¿Necesita una grúa? Pídala ahora — TowLoad</title>
+<meta name="description" content="Precio real en segundos y una grúa en camino. Sin llamadas, sin regateo. Su tarjeta solo se cobra cuando el trabajo está hecho.">
 <style>
 :root{
   --ink:#0b1220; --ink-2:#40506a; --ink-3:#7d8ba3;
@@ -179,19 +179,20 @@ input::placeholder{color:#aab4c4}
 
 <div class="top">
   <div class="brand"><div class="mark">TL</div>TowLoad</div>
-  <div class="live"><span class="dot"></span><span id="liveTxt">Drivers available</span></div>
+  <div class="live"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Grúas disponibles</span></div>
+  <button id="langBtn" onclick="tlToggle()" style="margin-left:12px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--ink-2)">English</button>
 </div>
 
 <div class="wrap">
 
   <!-- ═══ HERO ═══ -->
   <div class="hero" id="hero">
-    <h1>Stuck? Get a truck<br>on the way now.</h1>
-    <p>A real price in seconds. No phone calls, no haggling.</p>
+    <h1><span data-i18n="c.hero_1">¿Se quedó varado?</span><br><span data-i18n="c.hero_2">Pida una grúa ahora.</span></h1>
+    <p data-i18n="c.hero_sub">Precio real en segundos. Sin llamadas, sin regateo.</p>
     <div class="trust">
-      <span><i class="tick">✓</i> Licensed &amp; insured</span>
-      <span><i class="tick">✓</i> Pay after the job</span>
-      <span><i class="tick">✓</i> Live tracking</span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_1">Con licencia y seguro</span></span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_2">Paga después del servicio</span></span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_3">Seguimiento en vivo</span></span>
     </div>
   </div>
 
@@ -205,87 +206,83 @@ input::placeholder{color:#aab4c4}
 
     <!-- step 1 — what -->
     <div class="step" data-step="1">
-      <h2>What do you need?</h2>
-      <p class="hint">Pick the closest match.</p>
+      <h2 data-i18n="c.q_what">¿Qué necesita?</h2>
+      <p class="hint" data-i18n="c.q_what_hint">Elija lo más parecido.</p>
       <div class="opts" id="svcOpts">
-        <button class="opt on" data-svc="tow"><span class="ic">🚙</span>Tow</button>
-        <button class="opt" data-svc="jumpstart"><span class="ic">🔋</span>Jump start</button>
-        <button class="opt" data-svc="tire_change"><span class="ic">🛞</span>Flat tire</button>
-        <button class="opt" data-svc="lockout"><span class="ic">🔑</span>Locked out</button>
-        <button class="opt" data-svc="fuel_delivery"><span class="ic">⛽</span>Out of fuel</button>
-        <button class="opt" data-svc="winch_recovery"><span class="ic">🪝</span>Stuck / ditch</button>
+        <button class="opt on" data-svc="tow"><span class="ic">🚙</span><span data-i18n="c.svc_tow">Grúa</span></button>
+        <button class="opt" data-svc="jumpstart"><span class="ic">🔋</span><span data-i18n="c.svc_jump">Paso de corriente</span></button>
+        <button class="opt" data-svc="tire_change"><span class="ic">🛞</span><span data-i18n="c.svc_tire">Llanta pinchada</span></button>
+        <button class="opt" data-svc="lockout"><span class="ic">🔑</span><span data-i18n="c.svc_lockout">Llaves adentro</span></button>
+        <button class="opt" data-svc="fuel_delivery"><span class="ic">⛽</span><span data-i18n="c.svc_fuel">Sin gasolina</span></button>
+        <button class="opt" data-svc="winch_recovery"><span class="ic">🪝</span><span data-i18n="c.svc_winch">Atascado</span></button>
       </div>
-      <button class="btn" style="margin-top:16px" onclick="go(2)">Continue</button>
+      <button class="btn" style="margin-top:16px" onclick="go(2)" data-i18n="c.continue">Continuar</button>
     </div>
 
     <!-- step 2 — where -->
     <div class="step hide" data-step="2">
-      <h2>Where are you?</h2>
-      <p class="hint">Nearest address, intersection or mile marker is fine.</p>
+      <h2 data-i18n="c.q_where">¿Dónde está?</h2>
+      <p class="hint" data-i18n="c.q_where_hint">Sirve la dirección más cercana, una esquina o el marcador de milla.</p>
       <div class="f">
-        <label>Your location</label>
-        <input id="pickup" placeholder="e.g. 1200 NW 27th Ave, Miami" autocomplete="street-address">
+        <label data-i18n="c.your_location">Su ubicación</label>
+        <input id="pickup" data-i18n-ph="c.ph_pickup" autocomplete="street-address">
       </div>
-      <button class="btn sec" style="margin-bottom:15px" onclick="useGPS()" id="gpsBtn">📍 Use my current location</button>
+      <button class="btn sec" style="margin-bottom:15px" onclick="useGPS()" id="gpsBtn" data-i18n="c.use_gps">📍 Usar mi ubicación actual</button>
       <div class="f" id="dropWrap">
-        <label>Where should we take it?</label>
-        <input id="dropoff" placeholder="Shop, home, or dealership">
+        <label data-i18n="c.where_to">¿A dónde la llevamos?</label>
+        <input id="dropoff" data-i18n-ph="c.ph_dropoff">
       </div>
-      <button class="btn" onclick="go(3)">Continue</button>
-      <button class="back" onclick="go(1)">← Back</button>
+      <button class="btn" onclick="go(3)" data-i18n="c.continue">Continuar</button>
+      <button class="back" onclick="go(1)" data-i18n="c.back">← Atrás</button>
     </div>
 
     <!-- step 3 — vehicle -->
     <div class="step hide" data-step="3">
-      <h2>About the vehicle</h2>
-      <p class="hint">This decides which truck we send.</p>
+      <h2 data-i18n="c.q_vehicle">Sobre el vehículo</h2>
+      <p class="hint" data-i18n="c.q_vehicle_hint">Esto define qué grúa le enviamos.</p>
       <div class="f">
-        <label>Type</label>
+        <label data-i18n="c.type">Tipo</label>
         <div class="opts">
-          <button class="opt on" data-cls="light"><span class="ic">🚗</span>Car / SUV</button>
-          <button class="opt" data-cls="medium"><span class="ic">🚐</span>Van / big truck</button>
-          <button class="opt" data-cls="motorcycle"><span class="ic">🏍️</span>Motorcycle</button>
-          <button class="opt" data-cls="heavy"><span class="ic">🚛</span>Semi / RV</button>
+          <button class="opt on" data-cls="light"><span class="ic">🚗</span><span data-i18n="c.cls_light">Auto / SUV</span></button>
+          <button class="opt" data-cls="medium"><span class="ic">🚐</span><span data-i18n="c.cls_medium">Van / camioneta grande</span></button>
+          <button class="opt" data-cls="motorcycle"><span class="ic">🏍️</span><span data-i18n="c.cls_moto">Motocicleta</span></button>
+          <button class="opt" data-cls="heavy"><span class="ic">🚛</span><span data-i18n="c.cls_heavy">Camión / casa rodante</span></button>
         </div>
       </div>
       <div class="f">
-        <label>Make &amp; model</label>
-        <input id="vehicle" placeholder="e.g. 2019 Honda Accord">
+        <label data-i18n="c.make_model">Marca y modelo</label>
+        <input id="vehicle" data-i18n-ph="c.ph_vehicle">
       </div>
       <div class="f">
-        <label>Do the wheels roll?</label>
+        <label data-i18n="c.q_wheels">¿Ruedan las llantas?</label>
         <div class="yn" data-yn="wheels">
-          <button class="on" data-v="1">Yes</button><button data-v="0">No</button>
+          <button class="on" data-v="1" data-i18n="c.yes">Sí</button><button data-v="0" data-i18n="c.no">No</button>
         </div>
       </div>
       <div class="f">
-        <label>Was it in an accident?</label>
+        <label data-i18n="c.q_accident">¿Fue un accidente?</label>
         <div class="yn" data-yn="accident">
-          <button data-v="1">Yes</button><button class="on" data-v="0">No</button>
+          <button data-v="1" data-i18n="c.yes">Sí</button><button class="on" data-v="0" data-i18n="c.no">No</button>
         </div>
       </div>
-      <button class="btn" onclick="getQuote()" id="quoteBtn">See my price</button>
-      <button class="back" onclick="go(2)">← Back</button>
+      <button class="btn" onclick="getQuote()" id="quoteBtn" data-i18n="c.see_price">Ver mi precio</button>
+      <button class="back" onclick="go(2)" data-i18n="c.back">← Atrás</button>
     </div>
 
     <!-- step 4 — price + confirm -->
     <div class="step hide" data-step="4">
       <div class="price-head">
         <div class="amt" id="qTotal">—</div>
-        <div class="sub" id="qSub">All in. No hidden fees.</div>
+        <div class="sub" id="qSub" data-i18n="c.all_in">Todo incluido. Sin cargos ocultos.</div>
       </div>
       <div class="avail" id="qAvail"></div>
       <div class="lines" id="qLines"></div>
-      <div class="assure">
-        <b>Your card is not charged now.</b> We only place a hold. You pay when the
-        job is finished — and if no driver takes it, the hold is released and you
-        pay nothing.
-      </div>
-      <div class="f"><label>Your name</label><input id="cName" placeholder="First and last name" autocomplete="name"></div>
-      <div class="f"><label>Mobile number</label><input id="cPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
-      <div class="f"><label>Email for the receipt</label><input id="cEmail" type="email" placeholder="you@email.com" autocomplete="email"></div>
-      <button class="btn" onclick="submitRequest()" id="reqBtn">Confirm &amp; find my driver</button>
-      <button class="back" onclick="go(3)">← Back</button>
+      <div class="assure" data-i18n-html="c.assure"></div>
+      <div class="f"><label data-i18n="c.your_name">Su nombre</label><input id="cName" data-i18n-ph="c.ph_name" autocomplete="name"></div>
+      <div class="f"><label data-i18n="c.mobile">Número de celular</label><input id="cPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
+      <div class="f"><label data-i18n="c.email_receipt">Correo para el recibo</label><input id="cEmail" type="email" data-i18n-ph="c.ph_email" autocomplete="email"></div>
+      <button class="btn" onclick="submitRequest()" id="reqBtn" data-i18n="c.confirm">Confirmar y buscar grúa</button>
+      <button class="back" onclick="go(3)" data-i18n="c.back">← Atrás</button>
     </div>
   </div>
 
@@ -293,27 +290,29 @@ input::placeholder{color:#aab4c4}
   <div class="card hide" id="trackCard">
     <div class="track-status">
       <div class="spinner" id="trkSpin"></div>
-      <div class="big" id="trkBig">Finding you a truck</div>
-      <div class="sm" id="trkSm">Sending your job to nearby drivers…</div>
+      <div class="big" id="trkBig" data-i18n="c.finding">Buscando una grúa</div>
+      <div class="sm" id="trkSm" data-i18n="c.finding_sub">Enviando su solicitud a las grúas cercanas…</div>
     </div>
     <div id="driverBox"></div>
     <div class="timeline" id="trkTimeline"></div>
     <div class="lines" id="trkLines" style="margin-top:20px"></div>
-    <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn">Cancel this request</button>
+    <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn" data-i18n="c.cancel_req">Cancelar esta solicitud</button>
   </div>
 
   <div class="foot">
-    Licensed, insured operators only · Miami-Dade County<br>
-    Every driver's insurance is verified before they can take a job.
+    <span data-i18n="foot.licensed"></span><br><span data-i18n="foot.verified"></span>
   </div>
 </div>
 
+<script src="i18n.js"></script>
 <script>
 const API = 'api';
 let S = { svc:'tow', cls:'light', wheels:1, accident:0, pickup:null, dropoff:null, quote:null, token:null };
 
 async function api(path, opts={}){
-  const r = await fetch(API + path, {
+  // Language rides along so API errors come back in the page's language.
+  const url = API + path + (path.includes('?') ? '&' : '?') + 'lang=' + tlLang();
+  const r = await fetch(url, {
     ...opts, headers:{'Content-Type':'application/json', ...(opts.headers||{})}
   });
   return r.json();
@@ -355,19 +354,19 @@ document.querySelectorAll('.yn').forEach(g => g.addEventListener('click', e => {
 // carried through and the coordinates come from GPS or the market centre.
 const MIAMI = {lat:25.7617, lng:-80.1918};
 function useGPS(){
-  if(!navigator.geolocation) return err('Your browser will not share location. Type the address instead.');
-  $('gpsBtn').textContent = 'Getting your location…';
+  if(!navigator.geolocation) return err(t('c.err_gps_none'));
+  $('gpsBtn').textContent = t('c.gps_finding');
   navigator.geolocation.getCurrentPosition(
     p => { S.pickup = {lat:p.coords.latitude, lng:p.coords.longitude};
-           $('gpsBtn').textContent = '📍 Location found'; $('pickup').value = $('pickup').value || 'My current location'; },
-    () => { $('gpsBtn').textContent = '📍 Use my current location'; err('Could not get your location. Type the address instead.'); },
+           $('gpsBtn').textContent = t('c.gps_found'); $('pickup').value = $('pickup').value || t('c.your_location'); },
+    () => { $('gpsBtn').textContent = t('c.use_gps'); err(t('c.err_gps')); },
     {enableHighAccuracy:true, timeout:8000}
   );
 }
 
 async function getQuote(){
   clearErr();
-  if(!$('pickup').value.trim()) { go(2); return err('We need to know where you are.'); }
+  if(!$('pickup').value.trim()) { go(2); return err(t('c.err_where')); }
   const pk = S.pickup || MIAMI;
   const body = {
     service_type:S.svc, vehicle_class:S.cls,
@@ -379,30 +378,29 @@ async function getQuote(){
     // in-county drop is used until that is wired.
     body.dropoff_lat = 25.8576; body.dropoff_lng = -80.2781;
   }
-  $('quoteBtn').textContent = 'Getting your price…'; $('quoteBtn').disabled = true;
+  $('quoteBtn').textContent = t('c.getting_price'); $('quoteBtn').disabled = true;
   const r = await api('/consumer/quote', {method:'POST', body:JSON.stringify(body)});
-  $('quoteBtn').textContent = 'See my price'; $('quoteBtn').disabled = false;
+  $('quoteBtn').textContent = t('c.see_price'); $('quoteBtn').disabled = false;
   if(!r.success) return err(r.error);
 
   S.quote = r;
   $('qTotal').textContent = money(r.total);
-  $('qSub').textContent = r.after_hours ? 'After-hours rate · all in, no hidden fees'
-                        : r.weekend ? 'Weekend rate · all in, no hidden fees'
-                        : 'All in. No hidden fees.';
+  $('qSub').textContent = r.after_hours ? t('c.after_hours')
+                        : r.weekend ? t('c.weekend') : t('c.all_in');
   $('qAvail').innerHTML = r.trucks_nearby > 0
-    ? `<span class="dot"></span> ${r.trucks_nearby} truck${r.trucks_nearby>1?'s':''} available near you`
-    : `<span style="color:var(--ink-3)">We will send this to every driver in range</span>`;
+    ? `<span class="dot"></span> ${r.trucks_nearby} ${r.trucks_nearby>1?t('c.trucks_near'):t('c.truck_near')}`
+    : `<span style="color:var(--ink-3)">${t('c.will_send_all')}</span>`;
   $('qLines').innerHTML = r.lines.map(l =>
       `<div class="line"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')
-    + `<div class="line total"><span>Total</span><span>${money(r.total)}</span></div>`;
+    + `<div class="line total"><span>${t('c.total')}</span><span>${money(r.total)}</span></div>`;
   go(4);
 }
 
 async function submitRequest(){
   clearErr();
   const name = $('cName').value.trim(), phone = $('cPhone').value.trim();
-  if(!name)  return err('Please enter your name so the driver knows who to look for.');
-  if(phone.replace(/\D/g,'').length < 10) return err('Please enter a valid mobile number — the driver will call you.');
+  if(!name)  return err(t('c.err_name'));
+  if(phone.replace(/\D/g,'').length < 10) return err(t('c.err_phone'));
 
   const pk = S.pickup || MIAMI;
   const body = {
@@ -421,9 +419,9 @@ async function submitRequest(){
     body.dropoff_lat=25.8576; body.dropoff_lng=-80.2781;
   }
 
-  $('reqBtn').textContent = 'Sending to drivers…'; $('reqBtn').disabled = true;
+  $('reqBtn').textContent = t('c.sending'); $('reqBtn').disabled = true;
   const r = await api('/consumer/request', {method:'POST', body:JSON.stringify(body)});
-  $('reqBtn').textContent = 'Confirm & find my driver'; $('reqBtn').disabled = false;
+  $('reqBtn').textContent = t('c.confirm'); $('reqBtn').disabled = false;
   if(!r.success) return err(r.error);
 
   S.token = r.tracking_token;
@@ -435,8 +433,8 @@ async function submitRequest(){
 
 // ── tracking ────────────────────────────────────────────
 const STEPS = [
-  ['posted','Request sent'], ['awarded','Driver assigned'],
-  ['en_route','Driver on the way'], ['on_scene','Driver arrived'], ['completed','Job complete']
+  ['posted','c.tl_sent'], ['awarded','c.tl_assigned'],
+  ['en_route','c.tl_enroute'], ['on_scene','c.tl_arrived'], ['completed','c.tl_done']
 ];
 async function poll(){
   const r = await api('/consumer/track?token=' + S.token);
@@ -447,39 +445,39 @@ async function poll(){
   $('trkSpin').classList.toggle('hide', done);
   $('cancelBtn').classList.toggle('hide', done);
   $('trkSm').textContent = r.status === 'open'
-      ? 'Sending your job to nearby drivers…'
-      : r.eta_minutes ? 'Estimated arrival in about ' + r.eta_minutes + ' minutes'
-      : r.status === 'completed' ? 'Thanks for using TowLoad. Your receipt is on its way.' : '';
+      ? t('c.finding_sub')
+      : r.eta_minutes ? t('c.eta_about', {n: r.eta_minutes})
+      : r.status === 'completed' ? t('c.thanks') : '';
 
   $('driverBox').innerHTML = r.tower ? `
     <div class="driver">
       <div class="av">${r.tower.name.charAt(0)}</div>
       <div>
         <div class="nm">${r.tower.name}</div>
-        <div class="rt">★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} jobs</div>
+        <div class="rt">★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} ${t('c.jobs')}</div>
       </div>
-      <a href="tel:${r.tower.phone}">Call</a>
+      <a href="tel:${r.tower.phone}">${t('c.call')}</a>
     </div>` : '';
 
   const reached = {};
   (r.timeline||[]).forEach(t => reached[t.event_type] = t.created_at);
   const lastIdx = STEPS.reduce((acc,[k],i) => reached[k] ? i : acc, 0);
-  $('trkTimeline').innerHTML = STEPS.map(([k,label],i) => {
+  $('trkTimeline').innerHTML = STEPS.map(([k,labelKey],i) => {
     const cls = reached[k] ? (i === lastIdx && !done ? 'now' : 'done') : '';
     const when = reached[k] ? new Date(reached[k].replace(' ','T')).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
     return `<div class="tl ${cls}"><div class="bead">${reached[k]?'✓':''}</div>
-      <div><div class="txt">${label}</div><div class="when">${when}</div></div></div>`;
+      <div><div class="txt">${t(labelKey)}</div><div class="when">${when}</div></div></div>`;
   }).join('');
 
   if(r.lines && r.lines.length){
     $('trkLines').innerHTML = r.lines.map(l =>
         `<div class="line"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')
-      + `<div class="line total"><span>${r.payment_status==='captured'?'Charged':'Total'}</span><span>${money(r.total)}</span></div>`;
+      + `<div class="line total"><span>${r.payment_status==='captured'?t('c.charged'):t('c.total')}</span><span>${money(r.total)}</span></div>`;
   }
 }
 
 async function cancelJob(){
-  if(!confirm('Cancel this request?')) return;
+  if(!confirm(t('c.cancel_confirm'))) return;
   const r = await api('/consumer/cancel', {method:'POST', body:JSON.stringify({token:S.token})});
   alert(r.success ? r.message : r.error);
   poll();

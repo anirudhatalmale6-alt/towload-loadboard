@@ -12,7 +12,7 @@ if ($method === 'POST' && $action === 'register') {
     $in = jsonInput();
 
     foreach (['account_type', 'company_name', 'email', 'password', 'first_name', 'last_name'] as $f) {
-        if (empty($in[$f])) errorResponse("$f is required");
+        if (empty($in[$f])) errorResponse(t('err.field_required', ['field' => str_replace('_', ' ', $f)]));
     }
     if (!in_array($in['account_type'], ['provider', 'tower'], true)) {
         errorResponse('account_type must be "provider" or "tower"');
@@ -21,15 +21,15 @@ if ($method === 'POST' && $action === 'register') {
     // from brokers. Providers are switched off rather than deleted so the
     // motor-club side can be turned back on with one setting.
     if ($in['account_type'] === 'provider' && (string)setting('providers_enabled', '0') !== '1') {
-        errorResponse('We are not taking dispatcher or motor club accounts. If you run tow trucks, sign up as a towing company.', 403);
+        errorResponse(t('err.providers_closed'), 403);
     }
-    if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse('Invalid email address');
-    if (strlen($in['password']) < 8) errorResponse('Password must be at least 8 characters');
+    if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse(t('err.invalid_email'));
+    if (strlen($in['password']) < 8) errorResponse(t('err.password_short'));
 
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :e");
     $stmt->execute([':e' => $in['email']]);
-    if ($stmt->fetch()) errorResponse('An account with this email already exists');
+    if ($stmt->fetch()) errorResponse(t('err.email_exists'));
 
     // Geo-gate at signup while we're launching one market at a time.
     if ($msg = outsideLaunchArea(
@@ -108,7 +108,7 @@ if ($method === 'POST' && $action === 'register') {
         'next_step' => $in['account_type'] === 'tower'
             ? 'Upload your insurance certificate and connect your bank account to start accepting calls.'
             : 'Add funds to your balance to start posting calls.',
-    ], 'Account created');
+    ], t('ok.account_created'));
 }
 
 // ─── LOGIN ───────────────────────────────────────────────────────────────────
@@ -127,9 +127,9 @@ if ($method === 'POST' && $action === 'login') {
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($in['password'], $user['password_hash'])) {
-        errorResponse('Invalid email or password', 401);
+        errorResponse(t('err.bad_login'), 401);
     }
-    if (!$user['account_active']) errorResponse('Account is deactivated', 403);
+    if (!$user['account_active']) errorResponse(t('err.account_disabled'), 403);
 
     getDB()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = :id")
            ->execute([':id' => $user['id']]);
@@ -150,7 +150,7 @@ if ($method === 'POST' && $action === 'login') {
             'account_type' => $user['account_type'],
             'verification_status' => $user['verification_status'],
         ],
-    ], 'Logged in');
+    ], t('ok.logged_in'));
 }
 
 // ─── ME ──────────────────────────────────────────────────────────────────────
@@ -303,10 +303,10 @@ if ($method === 'POST' && $action === 'invite') {
     $in = jsonInput();
 
     foreach (['email', 'password', 'first_name', 'last_name'] as $f) {
-        if (empty($in[$f])) errorResponse("$f is required");
+        if (empty($in[$f])) errorResponse(t('err.field_required', ['field' => str_replace('_', ' ', $f)]));
     }
-    if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse('Invalid email address');
-    if (strlen($in['password']) < 8) errorResponse('Password must be at least 8 characters');
+    if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse(t('err.invalid_email'));
+    if (strlen($in['password']) < 8) errorResponse(t('err.password_short'));
 
     $role = in_array($in['role'] ?? '', ['dispatcher', 'driver'], true) ? $in['role'] : 'dispatcher';
 

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TowLoad — Jobs for tow operators</title>
+<title>TowLoad — Trabajos para operadores de grúa</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel-2:#1b232d; --line:#242e3a;
@@ -227,15 +227,15 @@ legend{
     <div class="brand">
       <div class="mark">TL</div>
       <h1>TowLoad</h1>
-      <p>The loadboard for towing</p>
+      <p data-i18n="brand.tagline">La grúa que necesita, cuando la necesita</p>
     </div>
     <div class="panel">
-      <div class="f"><label>Email</label><input id="liEmail" type="email" placeholder="you@company.com"></div>
-      <div class="f"><label>Password</label><input id="liPass" type="password" placeholder="••••••••"></div>
-      <button class="btn go" style="width:100%;padding:11px" onclick="doLogin()">Sign in</button>
+      <div class="f"><label data-i18n="o.email">Correo</label><input id="liEmail" type="email" placeholder="usted@compania.com"></div>
+      <div class="f"><label data-i18n="o.password">Contraseña</label><input id="liPass" type="password" placeholder="••••••••"></div>
+      <button class="btn go" style="width:100%;padding:11px" onclick="doLogin()" data-i18n="o.signin">Entrar</button>
       <div id="liErr" class="notice err hide" style="margin:14px 0 0"></div>
       <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-dim)">
-        Don't have an account? <a href="join" style="color:var(--accent);font-weight:600;text-decoration:none">Sign up your tow company</a>
+        <span data-i18n="o.no_account"></span> <a href="join" style="color:var(--accent);font-weight:600;text-decoration:none" data-i18n="o.signup_link"></a>
       </div>
       <div class="demo-pick">
         <div style="text-align:center;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.6px;margin:6px 0 2px">Demo accounts</div>
@@ -260,7 +260,8 @@ legend{
     <span id="walletBox"></span>
     <span id="acctName"></span>
     <span class="badge" id="acctType"></span>
-    <button class="btn ghost" onclick="logout()">Sign out</button>
+    <button id="langBtn" class="btn ghost" onclick="tlToggle()" style="margin-right:6px">English</button>
+    <button class="btn ghost" onclick="logout()" data-i18n="nav.signout">Cerrar sesión</button>
   </div>
 </header>
 
@@ -365,24 +366,25 @@ legend{
 <!-- ═══ ACCEPT / BID ═══ -->
 <div class="modal-bg" id="actModal">
   <div class="modal" style="max-width:460px">
-    <div class="modal-h"><h2 id="actTitle">Accept call</h2><button class="x" onclick="closeAct()">&times;</button></div>
+    <div class="modal-h"><h2 id="actTitle" data-i18n="o.accept_job">Aceptar este trabajo</h2><button class="x" onclick="closeAct()">&times;</button></div>
     <div class="modal-b">
       <div id="actSummary" style="margin-bottom:18px"></div>
       <div class="grid2">
         <div class="f" id="bidAmtWrap"><label>Your bid</label><input id="actAmount" type="number" oninput="renderActNet()"></div>
-        <div class="f"><label>ETA (minutes)</label><input id="actEta" type="number" value="20"></div>
+        <div class="f"><label data-i18n="o.eta_min">Llego en (minutos)</label><input id="actEta" type="number" value="20"></div>
       </div>
       <div class="f" id="bidNoteWrap"><label>Note to the provider</label><input id="actNote" placeholder="Flatbed available now"></div>
       <div id="actNet" class="notice ok"></div>
       <div id="actErr" class="notice err hide"></div>
     </div>
     <div class="modal-f">
-      <button class="btn ghost" onclick="closeAct()">Cancel</button>
-      <button class="btn go" id="actGo" onclick="submitAct()">Accept</button>
+      <button class="btn ghost" onclick="closeAct()" data-i18n="o.cancel">Cancelar</button>
+      <button class="btn go" id="actGo" onclick="submitAct()" data-i18n="o.accept">Aceptar</button>
     </div>
   </div>
 </div>
 
+<script src="i18n.js"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -390,7 +392,9 @@ let ME = null, VIEW = 'board', DATA = [], FEE_PCT = 10, FEE_MIN = 5;
 
 /* ── api ───────────────────────────────────────────────────────── */
 async function api(path, opts={}){
-  const r = await fetch(API + path, {
+  // Language rides along so API errors match the interface.
+  const url = API + path + (path.includes('?') ? '&' : '?') + 'lang=' + tlLang();
+  const r = await fetch(url, {
     ...opts,
     headers:{'Content-Type':'application/json', ...(TOKEN?{'Authorization':'Bearer '+TOKEN}:{}), ...(opts.headers||{})}
   });
@@ -432,8 +436,8 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">Available jobs</button><button class="tab" data-v="mine">My jobs</button>`
-    : `<button class="tab" data-v="mine">My calls</button>`;
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button>`
+    : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
   if(!isTower) await refreshWallet();
@@ -456,20 +460,18 @@ function switchView(v){
   const f = document.getElementById('filters');
 
   if(v === 'board'){
-    document.getElementById('viewTitle').textContent = 'Available jobs';
+    document.getElementById('viewTitle').textContent = t('o.available_jobs');
     f.innerHTML = `
       <select id="fService" onchange="load()">
-        <option value="">All services</option><option value="tow">Tow</option>
-        <option value="winch_recovery">Winch / recovery</option><option value="lockout">Lockout</option>
-        <option value="jumpstart">Jump start</option><option value="tire_change">Tire change</option>
+        <option value="">${t('o.all_services')}</option><option value="tow">${t('c.svc_tow')}</option>
+        <option value="winch_recovery">${t('c.svc_winch')}</option><option value="lockout">${t('c.svc_lockout')}</option>
+        <option value="jumpstart">${t('c.svc_jump')}</option><option value="tire_change">${t('c.svc_tire')}</option>
       </select>
       <select id="fRadius" onchange="load()">
-        <option value="15">Within 15 mi</option><option value="25">Within 25 mi</option>
-        <option value="35" selected>Within 35 mi</option><option value="50">Within 50 mi</option>
-        <option value="100">Within 100 mi</option>
+        ${[15,25,35,50,100].map(n => `<option value="${n}" ${n===35?'selected':''}>${t('o.within',{n})}</option>`).join('')}
       </select>`;
   } else if(v === 'mine'){
-    document.getElementById('viewTitle').textContent = isTower ? 'My jobs' : 'Calls I posted';
+    document.getElementById('viewTitle').textContent = t('o.my_jobs');
     f.innerHTML = isTower ? '' : `<button class="btn go" onclick="openPost()">+ Post a call</button>`;
   } else {
     document.getElementById('viewTitle').textContent = 'My bids';
@@ -498,8 +500,9 @@ async function load(){
   if(!res.success){ list.innerHTML = `<div class="notice err">${res.error}</div>`; return; }
   DATA = res.calls || [];
   document.getElementById('viewSub').textContent =
-    DATA.length + (DATA.length === 1 ? ' job' : ' jobs') +
-    (VIEW === 'board' && res.search ? ` within ${res.search.radius_miles} miles` : '');
+    (VIEW === 'board' && res.search)
+      ? t(DATA.length === 1 ? 'o.job_within' : 'o.jobs_within', {n: DATA.length, r: res.search.radius_miles})
+      : DATA.length + ' ' + t('c.jobs');
   render();
 }
 
@@ -512,8 +515,8 @@ function renderNotices(res){
 function render(){
   const list = document.getElementById('list');
   if(!DATA.length){
-    list.innerHTML = `<div class="empty"><h3>Nothing here right now</h3>
-      <p>${VIEW==='board' ? 'New jobs appear here the moment a customer requests one.' : 'Jobs you take will show up here.'}</p></div>`;
+    list.innerHTML = `<div class="empty"><h3>${t('o.nothing')}</h3>
+      <p>${VIEW==='board' ? t('o.nothing_sub') : t('o.nothing_mine')}</p></div>`;
     return;
   }
   const isTower = ME.account.account_type === 'tower';
@@ -524,9 +527,9 @@ function render(){
     const open = c.status === 'open';
     const net  = c.tower_net_estimate ?? (c.offer_amount - feeOn(c.offer_amount));
     const flags = [
-      !c.has_keys && 'No keys', !c.wheels_lock && 'Wheels locked',
-      c.is_accident && 'Accident', c.is_underground && 'Underground',
-      c.is_ev && 'EV', c.needs_flatbed && 'Flatbed'
+      !c.has_keys && t('o.flag_nokeys'), !c.wheels_lock && t('o.flag_wheels'),
+      c.is_accident && t('o.flag_accident'), c.is_underground && t('o.flag_under'),
+      c.is_ev && t('o.flag_ev'), c.needs_flatbed && t('o.flag_flatbed')
     ].filter(Boolean);
 
     return `<div class="call ${open && secs<300 ? 'urgent' : ''} ${!open ? 'mine' : ''}">
@@ -534,7 +537,7 @@ function render(){
         <div class="c-top">
           <span class="svc ${c.service_type}">${c.service_type.replace('_',' ')}</span>
           <span class="cnum">${c.call_number}</span>
-          ${open ? `<span class="funded">&#9679; Paid job</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
+          ${open ? `<span class="funded">&#9679; ${t('o.paid_job')}</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
         </div>
         <div class="route">
           ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
@@ -550,22 +553,22 @@ function render(){
         </div>
       </div>
       <div class="c-side">
-        ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">miles</span></div>` : ''}
-        ${open ? `<div class="timer ${tcls}"><div class="t">${mins}:${ss}</div><div class="l">left</div></div>` : ''}
+        ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">${t('o.miles')}</span></div>` : ''}
+        ${open ? `<div class="timer ${tcls}"><div class="t">${mins}:${ss}</div><div class="l">${t('o.left')}</div></div>` : ''}
         <div class="pay">
           <div class="amt">${money(c.offer_amount)}</div>
-          ${isTower ? `<div class="net">${money(net)} to you</div>` : ''}
+          ${isTower ? `<div class="net">${money(net)} ${t('o.to_you')}</div>` : ''}
           ${c.pricing_mode === 'bid' ? `<div class="mode">Bidding &middot; ${c.bid_count||0}</div>` : ''}
         </div>
         <div class="act">
           ${isTower && open
             ? (c.pricing_mode === 'bid'
                 ? `<button class="btn ${c.already_bid?'ghost':'go'}" onclick="openAct(${c.id},'bid')">${c.already_bid?'Update bid':'Place bid'}</button>`
-                : `<button class="btn go" onclick="openAct(${c.id},'accept')">Accept</button>`)
+                : `<button class="btn go" onclick="openAct(${c.id},'accept')">${t('o.accept')}</button>`)
             : ''}
           ${isTower && !open && ['awarded','en_route','on_scene'].includes(c.status)
             ? `<button class="btn green" onclick="advance(${c.id},'${c.status}')">${nextLabel(c.status)}</button>` : ''}
-          ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">Cancel</button>` : ''}
+          ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">${t('o.cancel')}</button>` : ''}
         </div>
       </div>
     </div>`;
@@ -590,12 +593,12 @@ function renderBids(bids){
     </div></div></div>`).join('');
 }
 
-const nextLabel = s => ({awarded:'En route', en_route:'On scene', on_scene:'Complete'})[s];
+const nextLabel = s => ({awarded:t('o.enroute'), en_route:t('o.onscene'), on_scene:t('o.complete')})[s];
 async function advance(id, cur){
   if(cur === 'on_scene'){
     const r = await api('/calls/complete', {method:'POST', body:JSON.stringify({call_id:id})});
     if(!r.success) return alert(r.error);
-    alert(`Completed. ${money(r.net_to_you)} is on its way to your bank.`);
+    alert(t('o.completed_msg', {amount: money(r.net_to_you)}));
   } else {
     const next = cur === 'awarded' ? 'en_route' : 'on_scene';
     const r = await api('/calls/status', {method:'POST', body:JSON.stringify({call_id:id, status:next})});
@@ -646,8 +649,8 @@ let ACT = null;
 function openAct(id, mode){
   ACT = {id, mode};
   const c = DATA.find(x => x.id === id);
-  document.getElementById('actTitle').textContent = mode === 'bid' ? 'Place your bid' : 'Accept this call';
-  document.getElementById('actGo').textContent    = mode === 'bid' ? 'Submit bid' : 'Accept call';
+  document.getElementById('actTitle').textContent = t('o.accept_job');
+  document.getElementById('actGo').textContent    = t('o.accept');
   document.getElementById('actSummary').innerHTML =
     `<div style="font-size:15px;font-weight:600;margin-bottom:4px">${c.pickup_area}${c.dropoff_city?' → '+c.dropoff_city:''}</div>
      <div style="color:var(--ink-dim);font-size:13px">${c.vehicle} &middot; ${c.service_type.replace('_',' ')} &middot; posted at ${money(c.offer_amount)}</div>`;
@@ -667,7 +670,7 @@ function renderActNet(){
   const fee = (ACT.mode === 'accept' && c.platform_fee_estimate != null)
                 ? c.platform_fee_estimate : feeOn(amt);
   document.getElementById('actNet').innerHTML =
-    `You receive <b>${money(amt-fee)}</b> &nbsp;<span style="opacity:.7">(${money(amt)} less ${money(fee)} platform fee)</span>`;
+    `${t('o.you_receive')} <b>${money(amt-fee)}</b> &nbsp;<span style="opacity:.7">${t('o.less_fee', {total: money(amt), fee: money(fee)})}</span>`;
 }
 async function submitAct(){
   const err = document.getElementById('actErr'); err.classList.add('hide');
@@ -682,7 +685,7 @@ async function submitAct(){
   }
   if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
   closeAct();
-  if(ACT.mode === 'accept') alert(`Call is yours.\n\n${r.customer_name} — ${r.customer_phone}\n${r.pickup_address}`);
+  if(ACT.mode === 'accept') alert(`${t('o.job_yours')}\n\n${r.customer_name} — ${r.customer_phone}\n${r.pickup_address}`);
   load();
 }
 

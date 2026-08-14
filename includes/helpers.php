@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/i18n.php';
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
 function setCorsHeaders(): void {
@@ -79,10 +80,10 @@ function bearerToken(): ?string {
 
 function requireAuth(): array {
     $token = bearerToken();
-    if (!$token) errorResponse('Authorization required', 401);
+    if (!$token) errorResponse(t('err.auth_required'), 401);
 
     $claims = verifyJWT($token);
-    if (!$claims) errorResponse('Invalid or expired token', 401);
+    if (!$claims) errorResponse(t('err.token_invalid'), 401);
 
     $stmt = getDB()->prepare(
         "SELECT u.*, a.account_type, a.name AS account_name, a.slug AS account_slug,
@@ -95,8 +96,8 @@ function requireAuth(): array {
     $stmt->execute([':id' => $claims['user_id'] ?? 0]);
     $user = $stmt->fetch();
 
-    if (!$user) errorResponse('Account not found or deactivated', 401);
-    if (!$user['account_active']) errorResponse('Account is deactivated', 403);
+    if (!$user) errorResponse(t('err.account_disabled'), 401);
+    if (!$user['account_active']) errorResponse(t('err.account_disabled'), 403);
     if ($user['verification_status'] === 'suspended') {
         errorResponse('Account suspended. Contact support.', 403);
     }
@@ -112,7 +113,7 @@ function requireAccountType(array $user, string $type): void {
 
 function requireRole(array $user, array $roles): void {
     if (!in_array($user['role'], $roles, true)) {
-        errorResponse('Insufficient permissions', 403);
+        errorResponse(t('err.no_permission'), 403);
     }
 }
 
@@ -120,7 +121,7 @@ function requireRole(array $user, array $roles): void {
 // actions until they're approved and their insurance is current.
 function requireVerified(array $user): void {
     if ($user['verification_status'] !== 'approved') {
-        errorResponse('Your account is still being verified. You can browse, but not accept calls yet.', 403);
+        errorResponse(t('err.not_verified'), 403);
     }
 }
 
@@ -173,8 +174,12 @@ function outsideLaunchArea(?float $lat, ?float $lng): ?string {
 
     if (haversineMiles($clat, $clng, $lat, $lng) <= $radius) return null;
 
-    return 'We have only launched in ' . setting('launch_area_name', 'our first market')
-         . ' so far. Everywhere else is coming soon.';
+    // The market name is itself translated — "en Miami-Dade County" reads like
+    // a machine wrote it, and this is the first sentence some customers see.
+    $area = currentLang() === 'es'
+        ? setting('launch_area_name_es', setting('launch_area_name', 'Miami-Dade'))
+        : setting('launch_area_name', 'Miami-Dade County');
+    return t('err.outside_area', ['area' => $area]);
 }
 
 // ─── MONEY ───────────────────────────────────────────────────────────────────
