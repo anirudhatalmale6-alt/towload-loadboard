@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #  Clean URLs — nothing in this app ever shows a .php extension.
 #
-#    /                        -> web/index.html
+#    /                        -> index.html
 #    /api/auth/login          -> api/auth.php?action=login
 #    /api/calls/board?radius= -> api/calls.php?action=board&radius=
 #    /api/calls               -> api/calls.php
@@ -31,8 +31,10 @@ RewriteRule ^api/([a-z-]+)/([a-z-]+)/?$      api/$1.php?action=$2 [QSA,L]
 RewriteRule ^api/([a-z-]+)/?$                api/$1.php [QSA,L]
 RewriteRule ^webhooks/([a-z-]+)/?$           webhooks/$1.php [QSA,L]
 
-# The app itself
-RewriteRule ^$                               web/index.html [L]
+# The app itself. DirectoryIndex rather than a rewrite: mod_dir resolves the
+# directory request before mod_rewrite gets a per-directory rule for an empty
+# URI, which otherwise leaves /towload/ as a 403.
+DirectoryIndex index.html
 
 # ─── Hardening ──────────────────────────────────────────────────────────────
 # Config, includes and the schema must never be fetchable over HTTP.
