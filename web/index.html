@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TowLoad — Towing Loadboard</title>
+<style>
+:root{
+  --bg:#0d1117; --panel:#151b23; --panel-2:#1b232d; --line:#242e3a;
+  --ink:#e6edf3; --ink-dim:#8b98a8; --ink-faint:#5d6b7d;
+  --accent:#ff7a18; --accent-dim:#c25a0e;
+  --green:#2ea043; --green-dim:#1a6b2c; --red:#e5534b; --amber:#d29922; --blue:#4a9eff;
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink); min-height:100vh;
+  font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;cursor:pointer;border:none;border-radius:6px}
+input,select{font:inherit}
+
+/* ── shell ─────────────────────────────────────────────────────── */
+header{
+  display:flex;align-items:center;gap:20px;padding:0 20px;height:56px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:50;
+}
+.logo{display:flex;align-items:center;gap:9px;font-weight:700;font-size:16px;letter-spacing:-.3px}
+.logo .mark{
+  width:26px;height:26px;border-radius:6px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--accent),var(--accent-dim));
+  color:#0d1117;font-weight:800;font-size:12px;
+}
+.tabs{display:flex;gap:2px;margin-left:8px}
+.tab{
+  padding:7px 14px;border-radius:6px;background:transparent;color:var(--ink-dim);
+  font-weight:500;transition:.12s;
+}
+.tab:hover{color:var(--ink);background:var(--panel-2)}
+.tab.on{background:var(--panel-2);color:var(--ink)}
+.spacer{flex:1}
+.whoami{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--ink-dim)}
+.badge{
+  padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;
+  text-transform:uppercase;letter-spacing:.4px;
+}
+.badge.provider{background:rgba(74,158,255,.14);color:var(--blue)}
+.badge.tower{background:rgba(255,122,24,.14);color:var(--accent)}
+.wallet{
+  padding:5px 12px;border-radius:6px;background:var(--panel-2);
+  border:1px solid var(--line);font-variant-numeric:tabular-nums;
+}
+.wallet b{color:var(--green)}
+.wallet .held{color:var(--amber)}
+
+main{max-width:1400px;margin:0 auto;padding:22px 20px 60px}
+
+/* ── board ─────────────────────────────────────────────────────── */
+.bar{display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap}
+h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
+.sub{color:var(--ink-faint);font-size:13px}
+.filters{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+.filters select,.filters input{
+  background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  padding:7px 11px;border-radius:6px;outline:none;
+}
+.filters select:focus,.filters input:focus{border-color:var(--accent)}
+
+.cards{display:grid;gap:10px}
+.call{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 16px;display:grid;
+  grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;
+  transition:.14s;
+}
+.call:hover{border-color:#33404f;background:var(--panel-2)}
+.call.urgent{border-left:3px solid var(--red)}
+.call.mine{border-left:3px solid var(--green)}
+
+.c-main{min-width:0}
+.c-top{display:flex;align-items:center;gap:9px;margin-bottom:7px;flex-wrap:wrap}
+.svc{
+  padding:3px 9px;border-radius:5px;background:rgba(255,122,24,.13);
+  color:var(--accent);font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;
+}
+.svc.lockout{background:rgba(74,158,255,.13);color:var(--blue)}
+.svc.winch_recovery{background:rgba(229,83,75,.13);color:var(--red)}
+.cnum{color:var(--ink-faint);font-size:12px;font-variant-numeric:tabular-nums}
+.funded{
+  display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;
+  color:var(--green);background:rgba(46,160,67,.11);padding:3px 8px;border-radius:5px;
+}
+.route{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600;margin-bottom:5px}
+.route .arrow{color:var(--ink-faint);font-weight:400}
+.route .miles{
+  font-size:12px;font-weight:600;color:var(--ink-dim);background:var(--panel-2);
+  padding:2px 8px;border-radius:5px;border:1px solid var(--line);
+}
+.meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink-dim);font-size:13px}
+.meta span{display:inline-flex;align-items:center;gap:5px}
+.flag{color:var(--amber);font-weight:600;font-size:12px}
+
+.c-side{display:flex;align-items:center;gap:18px}
+.pay{text-align:right}
+.pay .amt{font-size:22px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.pay .net{font-size:11px;color:var(--ink-faint);font-variant-numeric:tabular-nums}
+.pay .mode{
+  font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;
+  color:var(--blue);margin-top:2px;
+}
+.timer{
+  text-align:center;min-width:62px;font-variant-numeric:tabular-nums;
+}
+.timer .t{font-size:16px;font-weight:700;color:var(--green)}
+.timer.warn .t{color:var(--amber)}
+.timer.crit .t{color:var(--red)}
+.timer .l{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.5px}
+.act{display:flex;flex-direction:column;gap:6px;min-width:104px}
+.btn{padding:9px 16px;font-weight:650;font-size:13px;transition:.12s}
+.btn.go{background:var(--accent);color:#0d1117}
+.btn.go:hover{background:#ff8c38}
+.btn.ghost{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line)}
+.btn.ghost:hover{color:var(--ink);border-color:#33404f}
+.btn.green{background:var(--green);color:#fff}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.dist{
+  font-size:12px;color:var(--ink-dim);text-align:center;font-weight:600;
+  font-variant-numeric:tabular-nums;
+}
+
+.empty{
+  text-align:center;padding:70px 20px;color:var(--ink-faint);
+  background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);
+}
+.empty h3{font-size:16px;color:var(--ink-dim);margin-bottom:6px;font-weight:600}
+
+.notice{
+  padding:12px 16px;border-radius:var(--radius);margin-bottom:14px;font-size:13px;
+  display:flex;align-items:center;gap:10px;
+}
+.notice.warn{background:rgba(210,153,34,.1);border:1px solid rgba(210,153,34,.3);color:#e3b341}
+.notice.err{background:rgba(229,83,75,.1);border:1px solid rgba(229,83,75,.3);color:#f0776f}
+.notice.ok{background:rgba(46,160,67,.1);border:1px solid rgba(46,160,67,.3);color:#56d364}
+
+/* ── forms / modal ─────────────────────────────────────────────── */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:5px;font-weight:600}
+.f input,.f select{
+  width:100%;background:var(--bg);border:1px solid var(--line);color:var(--ink);
+  padding:9px 11px;border-radius:6px;outline:none;
+}
+.f input:focus,.f select:focus{border-color:var(--accent)}
+.f{margin-bottom:14px}
+fieldset{border:none;margin-bottom:16px}
+legend{
+  font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--ink-faint);
+  font-weight:700;margin-bottom:12px;
+}
+.checks{display:flex;gap:16px;flex-wrap:wrap}
+.chk{display:flex;align-items:center;gap:7px;color:var(--ink-dim);cursor:pointer;font-size:13px}
+.chk input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+.modal-bg{
+  position:fixed;inset:0;background:rgba(0,0,0,.66);display:none;
+  align-items:flex-start;justify-content:center;padding:40px 20px;z-index:100;overflow:auto;
+}
+.modal-bg.on{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:100%;max-width:720px}
+.modal-h{
+  padding:18px 22px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.modal-h h2{font-size:17px;font-weight:650}
+.modal-b{padding:22px}
+.modal-f{
+  padding:16px 22px;border-top:1px solid var(--line);
+  display:flex;gap:10px;justify-content:flex-end;align-items:center;
+}
+.x{background:transparent;color:var(--ink-faint);font-size:22px;line-height:1;padding:0 6px}
+.x:hover{color:var(--ink)}
+
+.cost{
+  margin-right:auto;font-size:13px;color:var(--ink-dim);
+  font-variant-numeric:tabular-nums;
+}
+.cost b{color:var(--ink)}
+
+/* ── login ─────────────────────────────────────────────────────── */
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:20px}
+.login{width:100%;max-width:400px}
+.login .brand{text-align:center;margin-bottom:26px}
+.login .brand .mark{
+  width:52px;height:52px;border-radius:13px;margin:0 auto 14px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--accent),var(--accent-dim));
+  color:#0d1117;font-weight:800;font-size:21px;
+}
+.login .brand h1{font-size:24px;letter-spacing:-.5px;margin-bottom:5px}
+.login .brand p{color:var(--ink-faint);font-size:13px}
+.demo-pick{display:grid;gap:9px;margin-top:16px}
+.demo-btn{
+  padding:13px 15px;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:var(--radius);text-align:left;color:var(--ink);transition:.14s;
+}
+.demo-btn:hover{border-color:var(--accent)}
+.demo-btn b{display:block;font-size:14px;margin-bottom:2px}
+.demo-btn span{font-size:12px;color:var(--ink-faint)}
+.hide{display:none !important}
+
+@media(max-width:820px){
+  .call{grid-template-columns:1fr}
+  .c-side{justify-content:space-between}
+  .grid2,.grid3{grid-template-columns:1fr}
+  .tabs{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div class="login-wrap" id="loginView">
+  <div class="login">
+    <div class="brand">
+      <div class="mark">TL</div>
+      <h1>TowLoad</h1>
+      <p>The loadboard for towing</p>
+    </div>
+    <div class="panel">
+      <div class="f"><label>Email</label><input id="liEmail" type="email" placeholder="you@company.com"></div>
+      <div class="f"><label>Password</label><input id="liPass" type="password" placeholder="••••••••"></div>
+      <button class="btn go" style="width:100%;padding:11px" onclick="doLogin()">Sign in</button>
+      <div id="liErr" class="notice err hide" style="margin:14px 0 0"></div>
+      <div class="demo-pick">
+        <div style="text-align:center;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.6px;margin:6px 0 2px">Demo accounts</div>
+        <button class="demo-btn" onclick="demo('provider')">
+          <b>Sunshine Motor Club</b><span>Provider — posts calls, funds escrow</span>
+        </button>
+        <button class="demo-btn" onclick="demo('tower')">
+          <b>Tri-County Towing</b><span>Tower — works the board, gets paid</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="appView" class="hide">
+<header>
+  <div class="logo"><div class="mark">TL</div>TowLoad</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="spacer"></div>
+  <div class="whoami">
+    <span id="walletBox"></span>
+    <span id="acctName"></span>
+    <span class="badge" id="acctType"></span>
+    <button class="btn ghost" onclick="logout()">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <div id="notices"></div>
+  <div class="bar">
+    <div>
+      <h1 id="viewTitle">Available calls</h1>
+      <div class="sub" id="viewSub"></div>
+    </div>
+    <div class="filters" id="filters"></div>
+  </div>
+  <div class="cards" id="list"></div>
+</main>
+</div>
+
+<!-- ═══ POST A CALL ═══ -->
+<div class="modal-bg" id="postModal">
+  <div class="modal">
+    <div class="modal-h">
+      <h2>Post a call</h2>
+      <button class="x" onclick="closePost()">&times;</button>
+    </div>
+    <div class="modal-b">
+      <fieldset>
+        <legend>Service</legend>
+        <div class="grid3">
+          <div class="f"><label>Type</label>
+            <select id="pService">
+              <option value="tow">Tow</option><option value="winch_recovery">Winch / recovery</option>
+              <option value="lockout">Lockout</option><option value="jumpstart">Jump start</option>
+              <option value="tire_change">Tire change</option><option value="fuel_delivery">Fuel delivery</option>
+            </select></div>
+          <div class="f"><label>Class</label>
+            <select id="pClass">
+              <option value="light">Light duty</option><option value="medium">Medium duty</option>
+              <option value="heavy">Heavy duty</option><option value="motorcycle">Motorcycle</option>
+            </select></div>
+          <div class="f"><label>Expires in</label>
+            <select id="pExpiry">
+              <option value="15">15 minutes</option><option value="20" selected>20 minutes</option>
+              <option value="30">30 minutes</option><option value="60">1 hour</option>
+            </select></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Location</legend>
+        <div class="f"><label>Pickup address</label><input id="pPickup" placeholder="1420 SE Federal Hwy, Stuart FL"></div>
+        <div class="grid2">
+          <div class="f"><label>City</label><input id="pCity" value="Stuart"></div>
+          <div class="f"><label>State</label><input id="pState" value="FL" maxlength="2"></div>
+        </div>
+        <div class="f"><label>Drop-off address</label><input id="pDrop" placeholder="Leave blank for on-site service"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Vehicle</legend>
+        <div class="grid3">
+          <div class="f"><label>Year</label><input id="pYear" placeholder="2019"></div>
+          <div class="f"><label>Make</label><input id="pMake" placeholder="Honda"></div>
+          <div class="f"><label>Model</label><input id="pModel" placeholder="Accord"></div>
+        </div>
+        <div class="checks" style="margin-bottom:6px">
+          <label class="chk"><input type="checkbox" id="pKeys" checked> Keys available</label>
+          <label class="chk"><input type="checkbox" id="pWheels" checked> Wheels roll</label>
+          <label class="chk"><input type="checkbox" id="pAccident"> Accident</label>
+          <label class="chk"><input type="checkbox" id="pEV"> Electric vehicle</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Customer</legend>
+        <div class="grid2">
+          <div class="f"><label>Name</label><input id="pCName" placeholder="Robert Castellano"></div>
+          <div class="f"><label>Phone</label><input id="pCPhone" placeholder="(772) 555-1234"></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Payment</legend>
+        <div class="grid3">
+          <div class="f"><label>Pricing</label>
+            <select id="pMode" onchange="renderCost()">
+              <option value="accept">Fixed — first to accept</option>
+              <option value="bid">Take bids</option>
+            </select></div>
+          <div class="f"><label>Amount</label><input id="pAmount" type="number" value="185" oninput="renderCost()"></div>
+          <div class="f"><label>GOA fee</label><input id="pGoa" type="number" value="50"></div>
+        </div>
+      </fieldset>
+      <div id="postErr" class="notice err hide"></div>
+    </div>
+    <div class="modal-f">
+      <div class="cost" id="costNote"></div>
+      <button class="btn ghost" onclick="closePost()">Cancel</button>
+      <button class="btn go" onclick="submitCall()">Post to board</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ACCEPT / BID ═══ -->
+<div class="modal-bg" id="actModal">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-h"><h2 id="actTitle">Accept call</h2><button class="x" onclick="closeAct()">&times;</button></div>
+    <div class="modal-b">
+      <div id="actSummary" style="margin-bottom:18px"></div>
+      <div class="grid2">
+        <div class="f" id="bidAmtWrap"><label>Your bid</label><input id="actAmount" type="number" oninput="renderActNet()"></div>
+        <div class="f"><label>ETA (minutes)</label><input id="actEta" type="number" value="20"></div>
+      </div>
+      <div class="f" id="bidNoteWrap"><label>Note to the provider</label><input id="actNote" placeholder="Flatbed available now"></div>
+      <div id="actNet" class="notice ok"></div>
+      <div id="actErr" class="notice err hide"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeAct()">Cancel</button>
+      <button class="btn go" id="actGo" onclick="submitAct()">Accept</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '../api';
+let TOKEN = localStorage.getItem('tl_token') || '';
+let ME = null, VIEW = 'board', DATA = [], FEE_PCT = 10, FEE_MIN = 5;
+
+/* ── api ───────────────────────────────────────────────────────── */
+async function api(path, opts={}){
+  const r = await fetch(API + path, {
+    ...opts,
+    headers:{'Content-Type':'application/json', ...(TOKEN?{'Authorization':'Bearer '+TOKEN}:{}), ...(opts.headers||{})}
+  });
+  return r.json();
+}
+const money = n => '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const feeOn = a => Math.min(a, Math.max(FEE_MIN, Math.round(a*FEE_PCT)/100));
+
+/* ── auth ──────────────────────────────────────────────────────── */
+function demo(kind){
+  document.getElementById('liEmail').value = kind==='provider' ? 'ops@sunshinemc.test' : 'disp@tricounty.test';
+  document.getElementById('liPass').value  = 'testpass123';
+  doLogin();
+}
+async function doLogin(){
+  const err = document.getElementById('liErr');
+  err.classList.add('hide');
+  const res = await api('/auth.php?action=login', {method:'POST', body: JSON.stringify({
+    email: document.getElementById('liEmail').value.trim(),
+    password: document.getElementById('liPass').value
+  })});
+  if(!res.success){ err.textContent = res.error; err.classList.remove('hide'); return; }
+  TOKEN = res.token; localStorage.setItem('tl_token', TOKEN);
+  await boot();
+}
+function logout(){ TOKEN=''; localStorage.removeItem('tl_token'); location.reload(); }
+
+async function boot(){
+  const me = await api('/auth.php?action=me');
+  if(!me.success){ TOKEN=''; localStorage.removeItem('tl_token');
+    document.getElementById('loginView').classList.remove('hide');
+    document.getElementById('appView').classList.add('hide'); return; }
+  ME = me;
+  document.getElementById('loginView').classList.add('hide');
+  document.getElementById('appView').classList.remove('hide');
+  document.getElementById('acctName').textContent = me.account.name;
+  const t = document.getElementById('acctType');
+  t.textContent = me.account.account_type; t.className = 'badge ' + me.account.account_type;
+
+  const isTower = me.account.account_type === 'tower';
+  document.getElementById('tabs').innerHTML = isTower
+    ? `<button class="tab" data-v="board">Board</button><button class="tab" data-v="mine">My calls</button><button class="tab" data-v="bids">My bids</button>`
+    : `<button class="tab" data-v="mine">My calls</button>`;
+  document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
+
+  if(!isTower) await refreshWallet();
+  switchView(isTower ? 'board' : 'mine');
+}
+
+async function refreshWallet(){
+  const w = await api('/wallet.php?action=balance');
+  if(!w.success) return;
+  document.getElementById('walletBox').innerHTML =
+    `<span class="wallet">Available <b>${money(w.available)}</b>` +
+    (Number(w.held) > 0 ? ` &middot; Held <span class="held">${money(w.held)}</span>` : '') + `</span>`;
+}
+
+/* ── views ─────────────────────────────────────────────────────── */
+function switchView(v){
+  VIEW = v;
+  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const isTower = ME.account.account_type === 'tower';
+  const f = document.getElementById('filters');
+
+  if(v === 'board'){
+    document.getElementById('viewTitle').textContent = 'Available calls';
+    f.innerHTML = `
+      <select id="fService" onchange="load()">
+        <option value="">All services</option><option value="tow">Tow</option>
+        <option value="winch_recovery">Winch / recovery</option><option value="lockout">Lockout</option>
+        <option value="jumpstart">Jump start</option><option value="tire_change">Tire change</option>
+      </select>
+      <select id="fRadius" onchange="load()">
+        <option value="15">Within 15 mi</option><option value="25">Within 25 mi</option>
+        <option value="35" selected>Within 35 mi</option><option value="50">Within 50 mi</option>
+        <option value="100">Within 100 mi</option>
+      </select>`;
+  } else if(v === 'mine'){
+    document.getElementById('viewTitle').textContent = isTower ? 'My calls' : 'Calls I posted';
+    f.innerHTML = isTower ? '' : `<button class="btn go" onclick="openPost()">+ Post a call</button>`;
+  } else {
+    document.getElementById('viewTitle').textContent = 'My bids';
+    f.innerHTML = '';
+  }
+  load();
+}
+
+async function load(){
+  const list = document.getElementById('list');
+  list.innerHTML = `<div class="empty">Loading…</div>`;
+  let res;
+
+  if(VIEW === 'board'){
+    const s = document.getElementById('fService')?.value || '';
+    const r = document.getElementById('fRadius')?.value || 35;
+    res = await api(`/calls.php?action=board&radius=${r}` + (s ? `&service_type=${s}` : ''));
+    renderNotices(res);
+  } else if(VIEW === 'mine'){
+    res = await api('/calls.php?action=my-calls');
+  } else {
+    res = await api('/bids.php?action=mine');
+    return renderBids(res.bids || []);
+  }
+
+  if(!res.success){ list.innerHTML = `<div class="notice err">${res.error}</div>`; return; }
+  DATA = res.calls || [];
+  document.getElementById('viewSub').textContent =
+    DATA.length + (DATA.length === 1 ? ' call' : ' calls') +
+    (VIEW === 'board' && res.search ? ` within ${res.search.radius_miles} miles` : '');
+  render();
+}
+
+function renderNotices(res){
+  const n = document.getElementById('notices');
+  n.innerHTML = (res.can_accept === false && res.blocked_reason)
+    ? `<div class="notice warn"><b>Can't accept calls:</b> ${res.blocked_reason}</div>` : '';
+}
+
+function render(){
+  const list = document.getElementById('list');
+  if(!DATA.length){
+    list.innerHTML = `<div class="empty"><h3>Nothing here right now</h3>
+      <p>${VIEW==='board' ? 'New calls appear the moment a provider posts one.' : 'Calls you take will show up here.'}</p></div>`;
+    return;
+  }
+  const isTower = ME.account.account_type === 'tower';
+  list.innerHTML = DATA.map(c => {
+    const secs = c.expires_in_sec ?? Math.max(0, (new Date(c.expires_at.replace(' ','T')) - new Date())/1000);
+    const mins = Math.floor(secs/60), ss = String(Math.floor(secs%60)).padStart(2,'0');
+    const tcls = secs < 300 ? 'crit' : secs < 600 ? 'warn' : '';
+    const open = c.status === 'open';
+    const net  = c.offer_amount - feeOn(c.offer_amount);
+    const flags = [
+      !c.has_keys && 'No keys', !c.wheels_lock && 'Wheels locked',
+      c.is_accident && 'Accident', c.is_underground && 'Underground',
+      c.is_ev && 'EV', c.needs_flatbed && 'Flatbed'
+    ].filter(Boolean);
+
+    return `<div class="call ${open && secs<300 ? 'urgent' : ''} ${!open ? 'mine' : ''}">
+      <div class="c-main">
+        <div class="c-top">
+          <span class="svc ${c.service_type}">${c.service_type.replace('_',' ')}</span>
+          <span class="cnum">${c.call_number}</span>
+          ${open ? `<span class="funded">&#9679; Funded</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
+        </div>
+        <div class="route">
+          ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
+          ${c.dropoff_city ? `<span class="arrow">&rarr;</span> ${c.dropoff_city}, ${c.dropoff_state}` : ''}
+          ${c.tow_miles ? `<span class="miles">${c.tow_miles} mi tow</span>` : ''}
+        </div>
+        <div class="meta">
+          <span>${c.vehicle || 'Vehicle n/a'}${c.vehicle_color ? ' &middot; ' + c.vehicle_color : ''}</span>
+          <span>${c.customer_name || ''}</span>
+          ${c.provider_name ? `<span>${c.provider_name}</span>` : ''}
+          ${c.tower_name ? `<span>${c.tower_name}</span>` : ''}
+          ${flags.length ? `<span class="flag">${flags.join(' &middot; ')}</span>` : ''}
+        </div>
+      </div>
+      <div class="c-side">
+        ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">miles</span></div>` : ''}
+        ${open ? `<div class="timer ${tcls}"><div class="t">${mins}:${ss}</div><div class="l">left</div></div>` : ''}
+        <div class="pay">
+          <div class="amt">${money(c.offer_amount)}</div>
+          ${isTower ? `<div class="net">${money(net)} to you</div>` : ''}
+          ${c.pricing_mode === 'bid' ? `<div class="mode">Bidding &middot; ${c.bid_count||0}</div>` : ''}
+        </div>
+        <div class="act">
+          ${isTower && open
+            ? (c.pricing_mode === 'bid'
+                ? `<button class="btn ${c.already_bid?'ghost':'go'}" onclick="openAct(${c.id},'bid')">${c.already_bid?'Update bid':'Place bid'}</button>`
+                : `<button class="btn go" onclick="openAct(${c.id},'accept')">Accept</button>`)
+            : ''}
+          ${isTower && !open && ['awarded','en_route','on_scene'].includes(c.status)
+            ? `<button class="btn green" onclick="advance(${c.id},'${c.status}')">${nextLabel(c.status)}</button>` : ''}
+          ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">Cancel</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderBids(bids){
+  document.getElementById('viewSub').textContent = bids.length + ' bids';
+  const list = document.getElementById('list');
+  if(!bids.length){ list.innerHTML = `<div class="empty"><h3>No bids yet</h3></div>`; return; }
+  list.innerHTML = bids.map(b => `<div class="call">
+    <div class="c-main">
+      <div class="c-top"><span class="cnum">${b.call_number}</span>
+        <span class="svc">${b.service_type.replace('_',' ')}</span>
+        <span class="cnum">${b.status}</span></div>
+      <div class="route">${b.pickup_city}, ${b.pickup_state}</div>
+      <div class="meta"><span>${b.provider_name}</span><span>ETA ${b.eta_minutes} min</span></div>
+    </div>
+    <div class="c-side"><div class="pay">
+      <div class="amt">${money(b.amount)}</div>
+      <div class="net">asking &middot; posted at ${money(b.offer_amount)}</div>
+    </div></div></div>`).join('');
+}
+
+const nextLabel = s => ({awarded:'En route', en_route:'On scene', on_scene:'Complete'})[s];
+async function advance(id, cur){
+  if(cur === 'on_scene'){
+    const r = await api('/calls.php?action=complete', {method:'POST', body:JSON.stringify({call_id:id})});
+    if(!r.success) return alert(r.error);
+    alert(`Completed. ${money(r.net_to_you)} is on its way to your bank.`);
+  } else {
+    const next = cur === 'awarded' ? 'en_route' : 'on_scene';
+    const r = await api('/calls.php?action=status', {method:'POST', body:JSON.stringify({call_id:id, status:next})});
+    if(!r.success) return alert(r.error);
+  }
+  load();
+}
+async function cancelCall(id){
+  if(!confirm('Cancel this call? Held funds return to your balance.')) return;
+  const r = await api('/calls.php?action=cancel', {method:'POST', body:JSON.stringify({call_id:id})});
+  if(!r.success) return alert(r.error);
+  await refreshWallet(); load();
+}
+
+/* ── post a call ───────────────────────────────────────────────── */
+function openPost(){ document.getElementById('postModal').classList.add('on'); renderCost(); }
+function closePost(){ document.getElementById('postModal').classList.remove('on'); }
+function renderCost(){
+  const a = Number(document.getElementById('pAmount').value || 0);
+  document.getElementById('costNote').innerHTML =
+    `Holds <b>${money(a)}</b> from your balance until the call closes`;
+}
+async function submitCall(){
+  const err = document.getElementById('postErr'); err.classList.add('hide');
+  const body = {
+    service_type: pService.value, vehicle_class: pClass.value,
+    pickup_address: pPickup.value, pickup_city: pCity.value, pickup_state: pState.value,
+    // Geocoding is wired to the address field in the live build; the demo
+    // seeds Stuart FL so distances render against the tower's base.
+    pickup_lat: 27.1912, pickup_lng: -80.2456,
+    dropoff_address: pDrop.value || null,
+    dropoff_city: pDrop.value ? 'Palm City' : null, dropoff_state: pDrop.value ? 'FL' : null,
+    dropoff_lat: pDrop.value ? 27.1631 : null, dropoff_lng: pDrop.value ? -80.3120 : null,
+    vehicle_year: pYear.value, vehicle_make: pMake.value, vehicle_model: pModel.value,
+    has_keys: pKeys.checked, wheels_lock: pWheels.checked,
+    is_accident: pAccident.checked, is_ev: pEV.checked,
+    customer_name: pCName.value, customer_phone: pCPhone.value,
+    pricing_mode: pMode.value, offer_amount: Number(pAmount.value),
+    goa_amount: Number(pGoa.value), expires_in_minutes: Number(pExpiry.value)
+  };
+  const r = await api('/calls.php?action=create', {method:'POST', body:JSON.stringify(body)});
+  if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
+  closePost(); await refreshWallet(); load();
+}
+
+/* ── accept / bid ──────────────────────────────────────────────── */
+let ACT = null;
+function openAct(id, mode){
+  ACT = {id, mode};
+  const c = DATA.find(x => x.id === id);
+  document.getElementById('actTitle').textContent = mode === 'bid' ? 'Place your bid' : 'Accept this call';
+  document.getElementById('actGo').textContent    = mode === 'bid' ? 'Submit bid' : 'Accept call';
+  document.getElementById('actSummary').innerHTML =
+    `<div style="font-size:15px;font-weight:600;margin-bottom:4px">${c.pickup_area}${c.dropoff_city?' → '+c.dropoff_city:''}</div>
+     <div style="color:var(--ink-dim);font-size:13px">${c.vehicle} &middot; ${c.service_type.replace('_',' ')} &middot; posted at ${money(c.offer_amount)}</div>`;
+  document.getElementById('bidAmtWrap').style.display  = mode === 'bid' ? '' : 'none';
+  document.getElementById('bidNoteWrap').style.display = mode === 'bid' ? '' : 'none';
+  document.getElementById('actAmount').value = c.offer_amount;
+  document.getElementById('actErr').classList.add('hide');
+  renderActNet();
+  document.getElementById('actModal').classList.add('on');
+}
+function closeAct(){ document.getElementById('actModal').classList.remove('on'); }
+function renderActNet(){
+  const c = DATA.find(x => x.id === ACT.id);
+  const amt = ACT.mode === 'bid' ? Number(document.getElementById('actAmount').value||0) : c.offer_amount;
+  const fee = feeOn(amt);
+  document.getElementById('actNet').innerHTML =
+    `You receive <b>${money(amt-fee)}</b> &nbsp;<span style="opacity:.7">(${money(amt)} less ${money(fee)} platform fee)</span>`;
+}
+async function submitAct(){
+  const err = document.getElementById('actErr'); err.classList.add('hide');
+  const eta = Number(document.getElementById('actEta').value);
+  let r;
+  if(ACT.mode === 'bid'){
+    r = await api('/bids.php?action=create', {method:'POST', body:JSON.stringify({
+      call_id: ACT.id, amount: Number(document.getElementById('actAmount').value),
+      eta_minutes: eta, note: document.getElementById('actNote').value })});
+  } else {
+    r = await api('/calls.php?action=accept', {method:'POST', body:JSON.stringify({call_id: ACT.id, eta_minutes: eta})});
+  }
+  if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
+  closeAct();
+  if(ACT.mode === 'accept') alert(`Call is yours.\n\n${r.customer_name} — ${r.customer_phone}\n${r.pickup_address}`);
+  load();
+}
+
+// A stale board is a lost call, so refresh on a timer and tick the countdowns.
+setInterval(() => { if(ME && VIEW === 'board') load(); }, 20000);
+setInterval(() => { if(ME && DATA.length) render(); }, 1000);
+
+if(TOKEN) boot();
+</script>
+</body>
+</html>
