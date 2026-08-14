@@ -44,6 +44,15 @@ RewriteRule ^tow/?$                          tow.html [L]
 RewriteRule ^join/?$                         join.html [L]
 RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 
+# Terms and privacy have to be readable without an account — a tower deciding
+# whether to sign up and a customer deciding whether to confirm both need them
+# before they have one. QSA keeps ?doc=customer|tower|privacy.
+RewriteRule ^terms/?$                        terms.html [QSA,L]
+RewriteRule ^privacy/?$                      terms.html?doc=privacy [L]
+
+# Platform control panel.
+RewriteRule ^admin/?$                        admin.html [L]
+
 # API + webhooks
 RewriteRule ^api/([a-z-]+)/([a-z-]+)/?$      api/$1.php?action=$2 [QSA,L]
 RewriteRule ^api/([a-z-]+)/?$                api/$1.php [QSA,L]
@@ -56,9 +65,15 @@ DirectoryIndex index.html
 
 # ─── Hardening ──────────────────────────────────────────────────────────────
 # Config, includes and the schema must never be fetchable over HTTP.
-RedirectMatch 404 ^/.*/(config|includes)/.*$
+RedirectMatch 404 ^/.*/(config|includes|migrations)/.*$
 RedirectMatch 404 ^/.*/schema\.sql$
 RedirectMatch 404 ^/.*/\.git
+
+# Compliance uploads: EIN letters, insurance certificates, driver's licences.
+# Belt and braces — uploads/.htaccess denies these too, and the only way to read
+# one is api/docs/file, which checks who is asking. Any single layer failing
+# still leaves them unreachable.
+RedirectMatch 404 ^/.*/uploads/.*$
 
 <FilesMatch "\.(sql|log|md|bak|bak-.*)$">
     Require all denied

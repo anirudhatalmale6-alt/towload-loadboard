@@ -1,0 +1,674 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>TowLoad Admin</title>
+<style>
+:root{
+  --bg:#0c1017; --panel:#141a24; --panel-2:#1b232f; --line:#242e3d;
+  --ink:#eef2f7; --ink-2:#9aa8bd; --ink-3:#6b7a90;
+  --accent:#f97316; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+  --blue:#3b82f6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font-family:inherit;font-size:14px}
+a{color:var(--blue)}
+.hide{display:none !important}
+
+/* ── login ─────────────────────────────────────────────── */
+.login{max-width:360px;margin:14vh auto;padding:0 22px}
+.login h1{font-size:23px;font-weight:800;letter-spacing:-.6px;margin-bottom:6px}
+.login p{color:var(--ink-3);margin-bottom:26px;font-size:13.5px}
+
+/* ── chrome ────────────────────────────────────────────── */
+.bar{
+  display:flex;align-items:center;gap:16px;padding:0 20px;height:56px;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  position:sticky;top:0;z-index:20;
+}
+.bar .logo{font-weight:800;letter-spacing:-.5px;font-size:16px}
+.bar .sp{flex:1}
+.bar .who{color:var(--ink-3);font-size:13px}
+.nav{
+  display:flex;gap:2px;padding:10px 16px 0;background:var(--panel);
+  border-bottom:1px solid var(--line);overflow-x:auto;
+  position:sticky;top:56px;z-index:19;
+}
+.nav button{
+  background:none;border:0;color:var(--ink-3);padding:10px 14px;
+  font-weight:700;font-size:13.5px;cursor:pointer;border-bottom:2px solid transparent;
+  white-space:nowrap;
+}
+.nav button.on{color:var(--ink);border-bottom-color:var(--accent)}
+.wrap{padding:22px 20px 80px;max-width:1180px;margin:0 auto}
+h2.sec{font-size:17px;font-weight:750;letter-spacing:-.3px;margin:0 0 14px}
+.sub{color:var(--ink-3);font-size:13px;margin:-8px 0 18px;line-height:1.6;max-width:660px}
+
+/* ── bits ──────────────────────────────────────────────── */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+.tile .n{font-size:27px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.tile .l{color:var(--ink-3);font-size:12px;margin-top:5px;font-weight:600}
+.tile.alert{border-color:#7f1d1d;background:#1a1113}
+.tile.alert .n{color:var(--bad)}
+
+table{width:100%;border-collapse:collapse}
+th{
+  text-align:left;color:var(--ink-3);font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.6px;padding:0 12px 9px;font-weight:700;
+}
+td{padding:12px;border-top:1px solid var(--line);vertical-align:middle}
+tr.click:hover{background:var(--panel-2);cursor:pointer}
+
+.pill{
+  display:inline-block;padding:3px 9px;border-radius:999px;
+  font-size:11.5px;font-weight:750;
+}
+.pill.pending{background:#3b2d12;color:#fbbf24}
+.pill.approved{background:#0f2e1c;color:#4ade80}
+.pill.rejected,.pill.suspended{background:#3b1515;color:#f87171}
+.pill.unverified{background:#232c3a;color:var(--ink-2)}
+
+.btn{
+  background:var(--accent);color:#0c1017;border:0;border-radius:9px;
+  padding:10px 15px;font-weight:750;cursor:pointer;
+}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.sec{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+.btn.ok{background:var(--ok);color:#04140a}
+.btn.bad{background:var(--bad);color:#fff}
+.btn.sm{padding:7px 11px;font-size:13px;border-radius:8px}
+
+label.f{display:block;margin-bottom:14px}
+label.f span{
+  display:block;color:var(--ink-2);font-size:12.5px;
+  font-weight:650;margin-bottom:6px;
+}
+input,select,textarea{
+  width:100%;background:var(--bg);border:1px solid var(--line);border-radius:9px;
+  padding:10px 12px;color:var(--ink);
+}
+input:focus,select:focus{outline:0;border-color:var(--accent)}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row > *{flex:1;min-width:140px}
+
+.msg{padding:11px 14px;border-radius:9px;margin-bottom:16px;font-size:13.5px;font-weight:600}
+.msg.ok{background:#0f2e1c;color:#4ade80}
+.msg.bad{background:#3b1515;color:#f87171}
+
+/* emergency brake — deliberately loud */
+.brake{
+  border:1px solid #7f1d1d;background:linear-gradient(180deg,#1a1113,#141a24);
+  border-radius:12px;padding:18px;margin-bottom:22px;
+}
+.brake.on{border-color:var(--bad);background:#2a1114}
+.brake h3{font-size:15px;font-weight:800;margin-bottom:7px;color:#fca5a5}
+.brake p{color:var(--ink-2);font-size:13px;line-height:1.6;margin-bottom:14px;max-width:720px}
+.brake .state{
+  font-size:12px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
+  color:var(--bad);margin-bottom:10px;
+}
+
+/* modal */
+.mask{
+  position:fixed;inset:0;background:rgba(3,6,12,.72);z-index:60;
+  display:flex;align-items:flex-start;justify-content:center;padding:32px 18px;
+  overflow:auto;
+}
+.modal{
+  background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  width:100%;max-width:720px;padding:22px;
+}
+.modal h3{font-size:19px;font-weight:780;letter-spacing:-.4px;margin-bottom:3px}
+.modal .m-sub{color:var(--ink-3);font-size:13px;margin-bottom:20px}
+.docrow{
+  display:flex;align-items:center;gap:12px;padding:12px 0;
+  border-top:1px solid var(--line);
+}
+.docrow .dn{flex:1}
+.docrow .dn b{display:block;font-weight:700;font-size:13.5px}
+.docrow .dn small{color:var(--ink-3);font-size:12px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:7px 14px;font-size:13.5px;margin-bottom:18px}
+.kv .k{color:var(--ink-3)}
+.empty{color:var(--ink-3);text-align:center;padding:44px 0;font-size:13.5px}
+</style>
+
+<!-- ═══ LOGIN ═══ -->
+<div class="login" id="loginView">
+  <h1>TowLoad Admin</h1>
+  <p>Platform control panel.</p>
+  <div id="loginMsg"></div>
+  <label class="f"><span>Email</span><input id="aEmail" type="email" autocomplete="username"></label>
+  <label class="f"><span>Password</span><input id="aPass" type="password" autocomplete="current-password"
+         onkeydown="if(event.key==='Enter')doLogin()"></label>
+  <button class="btn" style="width:100%" onclick="doLogin()" id="loginBtn">Sign in</button>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="appView" class="hide">
+  <div class="bar">
+    <div class="logo">TowLoad</div>
+    <div class="sp"></div>
+    <div class="who" id="who"></div>
+    <button class="btn sec sm" onclick="signOut()">Sign out</button>
+  </div>
+  <div class="nav" id="nav"></div>
+  <div class="wrap" id="view"></div>
+</div>
+
+<div id="modalHost"></div>
+
+<script>
+const API = 'api';
+let TOKEN = localStorage.getItem('tl_admin') || '';
+let ADMIN = null;
+let TAB = 'dashboard';
+
+const $ = id => document.getElementById(id);
+const money = n => '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts = {}){
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'Content-Type':'application/json',
+      // Authorization is stripped by DreamHost's CGI setup on some paths, so
+      // the API accepts this header as a fallback. Both are sent.
+      ...(TOKEN ? {'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN} : {}),
+      ...(opts.headers || {})
+    }
+  });
+  const j = await r.json().catch(() => ({success:false, error:'Server error'}));
+  if(r.status === 401 && TAB !== 'login'){ signOut(); }
+  return j;
+}
+
+function flash(msg, bad){
+  const el = document.createElement('div');
+  el.className = 'msg ' + (bad ? 'bad' : 'ok');
+  el.textContent = msg;
+  const v = $('view');
+  v.insertBefore(el, v.firstChild);
+  setTimeout(() => el.remove(), 4200);
+}
+
+// ── auth ─────────────────────────────────────────────────
+async function doLogin(){
+  $('loginBtn').disabled = true;
+  const r = await api('/admin/login', {method:'POST', body:JSON.stringify({
+    email:$('aEmail').value.trim(), password:$('aPass').value
+  })});
+  $('loginBtn').disabled = false;
+  if(!r.success){
+    $('loginMsg').innerHTML = `<div class="msg bad">${esc(r.error)}</div>`;
+    return;
+  }
+  TOKEN = r.token; ADMIN = r.admin;
+  localStorage.setItem('tl_admin', TOKEN);
+  localStorage.setItem('tl_admin_who', JSON.stringify(ADMIN));
+  boot();
+}
+
+function signOut(){
+  TOKEN = ''; ADMIN = null;
+  localStorage.removeItem('tl_admin');
+  localStorage.removeItem('tl_admin_who');
+  $('appView').classList.add('hide');
+  $('loginView').classList.remove('hide');
+}
+
+// ── shell ────────────────────────────────────────────────
+const TABS = [
+  ['dashboard','Overview'], ['review','Review queue'], ['markets','Markets & pricing'],
+  ['rates','Rate table'], ['leads','Coverage leads'], ['jobs','Jobs'], ['settings','Settings'],
+];
+
+function boot(){
+  $('loginView').classList.add('hide');
+  $('appView').classList.remove('hide');
+  $('who').textContent = ADMIN ? ADMIN.name : '';
+  $('nav').innerHTML = TABS.map(([k,l]) =>
+    `<button class="${k===TAB?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('');
+  render();
+}
+
+function setTab(k){ TAB = k; boot(); }
+
+function render(){
+  $('view').innerHTML = '<div class="empty">Loading…</div>';
+  ({dashboard:vDashboard, review:vReview, markets:vMarkets,
+    rates:vRates, leads:vLeads, jobs:vJobs, settings:vSettings}[TAB] || vDashboard)();
+}
+
+// ═══ OVERVIEW ════════════════════════════════════════════
+async function vDashboard(){
+  const r = await api('/admin/dashboard');
+  if(!r.success) return;
+
+  const tile = (n,l,alert) => `<div class="tile ${alert?'alert':''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+
+  $('view').innerHTML = `
+    <div class="brake ${r.emergency_mode?'on':''}">
+      ${r.emergency_mode ? '<div class="state">● Emergency mode is ON</div>' : ''}
+      <h3>Emergency brake — freeze demand pricing</h3>
+      <p>Raising the price of towing during a declared state of emergency is unlawful in
+         Florida (§501.160) and in most other states, and towing is frequently named in the
+         statute. A hurricane is both the biggest demand spike this platform will ever see
+         and the exact moment surge pricing becomes a legal problem. This forces every
+         multiplier to 1.0 instantly, everywhere, and overrides every other setting
+         including manual market overrides.</p>
+      <button class="btn ${r.emergency_mode?'sec':'bad'}" onclick="setEmergency(${r.emergency_mode?0:1})">
+        ${r.emergency_mode ? 'Turn emergency mode OFF — resume normal pricing' : 'FREEZE ALL SURGE PRICING NOW'}
+      </button>
+    </div>
+
+    <div class="tiles">
+      ${tile(r.pending_review, 'Companies awaiting review', r.pending_review > 0)}
+      ${tile(r.approved_towers, 'Approved companies')}
+      ${tile(r.open_jobs, 'Jobs on the board')}
+      ${tile(r.active_jobs, 'Jobs in progress')}
+      ${tile(r.jobs_today, 'Jobs today')}
+      ${tile(r.unclaimed_today, 'Expired unclaimed today', r.unclaimed_today > 0)}
+      ${tile(money(r.revenue_today), 'Your fees today')}
+      ${tile(r.new_leads, 'Uncontacted leads')}
+      ${tile(r.expiring_coi, 'Insurance expiring < 30d', r.expiring_coi > 0)}
+      ${tile(r.surge_enabled ? r.surge_max + 'x' : 'off', 'Surge cap')}
+    </div>`;
+}
+
+async function setEmergency(on){
+  if(on && !confirm('Freeze surge pricing nationwide?\n\nEvery job will price at the standard rate until you turn this off.')) return;
+  const r = await api('/admin/emergency', {method:'POST', body:JSON.stringify({on})});
+  render();
+  setTimeout(() => flash(r.message || 'Updated', !r.success), 60);
+}
+
+// ═══ REVIEW QUEUE ════════════════════════════════════════
+async function vReview(){
+  const status = window._revStatus || 'pending';
+  const r = await api('/admin/accounts?status=' + status);
+  if(!r.success) return;
+
+  const filters = ['pending','approved','rejected','unverified','suspended'].map(s =>
+    `<button class="btn ${s===status?'':'sec'} sm" onclick="window._revStatus='${s}';render()">${s}</button>`).join(' ');
+
+  $('view').innerHTML = `
+    <h2 class="sec">Review queue</h2>
+    <div class="sub">Companies cannot accept a job or be paid until you approve them.
+      Approving marks their uploaded documents approved too, which is what unblocks the
+      insurance check at dispatch time.</div>
+    <div style="margin-bottom:16px">${filters}</div>
+    <div class="card">
+      ${!r.accounts.length ? '<div class="empty">Nothing here.</div>' : `
+      <table><thead><tr>
+        <th>Company</th><th>EIN</th><th>Location</th><th>Docs</th><th>Submitted</th><th>Status</th>
+      </tr></thead><tbody>
+      ${r.accounts.map(a => `
+        <tr class="click" onclick="openAccount(${a.id})">
+          <td><b>${esc(a.name)}</b><br><small style="color:var(--ink-3)">${esc(a.email||'')}</small></td>
+          <td>${esc(a.ein||'—')}</td>
+          <td>${esc([a.city,a.state].filter(Boolean).join(', ')||'—')}</td>
+          <td>${a.doc_count}</td>
+          <td>${(a.docs_submitted_at||a.created_at||'').slice(0,16).replace('T',' ')}</td>
+          <td><span class="pill ${a.verification_status}">${a.verification_status}</span></td>
+        </tr>`).join('')}
+      </tbody></table>`}
+    </div>`;
+}
+
+async function openAccount(id){
+  const r = await api('/admin/account?id=' + id);
+  if(!r.success) return flash(r.error, true);
+  const a = r.account;
+
+  const docs = r.documents.length ? r.documents.map(d => `
+    <div class="docrow">
+      <div class="dn">
+        <b>${esc(d.label)}</b>
+        <small>${esc(d.file_name||'')}${d.expires_at ? ' · expires ' + d.expires_at : ''}${d.policy_number ? ' · policy ' + esc(d.policy_number) : ''}</small>
+      </div>
+      <span class="pill ${d.status}">${d.status}</span>
+      <button class="btn sec sm" onclick="viewDoc(${d.id},'${esc(d.mime_type)}')">View</button>
+    </div>`).join('') : '<div class="empty">No documents uploaded.</div>';
+
+  const acc = r.acceptances.length
+    ? r.acceptances.map(x => `${x.doc_key} v${x.version} · ${x.accepted_at} · ${x.ip_address||''}`).join('<br>')
+    : '<span style="color:var(--ink-3)">none recorded</span>';
+
+  showModal(`
+    <h3>${esc(a.name)}</h3>
+    <div class="m-sub">${esc(a.legal_name||'')}${a.legal_name && a.legal_name !== a.name ? ' · trading as ' + esc(a.name) : ''}</div>
+    <div class="kv">
+      <div class="k">EIN</div><div>${esc(a.ein||'—')}</div>
+      <div class="k">Contact</div><div>${esc(a.email||'')} · ${esc(a.phone||'')}</div>
+      <div class="k">Address</div><div>${esc([a.address,a.city,a.state,a.zip].filter(Boolean).join(', ')||'—')}</div>
+      <div class="k">Trucks</div><div>${a.trucks_count||'—'} · ${a.service_radius_miles||'—'} mi radius${a.is_24_7?' · 24/7':''}</div>
+      <div class="k">Status</div><div><span class="pill ${a.verification_status}">${a.verification_status}</span></div>
+      <div class="k">Terms accepted</div><div style="font-size:12.5px;line-height:1.6">${acc}</div>
+    </div>
+    <div style="margin-bottom:6px;font-weight:700;font-size:13.5px">Documents</div>
+    ${docs}
+    <label class="f" style="margin-top:20px">
+      <span>Reason (required to reject or suspend — the company sees this)</span>
+      <textarea id="revReason" rows="2"></textarea>
+    </label>
+    <div class="row">
+      <button class="btn ok" onclick="reviewAccount(${id},'approved')">Approve &amp; verify</button>
+      <button class="btn bad" onclick="reviewAccount(${id},'rejected')">Reject</button>
+      <button class="btn sec" onclick="closeModal()">Close</button>
+    </div>
+  `);
+}
+
+async function reviewAccount(id, decision){
+  const reason = ($('revReason')||{}).value || '';
+  if(decision !== 'approved' && !reason.trim()) return alert('Write the reason — the company will see it.');
+  const r = await api('/admin/review-account', {method:'POST', body:JSON.stringify({
+    account_id:id, decision, reason
+  })});
+  closeModal();
+  render();
+  setTimeout(() => flash(r.success ? r.message : r.error, !r.success), 60);
+}
+
+// Documents are never public URLs, so they cannot be dropped into an <img> or
+// an <a>. Fetch with the admin token, then hand the browser a blob.
+async function viewDoc(id, mime){
+  const r = await fetch(`${API}/docs/file?id=${id}`, {
+    headers:{'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN}
+  });
+  if(!r.ok) return alert('Could not open that document.');
+  const url = URL.createObjectURL(await r.blob());
+  window.open(url, '_blank');
+  // Revoked late: revoking immediately can beat the new tab to the file.
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// ═══ MARKETS ═════════════════════════════════════════════
+async function vMarkets(){
+  const r = await api('/admin/zones');
+  if(!r.success) return;
+
+  $('view').innerHTML = `
+    <h2 class="sec">Markets &amp; pricing</h2>
+    <div class="sub">A market is either a circle around a city or a whole state. Rates come
+      from one national table; the multiplier here scales that table for this market, so
+      opening a city is one number rather than a new price list.
+      <b>Live</b> means we will take a customer's card there — turn it off and requests in
+      that area become leads instead.</div>
+
+    <div class="card" style="margin-bottom:18px">
+      <table><thead><tr>
+        <th>Market</th><th>Type</th><th>Rate</th><th>Live</th><th>Surge</th><th>Override</th><th></th>
+      </tr></thead><tbody>
+      ${r.zones.map(z => `
+        <tr>
+          <td><b>${esc(z.name)}</b>${z.name_es ? `<br><small style="color:var(--ink-3)">${esc(z.name_es)}</small>` : ''}</td>
+          <td>${z.radius_miles > 0 ? `${z.radius_miles} mi circle` : (z.state ? 'State ' + z.state : 'National')}</td>
+          <td>${Number(z.rate_multiplier).toFixed(2)}x</td>
+          <td>${z.is_live ? '<span class="pill approved">live</span>' : '<span class="pill unverified">off</span>'}</td>
+          <td>${z.surge_enabled ? 'on' : '<span style="color:var(--ink-3)">off</span>'}</td>
+          <td>${z.manual_surge && new Date(z.manual_surge_until) > new Date()
+                ? `<span class="pill pending">${Number(z.manual_surge).toFixed(2)}x → ${z.manual_surge_until.slice(0,16).replace('T',' ')}</span>`
+                : '<span style="color:var(--ink-3)">—</span>'}</td>
+          <td style="text-align:right;white-space:nowrap">
+            <button class="btn sec sm" onclick='editZone(${JSON.stringify(z)})'>Edit</button>
+            <button class="btn sec sm" onclick='overrideZone(${z.id},"${esc(z.name)}")'>Price override</button>
+          </td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>
+    <button class="btn" onclick="editZone(null)">Add a market</button>`;
+}
+
+function editZone(z){
+  z = z || {rate_multiplier:1, radius_miles:0, is_live:0, surge_enabled:1, is_active:1};
+  showModal(`
+    <h3>${z.id ? 'Edit market' : 'New market'}</h3>
+    <div class="m-sub">Leave radius at 0 and set a state code to cover a whole state.</div>
+    <div class="row">
+      <label class="f"><span>Name (English)</span><input id="zName" value="${esc(z.name||'')}"></label>
+      <label class="f"><span>Name (Spanish)</span><input id="zNameEs" value="${esc(z.name_es||'')}"></label>
+    </div>
+    <div class="row">
+      <label class="f"><span>State code</span><input id="zState" maxlength="2" value="${esc(z.state||'')}"></label>
+      <label class="f"><span>Centre latitude</span><input id="zLat" value="${z.center_lat||''}"></label>
+      <label class="f"><span>Centre longitude</span><input id="zLng" value="${z.center_lng||''}"></label>
+      <label class="f"><span>Radius (miles)</span><input id="zRad" type="number" value="${z.radius_miles||0}"></label>
+    </div>
+    <div class="row">
+      <label class="f"><span>Rate multiplier (1.00 = national rates)</span>
+        <input id="zMult" type="number" step="0.05" value="${z.rate_multiplier||1}"></label>
+      <label class="f"><span>Taking payments here</span>
+        <select id="zLive"><option value="1"${z.is_live?' selected':''}>Live</option><option value="0"${!z.is_live?' selected':''}>Leads only</option></select></label>
+      <label class="f"><span>Demand pricing</span>
+        <select id="zSurge"><option value="1"${z.surge_enabled?' selected':''}>On</option><option value="0"${!z.surge_enabled?' selected':''}>Off</option></select></label>
+    </div>
+    <div class="row">
+      <button class="btn" onclick="saveZone(${z.id||0})">Save</button>
+      <button class="btn sec" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function saveZone(id){
+  const body = {
+    id: id || undefined,
+    name:$('zName').value.trim(), name_es:$('zNameEs').value.trim() || null,
+    state:$('zState').value.trim() || null,
+    center_lat:$('zLat').value.trim() || null, center_lng:$('zLng').value.trim() || null,
+    radius_miles:+$('zRad').value || 0, rate_multiplier:+$('zMult').value || 1,
+    is_live:+$('zLive').value, surge_enabled:+$('zSurge').value,
+  };
+  const r = await api('/admin/zone-save', {method:'POST', body:JSON.stringify(body)});
+  closeModal(); render();
+  setTimeout(() => flash(r.success ? 'Saved' : r.error, !r.success), 60);
+}
+
+function overrideZone(id, name){
+  showModal(`
+    <h3>Price override — ${esc(name)}</h3>
+    <div class="m-sub">Sets the demand multiplier by hand and switches the algorithm off for
+      this market until it expires.</div>
+    <p style="color:var(--ink-2);font-size:13px;line-height:1.6;margin-bottom:18px">
+      The expiry is mandatory on purpose. An override set during a busy weekend and then
+      forgotten will quietly suppress bookings for months, and nobody ever connects the two.
+      Set it to the shortest window that covers what you are reacting to.</p>
+    <div class="row">
+      <label class="f"><span>Multiplier</span><input id="ovMult" type="number" step="0.05" value="1.20"></label>
+      <label class="f"><span>Hours</span><input id="ovHours" type="number" value="6"></label>
+    </div>
+    <label class="f"><span>Note (why)</span><input id="ovNote" placeholder="e.g. Ultra weekend, downtown"></label>
+    <div class="row">
+      <button class="btn" onclick="saveOverride(${id})">Apply</button>
+      <button class="btn sec" onclick="clearOverride(${id})">Clear override</button>
+      <button class="btn sec" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+async function saveOverride(id){
+  const r = await api('/admin/zone-surge', {method:'POST', body:JSON.stringify({
+    zone_id:id, multiplier:+$('ovMult').value, hours:+$('ovHours').value, note:$('ovNote').value
+  })});
+  closeModal(); render();
+  setTimeout(() => flash(r.success ? r.message : r.error, !r.success), 60);
+}
+async function clearOverride(id){
+  const r = await api('/admin/zone-surge', {method:'POST', body:JSON.stringify({zone_id:id, clear:1})});
+  closeModal(); render();
+  setTimeout(() => flash(r.success ? r.message : r.error, !r.success), 60);
+}
+
+// ═══ RATE TABLE ══════════════════════════════════════════
+async function vRates(){
+  const r = await api('/admin/rates?zone_id=0');
+  if(!r.success) return;
+
+  $('view').innerHTML = `
+    <h2 class="sec">National rate table</h2>
+    <div class="sub">The base prices every market is scaled from. Editable without a deploy —
+      change a number here and the next quote uses it.</div>
+    <div class="card">
+      <table><thead><tr>
+        <th>Service</th><th>Class</th><th>Base</th><th>Incl. mi</th><th>Per mi</th>
+        <th>Minimum</th><th>Night</th><th>Weekend</th><th></th>
+      </tr></thead><tbody>
+      ${r.rates.map(x => `
+        <tr>
+          <td><b>${x.service_type.replace(/_/g,' ')}</b></td>
+          <td>${x.vehicle_class}</td>
+          <td><input id="r${x.id}_base_fee" value="${x.base_fee}" style="width:80px"></td>
+          <td><input id="r${x.id}_included_miles" value="${x.included_miles}" style="width:62px"></td>
+          <td><input id="r${x.id}_per_mile" value="${x.per_mile}" style="width:70px"></td>
+          <td><input id="r${x.id}_minimum_total" value="${x.minimum_total}" style="width:80px"></td>
+          <td><input id="r${x.id}_after_hours_multiplier" value="${x.after_hours_multiplier}" style="width:62px"></td>
+          <td><input id="r${x.id}_weekend_multiplier" value="${x.weekend_multiplier}" style="width:62px"></td>
+          <td><button class="btn sm" onclick="saveRate(${x.id})">Save</button></td>
+        </tr>`).join('')}
+      </tbody></table>
+    </div>`;
+}
+
+async function saveRate(id){
+  const body = {id};
+  ['base_fee','included_miles','per_mile','minimum_total',
+   'after_hours_multiplier','weekend_multiplier'].forEach(f => body[f] = +$(`r${id}_${f}`).value);
+  const r = await api('/admin/rate-save', {method:'POST', body:JSON.stringify(body)});
+  flash(r.success ? 'Saved' : r.error, !r.success);
+}
+
+// ═══ LEADS ═══════════════════════════════════════════════
+async function vLeads(){
+  const r = await api('/admin/leads');
+  if(!r.success) return;
+
+  $('view').innerHTML = `
+    <h2 class="sec">Coverage leads</h2>
+    <div class="sub">People who wanted a truck somewhere we do not cover. Nobody was charged.
+      The clusters below are the recruiting map — the cities with the most unserved requests
+      are the cities worth opening next.</div>
+
+    ${r.clusters.length ? `
+    <div class="card" style="margin-bottom:18px">
+      <table><thead><tr><th>City</th><th>Requests</th><th>Last</th></tr></thead><tbody>
+      ${r.clusters.map(c => `<tr><td><b>${esc(c.city)}, ${esc(c.state||'')}</b></td>
+        <td>${c.n}</td><td>${(c.last_seen||'').slice(0,16).replace('T',' ')}</td></tr>`).join('')}
+      </tbody></table>
+    </div>` : ''}
+
+    <div class="card">
+      ${!r.leads.length ? '<div class="empty">No leads yet.</div>' : `
+      <table><thead><tr>
+        <th>When</th><th>Name</th><th>Phone</th><th>Where</th><th>Service</th><th></th>
+      </tr></thead><tbody>
+      ${r.leads.map(l => `
+        <tr style="${l.contacted?'opacity:.5':''}">
+          <td>${(l.created_at||'').slice(0,16).replace('T',' ')}</td>
+          <td>${esc(l.name||'—')}</td>
+          <td>${esc(l.phone||l.email||'—')}</td>
+          <td>${esc([l.city,l.state].filter(Boolean).join(', ') || l.pickup_address || '—')}</td>
+          <td>${esc(l.service_type||'—')}</td>
+          <td style="text-align:right">${l.contacted ? 'done' :
+            `<button class="btn sec sm" onclick="markLead(${l.id})">Mark contacted</button>`}</td>
+        </tr>`).join('')}
+      </tbody></table>`}
+    </div>`;
+}
+
+async function markLead(id){
+  await api('/admin/lead-contacted', {method:'POST', body:JSON.stringify({id})});
+  render();
+}
+
+// ═══ JOBS ════════════════════════════════════════════════
+async function vJobs(){
+  const r = await api('/admin/jobs');
+  if(!r.success) return;
+
+  $('view').innerHTML = `
+    <h2 class="sec">Recent jobs</h2>
+    <div class="sub">Surge shows what the demand multiplier did to each price, and why.
+      This is the record that answers a disputed charge.</div>
+    <div class="card">
+      ${!r.jobs.length ? '<div class="empty">No jobs yet.</div>' : `
+      <table><thead><tr>
+        <th>Job</th><th>Status</th><th>Service</th><th>Where</th>
+        <th>Price</th><th>Your fee</th><th>Surge</th><th>Company</th>
+      </tr></thead><tbody>
+      ${r.jobs.map(j => `
+        <tr>
+          <td><b>${esc(j.call_number)}</b><br><small style="color:var(--ink-3)">${(j.created_at||'').slice(5,16).replace('T',' ')}</small></td>
+          <td><span class="pill ${j.status==='completed'?'approved':j.status==='expired'||j.status==='canceled'?'rejected':'pending'}">${j.status}</span></td>
+          <td>${esc((j.service_type||'').replace(/_/g,' '))}</td>
+          <td>${esc([j.pickup_city,j.pickup_state].filter(Boolean).join(', ')||'—')}</td>
+          <td>${money(j.offer_amount)}</td>
+          <td>${j.platform_fee ? money(j.platform_fee) : '—'}</td>
+          <td>${Number(j.surge_multiplier) > 1
+                ? `<span class="pill pending">${Number(j.surge_multiplier).toFixed(2)}x</span><br><small style="color:var(--ink-3)">${esc(j.surge_reason||'')}</small>`
+                : '<span style="color:var(--ink-3)">—</span>'}</td>
+          <td>${esc(j.tower_name||'—')}</td>
+        </tr>`).join('')}
+      </tbody></table>`}
+    </div>`;
+}
+
+// ═══ SETTINGS ════════════════════════════════════════════
+const SETTING_HELP = {
+  surge_max_multiplier: 'Hard ceiling. The algorithm can never go above this, whatever demand does.',
+  surge_tiers: 'ratio:multiplier steps. Demand ÷ available trucks, lowest first.',
+  surge_min_demand: 'Below this many open jobs in an area, never surge. One request is noise.',
+  surge_disabled_states: 'State codes where surge never applies, comma separated. Use this for states with strict pricing laws.',
+  coverage_radius_miles: 'How far out we look for an approved truck before calling an area uncovered.',
+  consumer_fee_percent: 'Your cut of each job.',
+  tower_minimum_net: 'Floor on what a company clears after your fee. 0 = no floor.',
+  required_tower_docs: 'Documents a company must upload before their account enters the review queue.',
+};
+
+async function vSettings(){
+  const r = await api('/admin/settings');
+  if(!r.success) return;
+  const editable = r.settings.filter(s => s.editable);
+
+  $('view').innerHTML = `
+    <h2 class="sec">Settings</h2>
+    <div class="sub">Only the safe-to-change keys are editable here. Fee percentages and the
+      surge cap are bounded server-side as well, because there is no undo on a job that has
+      already been priced.</div>
+    <div class="card">
+      ${editable.map(s => `
+        <label class="f">
+          <span>${esc(s.setting_key)}${SETTING_HELP[s.setting_key]
+            ? ` — <span style="color:var(--ink-3);font-weight:500">${esc(SETTING_HELP[s.setting_key])}</span>` : ''}</span>
+          <input id="s_${esc(s.setting_key)}" value="${esc(s.setting_value)}">
+        </label>`).join('')}
+      <button class="btn" onclick="saveSettings()">Save settings</button>
+    </div>`;
+  window._editableKeys = editable.map(s => s.setting_key);
+}
+
+async function saveSettings(){
+  const settings = {};
+  (window._editableKeys||[]).forEach(k => { settings[k] = $('s_' + k).value; });
+  const r = await api('/admin/settings-save', {method:'POST', body:JSON.stringify({settings})});
+  flash(r.success ? 'Saved' : r.error, !r.success);
+}
+
+// ── modal ────────────────────────────────────────────────
+function showModal(html){
+  $('modalHost').innerHTML =
+    `<div class="mask" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
+}
+function closeModal(){ $('modalHost').innerHTML = ''; }
+
+// ── start ────────────────────────────────────────────────
+(function(){
+  const saved = localStorage.getItem('tl_admin_who');
+  if(TOKEN && saved){ ADMIN = JSON.parse(saved); boot(); }
+})();
+</script>

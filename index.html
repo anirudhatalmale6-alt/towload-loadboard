@@ -103,6 +103,61 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .meta span{display:inline-flex;align-items:center;gap:5px}
 .flag{color:var(--amber);font-weight:600;font-size:12px}
 
+/* High demand. Shown to the operator with the multiplier, because they are
+   deciding whether to roll; the customer only ever sees one price. */
+.surge{
+  background:#3b2d12;color:#fbbf24;border-radius:999px;
+  padding:2px 8px;font-size:11px;font-weight:750;letter-spacing:.2px;
+}
+
+/* ── itemised job breakdown (operators only) ──────────────
+   The customer sees one number. A driver decides on whether the money covers
+   22 miles and a winch, so they get every line and the net after the fee. */
+.bd{margin-top:11px}
+.bd summary{
+  cursor:pointer;color:var(--ink-2);font-size:12.5px;font-weight:650;
+  list-style:none;padding:5px 0;user-select:none;
+}
+.bd summary::-webkit-details-marker{display:none}
+.bd summary::before{content:'▸ ';color:var(--ink-faint)}
+.bd[open] summary::before{content:'▾ '}
+.bl{
+  display:flex;justify-content:space-between;gap:14px;
+  padding:5px 0 5px 14px;font-size:12.5px;color:var(--ink-2);
+}
+.bl b{color:var(--ink);font-weight:650;white-space:nowrap}
+.bl.tot{border-top:1px solid var(--line);margin-top:5px;padding-top:8px;font-weight:700;color:var(--ink)}
+.bl.fee b{color:var(--ink-faint)}
+.bl.net{font-weight:750;color:var(--green,#22c55e)}
+.bl.net b{color:var(--green,#22c55e)}
+
+/* ── verification banner ──────────────────────────────── */
+.verify-bar{
+  border:1px solid #7c5a10;background:#241d0d;border-radius:12px;
+  padding:15px 17px;margin-bottom:18px;
+}
+.verify-bar.ok{border-color:#14532d;background:#0e1a13}
+.verify-bar h4{font-size:14px;font-weight:750;margin-bottom:5px;color:#fbbf24}
+.verify-bar.ok h4{color:#4ade80}
+.verify-bar p{font-size:13px;color:var(--ink-2);line-height:1.6;margin-bottom:0}
+.verify-bar .vb-act{margin-top:12px}
+.vdocs{margin-top:16px;border-top:1px solid var(--line);padding-top:6px}
+.vrow{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
+.vrow:last-child{border-bottom:0}
+.vrow .vm{
+  width:20px;height:20px;border-radius:50%;border:1.5px solid var(--line);flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;
+}
+.vrow.have .vm{background:#16a34a;border-color:#16a34a;color:#04140a}
+.vrow .vi{flex:1;min-width:0}
+.vrow .vi b{display:block;font-size:13px;font-weight:700}
+.vrow .vi small{font-size:11.5px;color:var(--ink-faint)}
+.vbtn{
+  background:var(--ink);color:var(--bg,#0c1017);border-radius:8px;padding:7px 11px;
+  font-size:12.5px;font-weight:700;cursor:pointer;flex:none;
+}
+.vrow input[type=date]{width:auto;padding:6px 8px;font-size:12px;flex:none}
+
 .c-side{display:flex;align-items:center;gap:18px}
 .pay{text-align:right}
 .pay .amt{font-size:22px;font-weight:700;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
@@ -444,7 +499,85 @@ async function boot(){
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
   if(!isTower) await refreshWallet();
+  if(isTower) renderVerifyBar();
   switchView(isTower ? 'board' : 'mine');
+}
+
+/* ── verification ────────────────────────────────────────────────
+   A company that signed up on a phone and never finished uploading cannot take
+   a single job, and nothing on the board tells them why. This banner is that
+   explanation, and it carries the upload controls so finishing is one tap from
+   where they already are rather than a page they have to find. */
+async function renderVerifyBar(){
+  const status = ME.account.verification_status;
+  const box = document.getElementById('notices');
+
+  if(status === 'approved'){
+    box.innerHTML = `<div class="verify-bar ok">
+      <h4>&#10003; ${t('o.verified_h')}</h4>
+      <p>${t('o.verified_p')}</p></div>`;
+    return;
+  }
+
+  const r = await api('/docs/mine');
+  const list = (r.success ? r.checklist : []);
+  const missing = list.filter(c => !c.uploaded).length;
+
+  box.innerHTML = `<div class="verify-bar">
+    <h4>${status === 'pending' ? t('o.review_h') : t('o.unverified_h')}</h4>
+    <p>${status === 'pending' ? t('o.review_p')
+        : status === 'rejected' ? (r.rejection_reason || t('o.rejected_p'))
+        : t('o.unverified_p', {n: missing})}</p>
+    ${missing || status === 'rejected' ? `
+      <div class="vdocs">
+        ${list.map(c => `
+          <div class="vrow ${c.uploaded ? 'have' : ''}">
+            <div class="vm">${c.uploaded ? '✓' : ''}</div>
+            <div class="vi"><b>${c.label}</b><small>${
+              c.uploaded ? (c.status === 'rejected' ? t('j.doc_rejected') + (c.notes ? ' — ' + c.notes : '')
+                                                     : t('j.doc_received'))
+                         : t('j.doc_missing')}</small></div>
+            ${c.doc_type.indexOf('coi') === 0
+              ? `<input type="date" id="vexp_${c.doc_type}" title="${t('j.doc_expiry')}">` : ''}
+            <label class="vbtn">${c.uploaded ? t('j.doc_replace') : t('j.doc_upload')}
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" style="display:none"
+                     onchange="uploadVerifyDoc('${c.doc_type}', this)">
+            </label>
+          </div>`).join('')}
+      </div>` : ''}
+  </div>`;
+}
+
+async function uploadVerifyDoc(docType, input){
+  const file = input.files[0];
+  if(!file) return;
+
+  const expEl = document.getElementById('vexp_' + docType);
+  if(docType.indexOf('coi') === 0 && expEl && !expEl.value){
+    input.value = '';
+    return alert(t('j.err_expiry'));
+  }
+
+  const fd = new FormData();
+  fd.append('doc_type', docType);
+  fd.append('file', file);
+  if(expEl && expEl.value) fd.append('expires_at', expEl.value);
+
+  // No Content-Type header — the browser must set the multipart boundary.
+  const r = await fetch(API + '/docs/upload?lang=' + tlLang(), {
+    method:'POST',
+    headers:{'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN},
+    body:fd
+  }).then(x => x.json()).catch(() => ({success:false, error:'Upload failed'}));
+
+  input.value = '';
+  if(!r.success) return alert(r.error);
+
+  // The account flips to Pending the moment the last document lands, so the
+  // banner has to be re-read rather than patched.
+  const me = await api('/auth/me');
+  if(me.success) ME = me;
+  renderVerifyBar();
 }
 
 async function refreshWallet(){
@@ -541,6 +674,7 @@ function render(){
           <span class="svc ${c.service_type}">${t('svc.' + c.service_type)}</span>
           <span class="cnum">${c.call_number}</span>
           ${open ? `<span class="funded">&#9679; ${t('o.paid_job')}</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
+          ${c.surge_active ? `<span class="surge">${Number(c.surge_multiplier).toFixed(2)}x ${t('o.high_demand')}</span>` : ''}
         </div>
         <div class="route">
           ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
@@ -554,6 +688,15 @@ function render(){
           ${c.tower_name ? `<span>${c.tower_name}</span>` : ''}
           ${flags.length ? `<span class="flag">${flags.join(' &middot; ')}</span>` : ''}
         </div>
+
+        ${isTower && c.lines && c.lines.length ? `
+        <details class="bd">
+          <summary>${t('o.breakdown')}</summary>
+          ${c.lines.map(l => `<div class="bl"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')}
+          <div class="bl tot"><span>${t('o.job_total')}</span><b>${money(c.offer_amount)}</b></div>
+          <div class="bl fee"><span>${t('o.platform_fee')}</span><b>&minus;${money(c.platform_fee_estimate)}</b></div>
+          <div class="bl net"><span>${t('o.you_get')}</span><b>${money(net)}</b></div>
+        </details>` : ''}
       </div>
       <div class="c-side">
         ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">${t('o.miles')}</span></div>` : ''}

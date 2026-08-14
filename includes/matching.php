@@ -122,6 +122,20 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
     $row['platform_fee_estimate'] = $fee;
     $row['tower_net_estimate']    = round((float)$c['offer_amount'] - $fee, 2);
 
+    // ─── Itemised, for the tower only ────────────────────────────────────────
+    // The customer sees one number; the driver sees how it was built. Whether
+    // $185 is worth starting the truck depends entirely on whether it is 4
+    // miles or 22, and whether the winch work is paid for.
+    //
+    // Read from the stored breakdown rather than recomputed, so what a tower is
+    // shown is what the customer actually agreed to pay.
+    $row['lines'] = !empty($c['price_breakdown'])
+        ? (json_decode($c['price_breakdown'], true) ?: []) : [];
+
+    $surge = isset($c['surge_multiplier']) ? (float)$c['surge_multiplier'] : 1.0;
+    $row['surge_multiplier'] = $surge;
+    $row['surge_active']     = $surge > 1.0;
+
     if ($revealCustomer) {
         $row['pickup_address']  = $c['pickup_address'];
         $row['pickup_notes']    = $c['pickup_notes'];

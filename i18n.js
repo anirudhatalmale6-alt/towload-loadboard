@@ -19,7 +19,7 @@ es: {
   'brand.tagline':       'La grúa que necesita, cuando la necesita',
   'nav.operator_login':  'Entrar operadores →',
   'nav.signout':         'Cerrar sesión',
-  'foot.licensed':       'Solo operadores con licencia y seguro · Condado de Miami-Dade',
+  'foot.licensed':       'Solo compañías con licencia, seguro y documentos verificados',
   'foot.verified':       'Verificamos el seguro de cada grúa antes de que pueda tomar un trabajo.',
 
   /* consumer — hero */
@@ -76,6 +76,23 @@ es: {
   'c.after_hours':       'Tarifa nocturna · todo incluido',
   'c.weekend':           'Tarifa de fin de semana · todo incluido',
   'c.total':             'Total',
+
+  /* Demanda alta. Se avisa ANTES de confirmar, nunca después, y sin mostrar el
+     multiplicador — un número que el cliente no puede verificar solo genera
+     discusión. */
+  'c.busy_now':          'Hay mucha demanda en su zona en este momento, así que el precio está más alto de lo habitual. Es el precio final — no cambia después.',
+
+  'c.accept_terms':      'Acepto los <a href="terms?doc=customer" target="_blank">Términos de Servicio</a> y la <a href="terms?doc=privacy" target="_blank">Política de Privacidad</a>, y autorizo la retención en mi tarjeta.',
+  'c.err_terms':         'Marque la casilla de los Términos de Servicio para continuar.',
+  'c.verified':          'Verificada',
+
+  /* sin cobertura */
+  'c.nocov_head':        'Todavía no llegamos a su zona',
+  'c.nocov_msg':         'Todavía no tenemos grúas disponibles en su zona. No le hemos cobrado nada.',
+  'c.notify_me':         'Avísenme cuando lleguen',
+  'c.lead_done':         '✓ Listo — le avisamos',
+  'c.nocov_note':        'Si necesita una grúa ahora mismo, busque una compañía local. No queremos hacerle perder tiempo cuando no podemos ayudarle.',
+
   'c.assure':            '<b>No le cobramos ahora.</b> Solo dejamos una retención. Usted paga cuando el trabajo esté hecho, y si ninguna grúa lo toma, se libera la retención y no paga nada.',
   'c.your_name':         'Su nombre',
   'c.ph_name':           'Nombre y apellido',
@@ -139,6 +156,22 @@ es: {
   'o.password':          'Contraseña',
   'o.no_account':        '¿No tiene cuenta?',
   'o.signup_link':       'Registre su compañía de grúas',
+
+  /* desglose para el operador — el cliente ve un solo precio */
+  'o.breakdown':         'Ver desglose del precio',
+  'o.job_total':         'Total del trabajo',
+  'o.platform_fee':      'Comisión de la plataforma',
+  'o.you_get':           'Usted recibe',
+  'o.high_demand':       'alta demanda',
+
+  /* verificación */
+  'o.verified_h':        'Cuenta verificada',
+  'o.verified_p':        'Su empresa está aprobada. Los clientes ven su distintivo de verificada cuando usted toma un trabajo.',
+  'o.review_h':          'Su cuenta está en revisión',
+  'o.review_p':          'Ya recibimos sus documentos. Puede ver los trabajos, pero todavía no aceptarlos. Le avisamos apenas quede aprobada.',
+  'o.unverified_h':      'Complete su verificación',
+  'o.unverified_p':      'Le faltan {n} documentos. Hasta que su empresa esté aprobada puede ver los trabajos pero no aceptarlos ni cobrar.',
+  'o.rejected_p':        'Su verificación fue rechazada. Revise los documentos marcados abajo y vuelva a subirlos.',
   'o.job_yours':         'El trabajo es suyo.',
   'o.completed_msg':     'Completado. {amount} va en camino a su banco.',
   'o.flag_nokeys':       'Sin llaves',
@@ -163,7 +196,7 @@ es: {
   'j.hero_3':            'Directo a su teléfono.',
   'j.hero_sub':          'El cliente pide la grúa, nosotros ponemos el precio, usted recibe el aviso. Acepta y sale. Sin subastas, sin perseguir facturas, sin papeleo de clubes.',
   'j.cta':               'Registre su compañía',
-  'j.free':              'Condado de Miami-Dade · registro gratis',
+  'j.free':              'Estados Unidos · registro gratis',
   'j.p1_n':              '90%',
   'j.p1_h':              'de cada trabajo es suyo',
   'j.p1_p':              'Nos quedamos con el 10%. Nada más — sin mensualidad, sin cargo por contacto, sin costo de registro.',
@@ -229,7 +262,30 @@ es: {
   'j.err_name':          'Necesitamos su nombre para que clientes y operadores sepan con quién tratan.',
   'j.err_email':         'Ese correo no parece válido.',
   'j.err_password':      'La contraseña debe tener al menos 8 caracteres.',
-  'j.err_phone':         'Necesitamos un celular real — ahí llegan los avisos de trabajo.'
+  'j.err_phone':         'Necesitamos un celular real — ahí llegan los avisos de trabajo.',
+
+  /* verificación */
+  'j.ein':               'EIN',
+  'j.state':             'Estado',
+  'j.use_gps':           '📍 Usar la ubicación de mi patio',
+  'j.gps_finding':       'Buscando su ubicación…',
+  'j.gps_found':         '📍 Ubicación guardada',
+  'j.err_gps':           'No pudimos obtener su ubicación. Usaremos el estado que eligió.',
+  'j.err_ein':           'El EIN debe tener 9 dígitos.',
+  'j.err_terms':         'Marque la casilla de los Términos de Servicio para continuar.',
+  'j.accept_terms':      'Acepto los <a href="terms?doc=tower" target="_blank">Términos de Servicio para compañías de grúas</a> y la <a href="terms?doc=privacy" target="_blank">Política de Privacidad</a>.',
+
+  'j.docs_h':            'Suba sus documentos',
+  'j.docs_sub':          'Necesitamos estos cuatro para verificar su empresa. Puede tomarles una foto con el celular ahora mismo — se guardan en privado y solo los ve nuestro equipo de revisión.',
+  'j.doc_upload':        'Subir',
+  'j.doc_replace':       'Reemplazar',
+  'j.doc_received':      'Recibido — en revisión',
+  'j.doc_missing':       'Falta',
+  'j.doc_rejected':      'Rechazado',
+  'j.doc_expiry':        'Fecha de vencimiento de la póliza',
+  'j.err_expiry':        'Ponga la fecha de vencimiento de la póliza antes de subirla.',
+  'j.docs_waiting':      'Cuando estén los cuatro, su cuenta pasa a revisión. Mientras tanto puede ver el tablero, pero todavía no aceptar trabajos.',
+  'j.docs_submitted':    'Documentos completos. Su cuenta está en revisión — le avisamos apenas quede aprobada y aparezca su distintivo de verificada.'
 },
 
 en: {
@@ -237,7 +293,7 @@ en: {
   'brand.tagline':       'The tow you need, when you need it',
   'nav.operator_login':  'Operator login →',
   'nav.signout':         'Sign out',
-  'foot.licensed':       'Licensed, insured operators only · Miami-Dade County',
+  'foot.licensed':       'Licensed, insured, document-verified companies only',
   'foot.verified':       "Every driver's insurance is verified before they can take a job.",
 
   'c.drivers_available': 'Drivers available',
@@ -289,6 +345,19 @@ en: {
   'c.after_hours':       'After-hours rate · all in, no hidden fees',
   'c.weekend':           'Weekend rate · all in, no hidden fees',
   'c.total':             'Total',
+
+  'c.busy_now':          'It is busy in your area right now, so the price is higher than usual. This is the final price — it does not change afterwards.',
+
+  'c.accept_terms':      'I accept the <a href="terms?doc=customer" target="_blank">Terms of Service</a> and <a href="terms?doc=privacy" target="_blank">Privacy Policy</a>, and authorise the hold on my card.',
+  'c.err_terms':         'Tick the Terms of Service box to continue.',
+  'c.verified':          'Verified',
+
+  'c.nocov_head':        'We are not in your area yet',
+  'c.nocov_msg':         'We do not have trucks available in your area yet. You have not been charged anything.',
+  'c.notify_me':         'Let me know when you get here',
+  'c.lead_done':         "✓ Done — we'll be in touch",
+  'c.nocov_note':        'If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.',
+
   'c.assure':            '<b>Your card is not charged now.</b> We only place a hold. You pay when the job is finished — and if no driver takes it, the hold is released and you pay nothing.',
   'c.your_name':         'Your name',
   'c.ph_name':           'First and last name',
@@ -349,6 +418,20 @@ en: {
   'o.password':          'Password',
   'o.no_account':        "Don't have an account?",
   'o.signup_link':       'Sign up your tow company',
+
+  'o.breakdown':         'See price breakdown',
+  'o.job_total':         'Job total',
+  'o.platform_fee':      'Platform fee',
+  'o.you_get':           'You receive',
+  'o.high_demand':       'high demand',
+
+  'o.verified_h':        'Verified account',
+  'o.verified_p':        'Your company is approved. Customers see your verified badge when you take a job.',
+  'o.review_h':          'Your account is under review',
+  'o.review_p':          'We have your documents. You can browse jobs but not accept them yet. We will let you know as soon as you are approved.',
+  'o.unverified_h':      'Finish your verification',
+  'o.unverified_p':      'You are missing {n} documents. Until your company is approved you can browse jobs but not accept them or get paid.',
+  'o.rejected_p':        'Your verification was rejected. Check the documents flagged below and upload them again.',
   'o.job_yours':         'Job is yours.',
   'o.completed_msg':     'Completed. {amount} is on its way to your bank.',
   'o.flag_nokeys':       'No keys',
@@ -372,7 +455,7 @@ en: {
   'j.hero_3':            'Sent to your phone.',
   'j.hero_sub':          'Customers request a tow, we price it, you get the alert. Accept it and go. No bidding wars, no chasing invoices, no motor club paperwork.',
   'j.cta':               'Sign up your company',
-  'j.free':              'Miami-Dade County · free to join',
+  'j.free':              'Nationwide · free to join',
   'j.p1_n':              '90%',
   'j.p1_h':              'of every job is yours',
   'j.p1_p':              "We keep 10%. That's it — no monthly fee, no per-lead charge, no sign-up cost.",
@@ -438,7 +521,29 @@ en: {
   'j.err_name':          'We need your name so drivers and customers know who they are dealing with.',
   'j.err_email':         'That email does not look right.',
   'j.err_password':      'Your password needs to be at least 8 characters.',
-  'j.err_phone':         'We need a working mobile number — that is where job alerts go.'
+  'j.err_phone':         'We need a working mobile number — that is where job alerts go.',
+
+  'j.ein':               'EIN',
+  'j.state':             'State',
+  'j.use_gps':           '📍 Use my yard location',
+  'j.gps_finding':       'Finding your location…',
+  'j.gps_found':         '📍 Location saved',
+  'j.err_gps':           "We couldn't get your location. We'll use the state you picked.",
+  'j.err_ein':           'An EIN is 9 digits.',
+  'j.err_terms':         'Tick the Terms of Service box to continue.',
+  'j.accept_terms':      'I accept the <a href="terms?doc=tower" target="_blank">Terms of Service for towing companies</a> and the <a href="terms?doc=privacy" target="_blank">Privacy Policy</a>.',
+
+  'j.docs_h':            'Upload your documents',
+  'j.docs_sub':          'We need these four to verify your company. A photo from your phone is fine — they are stored privately and only our review team sees them.',
+  'j.doc_upload':        'Upload',
+  'j.doc_replace':       'Replace',
+  'j.doc_received':      'Received — under review',
+  'j.doc_missing':       'Missing',
+  'j.doc_rejected':      'Rejected',
+  'j.doc_expiry':        'Policy expiry date',
+  'j.err_expiry':        'Enter the policy expiry date before uploading.',
+  'j.docs_waiting':      'Once all four are in, your account goes to review. You can browse the board meanwhile, but not accept jobs yet.',
+  'j.docs_submitted':    'All documents in. Your account is under review — we will let you know the moment it is approved and your verified badge goes live.'
 }
 };
 

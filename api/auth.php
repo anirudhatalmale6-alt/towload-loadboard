@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/legal.php';
+require_once __DIR__ . '/../includes/zones.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -26,27 +28,49 @@ if ($method === 'POST' && $action === 'register') {
     if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse(t('err.invalid_email'));
     if (strlen($in['password']) < 8) errorResponse(t('err.password_short'));
 
+    // Recorded before anything is created. An acceptance row that survives a
+    // failed signup, or a signup with no acceptance row, are both useless.
+    if (termsRequired() && empty($in['accept_terms'])) {
+        errorResponse(t('err.terms_required'), 422);
+    }
+
+    // The EIN is the anchor of the whole verification file — it is what ties
+    // the insurance certificate, the state registration and the bank account
+    // to one legal entity. Asked for at signup rather than later, because a
+    // company that will not give it is not a company we can vet.
+    $ein = preg_replace('/\D+/', '', (string)($in['ein'] ?? ''));
+    $companyPhone = !empty($in['company_phone']) ? $in['company_phone'] : ($in['phone'] ?? '');
+    if ($in['account_type'] === 'tower') {
+        if ($ein === '') errorResponse(t('err.ein_required'));
+        if (strlen($ein) !== 9) errorResponse(t('err.ein_format'));
+        // The company number is what the customer is given once this operator
+        // accepts their job. A tower with no number on file reaches the
+        // roadside with a stranded person who has no way to call them.
+        if (strlen(preg_replace('/\D+/', '', $companyPhone)) < 10) {
+            errorResponse(t('err.company_phone_required'));
+        }
+    }
+
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :e");
     $stmt->execute([':e' => $in['email']]);
     if ($stmt->fetch()) errorResponse(t('err.email_exists'));
 
-    // Geo-gate at signup while we're launching one market at a time.
-    if ($msg = outsideLaunchArea(
-            isset($in['lat']) ? (float)$in['lat'] : null,
-            isset($in['lng']) ? (float)$in['lng'] : null)) {
-        errorResponse($msg);
-    }
+    // Nationwide. Coverage is decided per job by whether an approved truck is
+    // actually in range (see includes/zones.php) — refusing signups by geography
+    // would block the only thing that opens a new city, which is a tower in it.
 
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
-            "INSERT INTO accounts (account_type, name, slug, email, phone, address, city, state, zip, lat, lng, website)
-             VALUES (:t, :n, :s, :e, :p, :ad, :c, :st, :z, :lat, :lng, :w)"
+            "INSERT INTO accounts (account_type, name, legal_name, ein, slug, email, phone, address, city, state, zip, lat, lng, website)
+             VALUES (:t, :n, :ln, :ein, :s, :e, :p, :ad, :c, :st, :z, :lat, :lng, :w)"
         )->execute([
             ':t' => $in['account_type'], ':n' => $in['company_name'],
+            ':ln' => $in['legal_name'] ?? $in['company_name'],
+            ':ein' => $ein !== '' ? $ein : null,
             ':s' => uniqueSlug($in['company_name']), ':e' => $in['email'],
-            ':p' => !empty($in['company_phone']) ? normalizePhone($in['company_phone']) : null,
+            ':p' => $companyPhone !== '' ? normalizePhone($companyPhone) : null,
             ':ad' => $in['address'] ?? null, ':c' => $in['city'] ?? null,
             ':st' => !empty($in['state']) ? strtoupper(substr($in['state'], 0, 2)) : null,
             ':z' => $in['zip'] ?? null,
@@ -88,6 +112,13 @@ if ($method === 'POST' && $action === 'register') {
                 ->execute([':a' => $accountId]);
         }
 
+        if (termsRequired()) {
+            recordAcceptance(
+                $in['account_type'] === 'tower' ? 'terms_tower' : 'terms_customer',
+                $accountId, $userId
+            );
+        }
+
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -106,7 +137,7 @@ if ($method === 'POST' && $action === 'register') {
             'account_type' => $in['account_type'], 'verification_status' => 'unverified',
         ],
         'next_step' => $in['account_type'] === 'tower'
-            ? 'Upload your insurance certificate and connect your bank account to start accepting calls.'
+            ? t('msg.next_upload_docs')
             : 'Add funds to your balance to start posting calls.',
     ], t('ok.account_created'));
 }

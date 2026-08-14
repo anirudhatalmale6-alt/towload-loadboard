@@ -127,6 +127,49 @@ input::placeholder{color:#aab4c4}
   font-size:13.5px;color:var(--ink-2);font-weight:650;margin-bottom:16px;
 }
 
+/* ── what the one price covers ─────────────────────────── */
+.incs{margin-bottom:16px}
+.inc{
+  display:flex;align-items:flex-start;gap:10px;padding:7px 0;
+  font-size:14.5px;color:var(--ink-2);
+}
+.inc::before{
+  content:'✓';color:#16a34a;font-weight:800;font-size:14px;
+  line-height:1.45;flex:none;
+}
+/* Higher than usual right now. Said plainly, before the tap — a price that
+   turns out to have been a surge price is how you earn a chargeback. */
+.busy{
+  background:#fffbeb;border:1px solid #fde68a;border-radius:11px;
+  padding:12px 15px;font-size:13.5px;color:#78350f;
+  margin:-4px 0 16px;line-height:1.5;font-weight:600;
+}
+.terms{
+  display:flex;gap:11px;align-items:flex-start;margin:4px 0 18px;
+  font-size:13px;color:var(--ink-3);line-height:1.55;cursor:pointer;
+}
+.terms input{width:19px;height:19px;flex:none;margin-top:1px;accent-color:var(--accent)}
+.terms a{color:var(--ink-2);text-decoration:underline}
+
+/* ── no coverage ───────────────────────────────────────── */
+.nocov-ico{font-size:40px;text-align:center;margin-bottom:12px}
+.nocov-h{font-size:22px;font-weight:750;text-align:center;letter-spacing:-.5px;margin-bottom:10px}
+.nocov-p{
+  text-align:center;color:var(--ink-2);font-size:15px;line-height:1.6;
+  margin-bottom:22px;
+}
+.nocov-note{
+  text-align:center;color:var(--ink-3);font-size:12.5px;
+  margin-top:14px;line-height:1.55;
+}
+/* Verified badge — the reason someone is willing to hand a stranger their car */
+.vbadge{
+  display:inline-flex;align-items:center;gap:4px;
+  background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;
+  border-radius:999px;padding:2px 8px;font-size:11.5px;font-weight:750;
+  margin-left:7px;vertical-align:middle;
+}
+
 /* ── tracking ──────────────────────────────────────────── */
 .track-status{text-align:center;padding:26px 10px}
 .track-status .big{font-size:23px;font-weight:750;letter-spacing:-.5px;margin-bottom:7px}
@@ -276,14 +319,36 @@ input::placeholder{color:#aab4c4}
         <div class="sub" id="qSub" data-i18n="c.all_in">Todo incluido. Sin cargos ocultos.</div>
       </div>
       <div class="avail" id="qAvail"></div>
-      <div class="lines" id="qLines"></div>
+      <!-- Demand pricing is disclosed BEFORE the confirm tap, never after.
+           The customer is told prices are higher than usual right now; they are
+           not shown a multiplier, because that invites an argument about a
+           number they cannot check. -->
+      <div class="busy hide" id="qBusy" data-i18n="c.busy_now"></div>
+      <!-- What the one price covers. Not line items — Ricardo's call, and the
+           right one: an itemised "no keys" surcharge starts a roadside argument
+           about whether the keys were really lost. -->
+      <div class="incs" id="qIncludes"></div>
       <div class="assure" data-i18n-html="c.assure"></div>
       <div class="f"><label data-i18n="c.your_name">Su nombre</label><input id="cName" data-i18n-ph="c.ph_name" autocomplete="name"></div>
       <div class="f"><label data-i18n="c.mobile">Número de celular</label><input id="cPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
       <div class="f"><label data-i18n="c.email_receipt">Correo para el recibo</label><input id="cEmail" type="email" data-i18n-ph="c.ph_email" autocomplete="email"></div>
+      <label class="terms"><input type="checkbox" id="cTerms"><span data-i18n-html="c.accept_terms"></span></label>
       <button class="btn" onclick="submitRequest()" id="reqBtn" data-i18n="c.confirm">Confirmar y buscar grúa</button>
       <button class="back" onclick="go(3)" data-i18n="c.back">← Atrás</button>
     </div>
+  </div>
+
+  <!-- ═══ NO COVERAGE ═══
+       Running ads nationwide means clicks arrive from places with no trucks.
+       Authorising a card for a job nobody can take is the worst possible
+       outcome; this turns that click into a name on the recruiting list. -->
+  <div class="card hide" id="noCovCard">
+    <div class="nocov-ico">📍</div>
+    <div class="nocov-h" data-i18n="c.nocov_head">Todavía no llegamos a su zona</div>
+    <div class="nocov-p" id="noCovMsg"></div>
+    <div class="f"><label data-i18n="c.mobile">Número de celular</label><input id="lPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
+    <button class="btn" onclick="saveLead()" id="leadBtn" data-i18n="c.notify_me">Avísenme cuando lleguen</button>
+    <div class="nocov-note" data-i18n="c.nocov_note"></div>
   </div>
 
   <!-- ═══ TRACKING ═══ -->
@@ -383,17 +448,45 @@ async function getQuote(){
   $('quoteBtn').textContent = t('c.see_price'); $('quoteBtn').disabled = false;
   if(!r.success) return err(r.error);
 
+  // No truck in range. Do not quote a price we cannot honour.
+  if(r.covered === false) return showNoCoverage(r);
+
   S.quote = r;
   $('qTotal').textContent = money(r.total);
-  $('qSub').textContent = r.after_hours ? t('c.after_hours')
-                        : r.weekend ? t('c.weekend') : t('c.all_in');
+  $('qSub').textContent = t('c.all_in');
   $('qAvail').innerHTML = r.trucks_nearby > 0
     ? `<span class="dot"></span> ${r.trucks_nearby} ${r.trucks_nearby>1?t('c.trucks_near'):t('c.truck_near')}`
     : `<span style="color:var(--ink-3)">${t('c.will_send_all')}</span>`;
-  $('qLines').innerHTML = r.lines.map(l =>
-      `<div class="line"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')
-    + `<div class="line total"><span>${t('c.total')}</span><span>${money(r.total)}</span></div>`;
+  $('qBusy').classList.toggle('hide', !r.busy_now);
+  // One price and what it covers. No line items, no percentages.
+  $('qIncludes').innerHTML = (r.includes||[]).map(i => `<div class="inc">${i}</div>`).join('');
   go(4);
+}
+
+function showNoCoverage(r){
+  $('noCovMsg').textContent = r.message || t('c.nocov_msg');
+  $('formCard').classList.add('hide');
+  $('hero').classList.add('hide');
+  $('noCovCard').classList.remove('hide');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+async function saveLead(){
+  const phone = $('lPhone').value.trim();
+  if(phone.replace(/\D/g,'').length < 10) return alert(t('c.err_phone'));
+  const pk = S.pickup || MIAMI;
+  $('leadBtn').disabled = true;
+  const r = await api('/consumer/lead', {method:'POST', body:JSON.stringify({
+    kind:'customer', name:$('cName').value.trim() || null, phone,
+    service_type:S.svc, pickup_address:$('pickup').value.trim(),
+    pickup_lat:pk.lat, pickup_lng:pk.lng,
+    utm_source:new URLSearchParams(location.search).get('utm_source') || 'direct'
+  })});
+  $('leadBtn').disabled = false;
+  if(r.success){
+    $('leadBtn').textContent = t('c.lead_done');
+    $('leadBtn').disabled = true;
+  }
 }
 
 async function submitRequest(){
@@ -401,6 +494,7 @@ async function submitRequest(){
   const name = $('cName').value.trim(), phone = $('cPhone').value.trim();
   if(!name)  return err(t('c.err_name'));
   if(phone.replace(/\D/g,'').length < 10) return err(t('c.err_phone'));
+  if(!$('cTerms').checked) return err(t('c.err_terms'));
 
   const pk = S.pickup || MIAMI;
   const body = {
@@ -409,6 +503,11 @@ async function submitRequest(){
     pickup_lat:pk.lat, pickup_lng:pk.lng,
     customer_name:name, customer_phone:phone, customer_email:$('cEmail').value.trim(),
     is_accident:!!S.accident, wheels_lock:!!S.wheels, has_keys:true,
+    accept_terms:true,
+    // Locks in the price they were actually shown. Without this the job would
+    // be re-priced at confirm time and could come back higher than the number
+    // on screen, which is the single fastest way to earn a chargeback.
+    quote_token:(S.quote && S.quote.quote_token) || null,
     utm_source:new URLSearchParams(location.search).get('utm_source') || 'direct'
   };
   const v = $('vehicle').value.trim().split(' ');
@@ -423,6 +522,9 @@ async function submitRequest(){
   const r = await api('/consumer/request', {method:'POST', body:JSON.stringify(body)});
   $('reqBtn').textContent = t('c.confirm'); $('reqBtn').disabled = false;
   if(!r.success) return err(r.error);
+  // Coverage is rechecked server-side at request time — a truck could have gone
+  // off shift between the quote and the confirm.
+  if(r.covered === false) return showNoCoverage(r);
 
   S.token = r.tracking_token;
   history.replaceState({}, '', '?job=' + r.tracking_token);
@@ -453,7 +555,7 @@ async function poll(){
     <div class="driver">
       <div class="av">${r.tower.name.charAt(0)}</div>
       <div>
-        <div class="nm">${r.tower.name}</div>
+        <div class="nm">${r.tower.name}${r.tower.verified ? `<span class="vbadge">✓ ${t('c.verified')}</span>` : ''}</div>
         <div class="rt">★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} ${t('c.jobs')}</div>
       </div>
       <a href="tel:${r.tower.phone}">${t('c.call')}</a>
@@ -469,11 +571,11 @@ async function poll(){
       <div><div class="txt">${t(labelKey)}</div><div class="when">${when}</div></div></div>`;
   }).join('');
 
-  if(r.lines && r.lines.length){
-    $('trkLines').innerHTML = r.lines.map(l =>
-        `<div class="line"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')
-      + `<div class="line total"><span>${r.payment_status==='captured'?t('c.charged'):t('c.total')}</span><span>${money(r.total)}</span></div>`;
-  }
+  // One number here too. The stored breakdown exists for the tower and for a
+  // disputed charge; showing it now would contradict the single price the
+  // customer agreed to and invite a line-by-line argument after the fact.
+  $('trkLines').innerHTML =
+    `<div class="line total"><span>${r.payment_status==='captured'?t('c.charged'):t('c.total')}</span><span>${money(r.total)}</span></div>`;
 }
 
 async function cancelJob(){
