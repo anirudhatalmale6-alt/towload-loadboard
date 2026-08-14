@@ -431,8 +431,11 @@ async function boot(){
   document.getElementById('loginView').classList.add('hide');
   document.getElementById('appView').classList.remove('hide');
   document.getElementById('acctName').textContent = me.account.name;
-  const t = document.getElementById('acctType');
-  t.textContent = me.account.account_type; t.className = 'badge ' + me.account.account_type;
+  // Named badge, not `t` — a local `t` shadows the translation function and
+  // every t('...') call in this scope becomes "t is not a function".
+  const typeBadge = document.getElementById('acctType');
+  typeBadge.textContent = me.account.account_type;
+  typeBadge.className = 'badge ' + me.account.account_type;
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
@@ -535,14 +538,14 @@ function render(){
     return `<div class="call ${open && secs<300 ? 'urgent' : ''} ${!open ? 'mine' : ''}">
       <div class="c-main">
         <div class="c-top">
-          <span class="svc ${c.service_type}">${c.service_type.replace('_',' ')}</span>
+          <span class="svc ${c.service_type}">${t('svc.' + c.service_type)}</span>
           <span class="cnum">${c.call_number}</span>
           ${open ? `<span class="funded">&#9679; ${t('o.paid_job')}</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
         </div>
         <div class="route">
           ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
           ${c.dropoff_city ? `<span class="arrow">&rarr;</span> ${c.dropoff_city}, ${c.dropoff_state}` : ''}
-          ${c.tow_miles ? `<span class="miles">${c.tow_miles} mi tow</span>` : ''}
+          ${c.tow_miles ? `<span class="miles">${t('o.mi_tow', {n: c.tow_miles})}</span>` : ''}
         </div>
         <div class="meta">
           <span>${c.vehicle || 'Vehicle n/a'}${c.vehicle_color ? ' &middot; ' + c.vehicle_color : ''}</span>
@@ -582,7 +585,7 @@ function renderBids(bids){
   list.innerHTML = bids.map(b => `<div class="call">
     <div class="c-main">
       <div class="c-top"><span class="cnum">${b.call_number}</span>
-        <span class="svc">${b.service_type.replace('_',' ')}</span>
+        <span class="svc">${t('svc.' + b.service_type)}</span>
         <span class="cnum">${b.status}</span></div>
       <div class="route">${b.pickup_city}, ${b.pickup_state}</div>
       <div class="meta"><span>${b.provider_name}</span><span>ETA ${b.eta_minutes} min</span></div>
