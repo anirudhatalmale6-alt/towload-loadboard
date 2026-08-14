@@ -20,6 +20,12 @@ if ($method === 'POST' && $action === 'create') {
     $offer = round((float)$in['offer_amount'], 2);
     if ($offer <= 0) errorResponse('Offer amount must be greater than zero');
 
+    // The pickup is what matters for the launch fence, not where the poster is
+    // sitting — a Miami club dispatching a call in Tampa has no towers there.
+    if ($msg = outsideLaunchArea((float)$in['pickup_lat'], (float)$in['pickup_lng'])) {
+        errorResponse($msg, 422);
+    }
+
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT * FROM provider_profiles WHERE account_id = :a");
     $stmt->execute([':a' => $user['account_id']]);

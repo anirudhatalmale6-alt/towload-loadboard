@@ -306,9 +306,9 @@ legend{
 
       <fieldset>
         <legend>Location</legend>
-        <div class="f"><label>Pickup address</label><input id="pPickup" placeholder="1420 SE Federal Hwy, Stuart FL"></div>
+        <div class="f"><label>Pickup address</label><input id="pPickup" placeholder="1200 NW 27th Ave, Miami FL"></div>
         <div class="grid2">
-          <div class="f"><label>City</label><input id="pCity" value="Stuart"></div>
+          <div class="f"><label>City</label><input id="pCity" value="Miami"></div>
           <div class="f"><label>State</label><input id="pState" value="FL" maxlength="2"></div>
         </div>
         <div class="f"><label>Drop-off address</label><input id="pDrop" placeholder="Leave blank for on-site service"></div>
@@ -333,7 +333,7 @@ legend{
         <legend>Customer</legend>
         <div class="grid2">
           <div class="f"><label>Name</label><input id="pCName" placeholder="Robert Castellano"></div>
-          <div class="f"><label>Phone</label><input id="pCPhone" placeholder="(772) 555-1234"></div>
+          <div class="f"><label>Phone</label><input id="pCPhone" placeholder="(305) 555-1234"></div>
         </div>
       </fieldset>
 
@@ -381,7 +381,7 @@ legend{
 </div>
 
 <script>
-const API = '../api';
+const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
 let ME = null, VIEW = 'board', DATA = [], FEE_PCT = 10, FEE_MIN = 5;
 
@@ -405,7 +405,7 @@ function demo(kind){
 async function doLogin(){
   const err = document.getElementById('liErr');
   err.classList.add('hide');
-  const res = await api('/auth.php?action=login', {method:'POST', body: JSON.stringify({
+  const res = await api('/auth/login', {method:'POST', body: JSON.stringify({
     email: document.getElementById('liEmail').value.trim(),
     password: document.getElementById('liPass').value
   })});
@@ -416,7 +416,7 @@ async function doLogin(){
 function logout(){ TOKEN=''; localStorage.removeItem('tl_token'); location.reload(); }
 
 async function boot(){
-  const me = await api('/auth.php?action=me');
+  const me = await api('/auth/me');
   if(!me.success){ TOKEN=''; localStorage.removeItem('tl_token');
     document.getElementById('loginView').classList.remove('hide');
     document.getElementById('appView').classList.add('hide'); return; }
@@ -438,7 +438,7 @@ async function boot(){
 }
 
 async function refreshWallet(){
-  const w = await api('/wallet.php?action=balance');
+  const w = await api('/wallet/balance');
   if(!w.success) return;
   document.getElementById('walletBox').innerHTML =
     `<span class="wallet">Available <b>${money(w.available)}</b>` +
@@ -483,12 +483,12 @@ async function load(){
   if(VIEW === 'board'){
     const s = document.getElementById('fService')?.value || '';
     const r = document.getElementById('fRadius')?.value || 35;
-    res = await api(`/calls.php?action=board&radius=${r}` + (s ? `&service_type=${s}` : ''));
+    res = await api(`/calls/board?radius=${r}` + (s ? `&service_type=${s}` : ''));
     renderNotices(res);
   } else if(VIEW === 'mine'){
-    res = await api('/calls.php?action=my-calls');
+    res = await api('/calls/my-calls');
   } else {
-    res = await api('/bids.php?action=mine');
+    res = await api('/bids/mine');
     return renderBids(res.bids || []);
   }
 
@@ -590,19 +590,19 @@ function renderBids(bids){
 const nextLabel = s => ({awarded:'En route', en_route:'On scene', on_scene:'Complete'})[s];
 async function advance(id, cur){
   if(cur === 'on_scene'){
-    const r = await api('/calls.php?action=complete', {method:'POST', body:JSON.stringify({call_id:id})});
+    const r = await api('/calls/complete', {method:'POST', body:JSON.stringify({call_id:id})});
     if(!r.success) return alert(r.error);
     alert(`Completed. ${money(r.net_to_you)} is on its way to your bank.`);
   } else {
     const next = cur === 'awarded' ? 'en_route' : 'on_scene';
-    const r = await api('/calls.php?action=status', {method:'POST', body:JSON.stringify({call_id:id, status:next})});
+    const r = await api('/calls/status', {method:'POST', body:JSON.stringify({call_id:id, status:next})});
     if(!r.success) return alert(r.error);
   }
   load();
 }
 async function cancelCall(id){
   if(!confirm('Cancel this call? Held funds return to your balance.')) return;
-  const r = await api('/calls.php?action=cancel', {method:'POST', body:JSON.stringify({call_id:id})});
+  const r = await api('/calls/cancel', {method:'POST', body:JSON.stringify({call_id:id})});
   if(!r.success) return alert(r.error);
   await refreshWallet(); load();
 }
@@ -620,12 +620,12 @@ async function submitCall(){
   const body = {
     service_type: pService.value, vehicle_class: pClass.value,
     pickup_address: pPickup.value, pickup_city: pCity.value, pickup_state: pState.value,
-    // Geocoding is wired to the address field in the live build; the demo
-    // seeds Stuart FL so distances render against the tower's base.
-    pickup_lat: 27.1912, pickup_lng: -80.2456,
+    // Geocoding is wired to the address field in the live build; until then
+    // the form seeds Miami coordinates so distances render correctly.
+    pickup_lat: 25.7617, pickup_lng: -80.1918,
     dropoff_address: pDrop.value || null,
-    dropoff_city: pDrop.value ? 'Palm City' : null, dropoff_state: pDrop.value ? 'FL' : null,
-    dropoff_lat: pDrop.value ? 27.1631 : null, dropoff_lng: pDrop.value ? -80.3120 : null,
+    dropoff_city: pDrop.value ? 'Hialeah' : null, dropoff_state: pDrop.value ? 'FL' : null,
+    dropoff_lat: pDrop.value ? 25.8576 : null, dropoff_lng: pDrop.value ? -80.2781 : null,
     vehicle_year: pYear.value, vehicle_make: pMake.value, vehicle_model: pModel.value,
     has_keys: pKeys.checked, wheels_lock: pWheels.checked,
     is_accident: pAccident.checked, is_ev: pEV.checked,
@@ -633,7 +633,7 @@ async function submitCall(){
     pricing_mode: pMode.value, offer_amount: Number(pAmount.value),
     goa_amount: Number(pGoa.value), expires_in_minutes: Number(pExpiry.value)
   };
-  const r = await api('/calls.php?action=create', {method:'POST', body:JSON.stringify(body)});
+  const r = await api('/calls/create', {method:'POST', body:JSON.stringify(body)});
   if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
   closePost(); await refreshWallet(); load();
 }
@@ -668,11 +668,11 @@ async function submitAct(){
   const eta = Number(document.getElementById('actEta').value);
   let r;
   if(ACT.mode === 'bid'){
-    r = await api('/bids.php?action=create', {method:'POST', body:JSON.stringify({
+    r = await api('/bids/create', {method:'POST', body:JSON.stringify({
       call_id: ACT.id, amount: Number(document.getElementById('actAmount').value),
       eta_minutes: eta, note: document.getElementById('actNote').value })});
   } else {
-    r = await api('/calls.php?action=accept', {method:'POST', body:JSON.stringify({call_id: ACT.id, eta_minutes: eta})});
+    r = await api('/calls/accept', {method:'POST', body:JSON.stringify({call_id: ACT.id, eta_minutes: eta})});
   }
   if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
   closeAct();

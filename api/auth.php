@@ -25,11 +25,11 @@ if ($method === 'POST' && $action === 'register') {
     $stmt->execute([':e' => $in['email']]);
     if ($stmt->fetch()) errorResponse('An account with this email already exists');
 
-    // Geo-gate at signup if we're launching market by market. Empty = open.
-    $launchStates = array_filter(array_map('trim', explode(',', (string)setting('launch_states', ''))));
-    if ($launchStates && !empty($in['state'])
-        && !in_array(strtoupper($in['state']), array_map('strtoupper', $launchStates), true)) {
-        errorResponse('We have not launched in ' . strtoupper($in['state']) . ' yet. Join the waitlist and we will let you know.');
+    // Geo-gate at signup while we're launching one market at a time.
+    if ($msg = outsideLaunchArea(
+            isset($in['lat']) ? (float)$in['lat'] : null,
+            isset($in['lng']) ? (float)$in['lng'] : null)) {
+        errorResponse($msg);
     }
 
     $pdo->beginTransaction();

@@ -1,4 +1,9 @@
 <?php
+// Server-only secrets live in config/env.php, which is gitignored and never
+// leaves the box. Everything below falls back to safe placeholders so this
+// file is fine in a public repo.
+if (is_file(__DIR__ . '/env.php')) require_once __DIR__ . '/env.php';
+
 // ─── APP CONFIGURATION ──────────────────────────────────────────────────────
 // Working name only — change APP_NAME/APP_URL once the brand is decided.
 define('APP_NAME', getenv('TL_APP_NAME') ?: 'TowLoad');

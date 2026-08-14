@@ -157,6 +157,26 @@ function boundingBox(float $lat, float $lng, float $miles): array {
     ];
 }
 
+// Launch market gate. Liquidity is everything on a loadboard — a handful of
+// calls spread across the country looks dead to everyone. Returns null when the
+// point is inside the fence (or the fence is off), otherwise the refusal text.
+function outsideLaunchArea(?float $lat, ?float $lng): ?string {
+    $radius = (float)setting('launch_radius_miles', 0);
+    if ($radius <= 0) return null;                 // 0 = open everywhere
+
+    $clat = (float)setting('launch_center_lat', 0);
+    $clng = (float)setting('launch_center_lng', 0);
+    if (!$clat || !$clng) return null;
+
+    // No coordinates yet (address not geocoded) — don't block on a guess.
+    if ($lat === null || $lng === null || (!$lat && !$lng)) return null;
+
+    if (haversineMiles($clat, $clng, $lat, $lng) <= $radius) return null;
+
+    return 'We have only launched in ' . setting('launch_area_name', 'our first market')
+         . ' so far. Everywhere else is coming soon.';
+}
+
 // ─── MONEY ───────────────────────────────────────────────────────────────────
 function money($v): string {
     return number_format((float)$v, 2, '.', '');

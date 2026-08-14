@@ -1,3 +1,4 @@
 uploads/
 webhooks/*.log
 *.bak-*
+config/env.php

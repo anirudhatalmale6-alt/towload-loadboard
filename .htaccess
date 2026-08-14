@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════════════════════
+#  Clean URLs — nothing in this app ever shows a .php extension.
+#
+#    /                        -> web/index.html
+#    /api/auth/login          -> api/auth.php?action=login
+#    /api/calls/board?radius= -> api/calls.php?action=board&radius=
+#    /api/calls               -> api/calls.php
+#    /webhooks/stripe         -> webhooks/stripe.php
+#
+#  Works in a subfolder without knowing the folder name, so renaming the
+#  directory when the brand is chosen needs no edit here.
+# ═══════════════════════════════════════════════════════════════════════════
+
+RewriteEngine On
+
+# bot24.io's parent rules would otherwise hijack this subfolder.
+RewriteOptions IgnoreInherit
+
+# Anyone hitting a .php URL directly gets bounced to the clean one, so the
+# extension can never leak into a link, a bookmark or a search index.
+RewriteCond %{THE_REQUEST} "\s/+(.*?)/(api|webhooks)/([a-z-]+)\.php(?:\?action=([a-z-]+))?" [NC]
+RewriteRule ^ /%1/%2/%3/%4? [R=301,L]
+
+# Real files and directories win (assets, uploads).
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# API + webhooks
+RewriteRule ^api/([a-z-]+)/([a-z-]+)/?$      api/$1.php?action=$2 [QSA,L]
+RewriteRule ^api/([a-z-]+)/?$                api/$1.php [QSA,L]
+RewriteRule ^webhooks/([a-z-]+)/?$           webhooks/$1.php [QSA,L]
+
+# The app itself
+RewriteRule ^$                               web/index.html [L]
+
+# ─── Hardening ──────────────────────────────────────────────────────────────
+# Config, includes and the schema must never be fetchable over HTTP.
+RedirectMatch 404 ^/.*/(config|includes)/.*$
+RedirectMatch 404 ^/.*/schema\.sql$
+RedirectMatch 404 ^/.*/\.git
+
+<FilesMatch "\.(sql|log|md|bak|bak-.*)$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# No directory listings.
+Options -Indexes

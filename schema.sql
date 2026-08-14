@@ -512,9 +512,16 @@ INSERT INTO platform_settings (setting_key, setting_value, description) VALUES
 ('platform_fee_minimum',    '5.00',  'Floor so small calls still cover Stripe fees'),
 ('default_call_expiry_min', '20',    'Minutes a call stays on the board before expiring'),
 ('min_topup_amount',        '250.00','Minimum provider balance top-up'),
-('launch_states',           '',      'Comma-separated state codes. Empty = open nationwide'),
 ('require_coi_to_accept',   '1',     'Block accepting calls without an unexpired liability COI'),
-('goa_requires_photo',      '1',     'GOA payout requires a geotagged arrival photo');
+('goa_requires_photo',      '1',     'GOA payout requires a geotagged arrival photo'),
+-- Launch market. An empty nationwide board has no liquidity and kills itself,
+-- so signups and postings are fenced to one metro until it is dense.
+-- Centre + radius rather than a state code: "Miami-Dade County" is not a state,
+-- and a 35-mile circle here covers Homestead up to Aventura.
+('launch_area_name',        'Miami-Dade County', 'Shown to anyone outside the fence'),
+('launch_center_lat',       '25.6100',  'Launch geofence centre latitude'),
+('launch_center_lng',       '-80.3000', 'Launch geofence centre longitude'),
+('launch_radius_miles',     '35',       'Launch geofence radius. 0 = open everywhere');
 
 -- ─── ADMIN USERS (platform staff — Ricardo & co) ─────────────────────────────
 CREATE TABLE admin_users (
