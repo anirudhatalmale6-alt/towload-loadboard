@@ -13,6 +13,9 @@ if ($method === 'POST' && $action === 'create') {
     $user = requireAuth();
     requireAccountType($user, 'provider');
     requireRole($user, ['owner', 'dispatcher']);
+    if ((string)setting('providers_enabled', '0') !== '1') {
+        errorResponse('Job posting by dispatchers is disabled. All jobs now come directly from customers.', 403);
+    }
     $in = jsonInput();
 
     foreach (['pickup_address', 'pickup_lat', 'pickup_lng', 'offer_amount'] as $f) {
@@ -37,7 +40,8 @@ if ($method === 'POST' && $action === 'create') {
     $goa = isset($in['goa_amount']) ? round((float)$in['goa_amount'], 2) : (float)$profile['default_goa_amount'];
     if ($goa > $offer) $goa = $offer;
 
-    $pricingMode = in_array($in['pricing_mode'] ?? 'accept', ['accept', 'bid'], true)
+    $pricingMode = ((string)setting('bidding_enabled', '0') === '1'
+                    && in_array($in['pricing_mode'] ?? 'accept', ['accept', 'bid'], true))
         ? $in['pricing_mode'] : 'accept';
 
     // Distance is what a tower actually prices on, so compute it rather than

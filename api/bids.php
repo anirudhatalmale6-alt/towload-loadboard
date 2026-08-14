@@ -16,6 +16,10 @@ if ($method === 'POST' && ($action === 'create' || $action === '')) {
     requireVerified($user);
     $in = jsonInput();
 
+    if ((string)setting('bidding_enabled', '0') !== '1') {
+        errorResponse('Jobs are offered at a fixed price — accept the job instead of bidding.', 403);
+    }
+
     $callId = (int)($in['call_id'] ?? 0);
     $amount = round((float)($in['amount'] ?? 0), 2);
     $eta    = (int)($in['eta_minutes'] ?? 0);

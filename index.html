@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TowLoad — Towing Loadboard</title>
+<title>TowLoad — Jobs for tow operators</title>
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel-2:#1b232d; --line:#242e3a;
@@ -234,6 +234,9 @@ legend{
       <div class="f"><label>Password</label><input id="liPass" type="password" placeholder="••••••••"></div>
       <button class="btn go" style="width:100%;padding:11px" onclick="doLogin()">Sign in</button>
       <div id="liErr" class="notice err hide" style="margin:14px 0 0"></div>
+      <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-dim)">
+        Don't have an account? <a href="join" style="color:var(--accent);font-weight:600;text-decoration:none">Sign up your tow company</a>
+      </div>
       <div class="demo-pick">
         <div style="text-align:center;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.6px;margin:6px 0 2px">Demo accounts</div>
         <button class="demo-btn" onclick="demo('provider')">
@@ -429,7 +432,7 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">Board</button><button class="tab" data-v="mine">My calls</button><button class="tab" data-v="bids">My bids</button>`
+    ? `<button class="tab" data-v="board">Available jobs</button><button class="tab" data-v="mine">My jobs</button>`
     : `<button class="tab" data-v="mine">My calls</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
@@ -453,7 +456,7 @@ function switchView(v){
   const f = document.getElementById('filters');
 
   if(v === 'board'){
-    document.getElementById('viewTitle').textContent = 'Available calls';
+    document.getElementById('viewTitle').textContent = 'Available jobs';
     f.innerHTML = `
       <select id="fService" onchange="load()">
         <option value="">All services</option><option value="tow">Tow</option>
@@ -466,7 +469,7 @@ function switchView(v){
         <option value="100">Within 100 mi</option>
       </select>`;
   } else if(v === 'mine'){
-    document.getElementById('viewTitle').textContent = isTower ? 'My calls' : 'Calls I posted';
+    document.getElementById('viewTitle').textContent = isTower ? 'My jobs' : 'Calls I posted';
     f.innerHTML = isTower ? '' : `<button class="btn go" onclick="openPost()">+ Post a call</button>`;
   } else {
     document.getElementById('viewTitle').textContent = 'My bids';
@@ -495,7 +498,7 @@ async function load(){
   if(!res.success){ list.innerHTML = `<div class="notice err">${res.error}</div>`; return; }
   DATA = res.calls || [];
   document.getElementById('viewSub').textContent =
-    DATA.length + (DATA.length === 1 ? ' call' : ' calls') +
+    DATA.length + (DATA.length === 1 ? ' job' : ' jobs') +
     (VIEW === 'board' && res.search ? ` within ${res.search.radius_miles} miles` : '');
   render();
 }
@@ -510,7 +513,7 @@ function render(){
   const list = document.getElementById('list');
   if(!DATA.length){
     list.innerHTML = `<div class="empty"><h3>Nothing here right now</h3>
-      <p>${VIEW==='board' ? 'New calls appear the moment a provider posts one.' : 'Calls you take will show up here.'}</p></div>`;
+      <p>${VIEW==='board' ? 'New jobs appear here the moment a customer requests one.' : 'Jobs you take will show up here.'}</p></div>`;
     return;
   }
   const isTower = ME.account.account_type === 'tower';
@@ -531,7 +534,7 @@ function render(){
         <div class="c-top">
           <span class="svc ${c.service_type}">${c.service_type.replace('_',' ')}</span>
           <span class="cnum">${c.call_number}</span>
-          ${open ? `<span class="funded">&#9679; Funded</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
+          ${open ? `<span class="funded">&#9679; Paid job</span>` : `<span class="cnum">${c.status.replace('_',' ')}</span>`}
         </div>
         <div class="route">
           ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
@@ -541,7 +544,7 @@ function render(){
         <div class="meta">
           <span>${c.vehicle || 'Vehicle n/a'}${c.vehicle_color ? ' &middot; ' + c.vehicle_color : ''}</span>
           <span>${c.customer_name || ''}</span>
-          ${c.provider_name ? `<span>${c.provider_name}</span>` : ''}
+
           ${c.tower_name ? `<span>${c.tower_name}</span>` : ''}
           ${flags.length ? `<span class="flag">${flags.join(' &middot; ')}</span>` : ''}
         </div>

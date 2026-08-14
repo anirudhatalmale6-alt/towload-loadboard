@@ -3,6 +3,7 @@
 #
 #    /                        -> index.html          (dispatcher board)
 #    /tow                     -> tow.html            (stranded motorist)
+#    /join                    -> join.html           (tow operator signup)
 #    /track/{token}           -> tow.html?job={token}
 #    /api/auth/login          -> api/auth.php?action=login
 #    /api/calls/board?radius= -> api/calls.php?action=board&radius=
@@ -40,6 +41,7 @@ RewriteRule ^ - [L]
 # Consumer-facing pages. /tow is what the Google ads point at; /track/{token}
 # is the link a customer gets by text and comes back to.
 RewriteRule ^tow/?$                          tow.html [L]
+RewriteRule ^join/?$                         join.html [L]
 RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 
 # API + webhooks

@@ -17,6 +17,12 @@ if ($method === 'POST' && $action === 'register') {
     if (!in_array($in['account_type'], ['provider', 'tower'], true)) {
         errorResponse('account_type must be "provider" or "tower"');
     }
+    // The platform is customer-direct: jobs come from stranded motorists, not
+    // from brokers. Providers are switched off rather than deleted so the
+    // motor-club side can be turned back on with one setting.
+    if ($in['account_type'] === 'provider' && (string)setting('providers_enabled', '0') !== '1') {
+        errorResponse('We are not taking dispatcher or motor club accounts. If you run tow trucks, sign up as a towing company.', 403);
+    }
     if (!filter_var($in['email'], FILTER_VALIDATE_EMAIL)) errorResponse('Invalid email address');
     if (strlen($in['password']) < 8) errorResponse('Password must be at least 8 characters');
 
