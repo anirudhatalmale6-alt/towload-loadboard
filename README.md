@@ -145,8 +145,8 @@ schema.sql
 ## Cron
 
 ```
-* * * * *   curl -s https://HOST/api/calls.php?action=expire-sweep
-*/5 * * * * curl -s https://HOST/api/connect.php?action=process-payouts
+* * * * *   curl -s https://bot24.io/towload/api/calls/expire-sweep
+*/5 * * * * curl -s https://bot24.io/towload/api/connect/process-payouts
 ```
 
 The expiry sweep matters: without it a provider's money sits frozen behind dead
