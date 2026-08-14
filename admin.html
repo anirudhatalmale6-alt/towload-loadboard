@@ -136,6 +136,8 @@ input:focus,select:focus{outline:0;border-color:var(--accent)}
 .kv{display:grid;grid-template-columns:130px 1fr;gap:7px 14px;font-size:13.5px;margin-bottom:18px}
 .kv .k{color:var(--ink-3)}
 .empty{color:var(--ink-3);text-align:center;padding:44px 0;font-size:13.5px}
+.dim{color:var(--ink-3)}
+p{color:var(--ink-2);font-size:13px;line-height:1.6}
 </style>
 
 <!-- ═══ LOGIN ═══ -->
@@ -227,7 +229,8 @@ function signOut(){
 // ── shell ────────────────────────────────────────────────
 const TABS = [
   ['dashboard','Overview'], ['review','Review queue'], ['markets','Markets & pricing'],
-  ['rates','Rate table'], ['leads','Coverage leads'], ['jobs','Jobs'], ['settings','Settings'],
+  ['rates','Rate table'], ['leads','Coverage leads'], ['jobs','Jobs'],
+  ['push','Phone alerts'], ['settings','Settings'],
 ];
 
 function boot(){
@@ -244,7 +247,94 @@ function setTab(k){ TAB = k; boot(); }
 function render(){
   $('view').innerHTML = '<div class="empty">Loading…</div>';
   ({dashboard:vDashboard, review:vReview, markets:vMarkets,
-    rates:vRates, leads:vLeads, jobs:vJobs, settings:vSettings}[TAB] || vDashboard)();
+    rates:vRates, leads:vLeads, jobs:vJobs, push:vPush, settings:vSettings}[TAB] || vDashboard)();
+}
+
+// ═══ PHONE ALERTS ════════════════════════════════════════
+// The first block is the one to read. Everything else is diagnostics; the
+// silent-company list is companies that are approved, live, allowed to take
+// work, and cannot hear about any of it.
+async function vPush(){
+  const r = await api('/admin/push-health');
+  if(!r.success) return;
+
+  const s = r.summary || {}, d = r.last_24h || {};
+  const tile = (n,l,alert) => `<div class="tile ${alert?'alert':''}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+
+  const silent = r.silent_towers || [];
+
+  $('view').innerHTML = `
+    ${!r.configured ? `<div class="brake on"><div class="state">● Push is not set up yet</div>
+       <h3>No signing key</h3><p>The first time a phone registers, the server generates one
+       automatically. Until then nothing can be delivered.</p></div>` : ''}
+
+    ${!r.push_enabled ? `<div class="brake on"><div class="state">● Alerts are switched OFF platform-wide</div>
+       <h3>push_enabled is 0</h3><p>No job alert is going out to anybody. Turn it back on under
+       Settings when you are done testing.</p></div>` : ''}
+
+    ${silent.length ? `
+    <div class="brake ${silent.length > 2 ? 'on' : ''}">
+      ${silent.length > 2 ? `<div class="state">● ${silent.length} approved companies cannot be reached</div>` : ''}
+      <h3>Approved companies with no working phone</h3>
+      <p>These are verified, active towing companies that will never see a job, because no
+         phone of theirs is registered for alerts. On iPhone the usual cause is that they
+         never added the app to the Home Screen — Apple will not deliver to a plain Safari
+         tab. Worth one phone call each; it takes twenty seconds on their end.</p>
+      <table style="margin-top:14px">
+        <tr><th>Company</th><th>Phone</th><th>Approved</th></tr>
+        ${silent.slice(0,12).map(t => `<tr>
+          <td><b>${esc(t.name)}</b></td>
+          <td>${esc(t.phone || '—')}</td>
+          <td class="dim">${(t.created_at||'').slice(0,10)}</td></tr>`).join('')}
+      </table>
+      ${silent.length > 12
+        ? `<p style="margin:12px 0 0">and ${silent.length - 12} more. Oldest first is the wrong
+             order to work through this list — start with whoever you signed up most recently,
+             while they still remember the conversation.</p>`
+        : ''}
+    </div>` : ''}
+
+    <div class="tiles">
+      ${tile(s.devices_active || 0, 'Phones receiving alerts')}
+      ${tile(s.ios_active || 0, 'iPhones')}
+      ${tile(s.android_active || 0, 'Android')}
+      ${tile(s.ios_not_installed || 0, 'iPhones not installed', (s.ios_not_installed||0) > 0)}
+      ${tile(s.devices_stopped || 0, 'Phones that stopped responding', (s.devices_stopped||0) > 0)}
+      ${tile(r.opted_out || 0, 'Companies with alerts switched off')}
+    </div>
+
+    <h3 style="margin:26px 0 10px">Last 24 hours</h3>
+    <div class="tiles">
+      ${tile(d.attempts || 0, 'Alerts attempted')}
+      ${tile(d.delivered || 0, 'Delivered')}
+      ${tile(d.failed || 0, 'Failed', (d.failed||0) > 0)}
+    </div>
+
+    ${(r.unheard_jobs||[]).length ? `
+    <h3 style="margin:26px 0 10px">Jobs nobody was alerted about</h3>
+    <p class="dim" style="margin-bottom:10px">A job posted where no truck was eligible or
+       no phone was reachable. A run of these in one city is a coverage problem, not an
+       alerting one — check Coverage leads.</p>
+    <table>
+      <tr><th>Job</th><th>Where</th><th>Amount</th><th>When</th></tr>
+      ${r.unheard_jobs.map(j => `<tr>
+        <td>${esc(j.call_number)}</td>
+        <td>${esc(j.pickup_city || '')}, ${esc(j.pickup_state || '')}</td>
+        <td>$${Number(j.offer_amount).toFixed(2)}</td>
+        <td class="dim">${(j.created_at||'').replace('T',' ')}</td></tr>`).join('')}
+    </table>` : ''}
+
+    ${(r.failures||[]).length ? `
+    <h3 style="margin:26px 0 10px">Recent delivery failures</h3>
+    <table>
+      <tr><th>When</th><th>Company</th><th>Code</th><th>What the push service said</th></tr>
+      ${r.failures.map(f => `<tr>
+        <td class="dim">${(f.created_at||'').replace('T',' ')}</td>
+        <td>${esc(f.company || '—')}</td>
+        <td>${f.http_code || '—'}</td>
+        <td class="dim">${esc(f.error || '')}</td></tr>`).join('')}
+    </table>` : '<p class="dim" style="margin-top:22px">No delivery failures recorded.</p>'}
+  `;
 }
 
 // ═══ OVERVIEW ════════════════════════════════════════════

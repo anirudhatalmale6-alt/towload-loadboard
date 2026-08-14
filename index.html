@@ -2,8 +2,25 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover + the safe-area padding below keeps the header clear of
+     the notch once this is running full screen from the Home Screen. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TowLoad — Trabajos para operadores de grúa</title>
+
+<!-- ─── Installable app ──────────────────────────────────────────────────
+     iOS reads none of the manifest's display or icon fields; it needs its own
+     apple-* tags, and without apple-mobile-web-app-capable the Home Screen
+     icon opens a plain Safari tab — which cannot receive push at all. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0d1117">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TowLoad">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <style>
 :root{
   --bg:#0d1117; --panel:#151b23; --panel-2:#1b232d; --line:#242e3a;
@@ -130,6 +147,77 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .bl.fee b{color:var(--ink-faint)}
 .bl.net{font-weight:750;color:var(--green,#22c55e)}
 .bl.net b{color:var(--green,#22c55e)}
+
+/* ── push alerts ──────────────────────────────────────────
+   Same visual family as the verification banner on purpose: both are "you
+   cannot earn until you finish this", and an operator should read them the
+   same way. */
+.push-bar{
+  border:1px solid var(--line);background:var(--panel-2);border-radius:12px;
+  padding:15px 17px;margin-bottom:18px;
+}
+.push-bar.warn{border-color:#7c5a10;background:#241d0d}
+.push-bar.err{border-color:#7f1d1d;background:#221010}
+.push-bar h4{font-size:14px;font-weight:750;margin-bottom:5px;color:#fbbf24}
+.push-bar.err h4{color:#f0776f}
+.push-bar p{font-size:13px;color:var(--ink-dim);line-height:1.6;margin-bottom:0}
+.push-bar .btn{margin-top:12px}
+.push-steps{margin:12px 0 0;padding:0;list-style:none;counter-reset:s}
+.push-steps li{
+  display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);
+  padding:7px 0;line-height:1.4;
+}
+.push-steps .sq{
+  flex:none;width:26px;height:26px;border-radius:7px;background:var(--panel);
+  border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+  color:var(--blue);font-weight:700;font-size:14px;
+}
+.push-fine{font-size:11.5px;color:var(--ink-faint);line-height:1.55;margin-top:9px}
+.push-fine.err-text{color:#f0776f}
+.warn-text{color:#e3b341}
+
+.pane{
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  margin-bottom:14px;overflow:hidden;
+}
+.pane-h{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:13px 16px;border-bottom:1px solid var(--line);background:var(--panel-2);
+}
+.pane-h h3{font-size:13px;font-weight:700;letter-spacing:.2px}
+.pane-status{font-size:12px;color:var(--ink-dim);display:flex;align-items:center;gap:7px}
+.pane-b{padding:16px}
+.pane-b .btn{margin-top:6px;margin-right:8px}
+.pane-b .f{margin-bottom:15px}
+.pane-b .f label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:5px}
+.pane-b .f input,.pane-b .f select{
+  /* Capped rather than full-width: a number field stretched across a 1400px
+     desktop reads as a text area and invites a paragraph. */
+  width:100%;max-width:340px;padding:9px 11px;border-radius:7px;background:var(--bg);
+  border:1px solid var(--line);color:var(--ink);
+}
+.pane-b .f2{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:340px}
+.pane-b .hint{font-size:11.5px;color:var(--ink-faint);margin-top:5px;line-height:1.5}
+.pane-b .chk{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:16px}
+
+.dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block;background:var(--ink-faint)}
+.dot.ok{background:var(--green);box-shadow:0 0 0 3px rgba(46,160,67,.15)}
+.dot.warn{background:var(--amber);box-shadow:0 0 0 3px rgba(210,153,34,.15)}
+.dot.err{background:var(--red);box-shadow:0 0 0 3px rgba(229,83,75,.15)}
+
+.device{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--line)}
+.device:last-child{border-bottom:0}
+.device .dot{margin-top:5px}
+.device-t{font-size:13px;font-weight:600;text-transform:capitalize}
+
+/* Running full screen from the Home Screen there is no browser chrome, so the
+   header sits under the notch unless it is padded out of the safe area. */
+@supports (padding:env(safe-area-inset-top)){
+  header{
+    height:calc(56px + env(safe-area-inset-top));
+    padding-top:env(safe-area-inset-top);
+  }
+}
 
 /* ── verification banner ──────────────────────────────── */
 .verify-bar{
@@ -270,7 +358,25 @@ legend{
   .call{grid-template-columns:1fr}
   .c-side{justify-content:space-between}
   .grid2,.grid3{grid-template-columns:1fr}
-  .tabs{display:none}
+
+  /* The tabs used to be hidden at this width, from when a tower had only two
+     of them and the board was always the one you wanted. Alerts changed that:
+     it is the screen an operator most needs to reach, and he is only ever on a
+     phone. Hidden tabs would have made it unreachable on the one device that
+     matters. Wrapped onto their own scrollable row instead. */
+  header{
+    height:auto;flex-wrap:wrap;gap:0 14px;padding:9px 14px;
+    padding-top:calc(9px + env(safe-area-inset-top, 0px));
+  }
+  .tabs{
+    display:flex;order:9;width:100%;margin:9px 0 0;gap:4px;
+    overflow-x:auto;scrollbar-width:none;
+    border-top:1px solid var(--line);padding-top:9px;
+  }
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px 15px;font-size:13px;white-space:nowrap;flex:none}
+
+  .pane-b .f2{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -321,6 +427,7 @@ legend{
 </header>
 
 <main>
+  <div id="pushBanner"></div>
   <div id="notices"></div>
   <div class="bar">
     <div>
@@ -330,6 +437,7 @@ legend{
     <div class="filters" id="filters"></div>
   </div>
   <div class="cards" id="list"></div>
+  <div id="alertsPane" class="hide"></div>
 </main>
 </div>
 
@@ -475,7 +583,14 @@ async function doLogin(){
   TOKEN = res.token; localStorage.setItem('tl_token', TOKEN);
   await boot();
 }
-function logout(){ TOKEN=''; localStorage.removeItem('tl_token'); location.reload(); }
+async function logout(){
+  // The session cookie the service worker uses lives on the server side of
+  // this call. Clearing localStorage alone would leave a phone able to
+  // re-register itself against an account its driver has signed out of.
+  try { await api('/auth/logout', {method:'POST'}); } catch(e){}
+  try { await TLPush.disable(); } catch(e){}
+  TOKEN=''; localStorage.removeItem('tl_token'); location.reload();
+}
 
 async function boot(){
   const me = await api('/auth/me');
@@ -494,13 +609,17 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button>`
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button>`
     : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
   if(!isTower) await refreshWallet();
-  if(isTower) renderVerifyBar();
-  switchView(isTower ? 'board' : 'mine');
+  if(isTower){ renderVerifyBar(); renderPushBanner(); }
+
+  // A notification tap lands on ?job=<id>; go straight to the board so the job
+  // is the first thing on screen rather than whichever tab was last open.
+  const jump = new URLSearchParams(location.search).get('tab');
+  switchView(isTower ? (jump === 'alerts' ? 'alerts' : 'board') : 'mine');
 }
 
 /* ── verification ────────────────────────────────────────────────
@@ -595,6 +714,26 @@ function switchView(v){
   const isTower = ME.account.account_type === 'tower';
   const f = document.getElementById('filters');
 
+  // Alerts is a settings screen, not a list of jobs, so it swaps the card list
+  // out rather than filtering it.
+  const pane = document.getElementById('alertsPane');
+  const list = document.getElementById('list');
+  if(v === 'alerts'){
+    // The banner exists to send an operator here. Once he has arrived it is
+    // the same button twice, so it stands down.
+    document.getElementById('pushBanner').innerHTML = '';
+    document.getElementById('viewTitle').textContent = t('o.alerts');
+    document.getElementById('viewSub').textContent = '';
+    f.innerHTML = '';
+    list.classList.add('hide');
+    pane.classList.remove('hide');
+    renderAlertsPane();
+    return;
+  }
+  pane.classList.add('hide');
+  list.classList.remove('hide');
+  if(isTower) renderPushBanner();
+
   if(v === 'board'){
     document.getElementById('viewTitle').textContent = t('o.available_jobs');
     f.innerHTML = `
@@ -645,7 +784,7 @@ async function load(){
 function renderNotices(res){
   const n = document.getElementById('notices');
   n.innerHTML = (res.can_accept === false && res.blocked_reason)
-    ? `<div class="notice warn"><b>Can't accept calls:</b> ${res.blocked_reason}</div>` : '';
+    ? `<div class="notice warn"><b>${t('o.cannot_accept')}</b> ${res.blocked_reason}</div>` : '';
 }
 
 function render(){
@@ -839,7 +978,12 @@ async function submitAct(){
 setInterval(() => { if(ME && VIEW === 'board') load(); }, 20000);
 setInterval(() => { if(ME && DATA.length) render(); }, 1000);
 
-if(TOKEN) boot();
 </script>
+
+<!-- After the inline script: push.js calls api(), t() and reads ME, all of
+     which are declared above. Loaded before boot() runs so renderPushBanner()
+     is already defined by the time boot reaches it. -->
+<script src="push.js"></script>
+<script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -1,0 +1,38 @@
+{
+  "name": "TowLoad — Operator",
+  "short_name": "TowLoad",
+  "description": "Live tow jobs near you. Get alerted the moment one is posted.",
+  "id": "/towload/",
+  "start_url": "./?src=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "lang": "es",
+  "dir": "ltr",
+  "categories": ["business", "productivity", "navigation"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/icon-120.png", "sizes": "120x120", "type": "image/png" },
+    { "src": "icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
+    { "src": "icons/icon-180.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open jobs",
+      "short_name": "Jobs",
+      "url": "./?tab=board",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "My jobs",
+      "short_name": "Mine",
+      "url": "./?tab=mine",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

@@ -344,6 +344,89 @@ if ($method === 'POST' && $action === 'emergency') {
         $on === '1' ? t('ok.emergency_on') : t('ok.emergency_off'));
 }
 
+// ═══ PUSH HEALTH ═════════════════════════════════════════════════════════════
+// Exists to answer one support call: "we never got that job."
+//
+// The number that matters is not how many notifications went out — it is how
+// many approved companies have no working phone at all. Those are trucks that
+// are live on the platform, allowed to take work, and structurally incapable of
+// hearing about any of it. Nothing else on the platform surfaces them.
+if ($method === 'GET' && $action === 'push-health') {
+    requireAdmin();
+    $pdo = getDB();
+
+    $summary = $pdo->query(
+        "SELECT
+            COUNT(*)                                              AS devices_total,
+            SUM(is_active = 1)                                    AS devices_active,
+            SUM(is_active = 1 AND platform = 'ios')               AS ios_active,
+            SUM(is_active = 1 AND platform = 'android')           AS android_active,
+            SUM(is_active = 1 AND platform = 'ios' AND is_standalone = 0) AS ios_not_installed,
+            SUM(is_active = 0)                                    AS devices_stopped
+           FROM push_subscriptions"
+    )->fetch() ?: [];
+
+    // Approved, active towing companies with nothing that can receive an alert.
+    $silent = $pdo->query(
+        "SELECT a.id, a.name, a.phone, a.created_at,
+                (SELECT COUNT(*) FROM push_subscriptions s
+                  WHERE s.account_id = a.id AND s.is_active = 1) AS devices
+           FROM accounts a
+           JOIN tower_profiles p ON p.account_id = a.id
+          WHERE a.account_type = 'tower'
+            AND a.is_active = 1
+            AND a.verification_status = 'approved'
+         HAVING devices = 0
+          ORDER BY a.created_at DESC
+          LIMIT 100"
+    )->fetchAll();
+
+    // Companies that switched alerts off themselves. Different problem, and a
+    // different conversation — worth separating from the ones who never managed
+    // to turn them on.
+    $optedOut = (int)$pdo->query(
+        "SELECT COUNT(*) FROM tower_profiles p
+           JOIN accounts a ON a.id = p.account_id
+          WHERE p.push_enabled = 0 AND a.verification_status = 'approved' AND a.is_active = 1"
+    )->fetchColumn();
+
+    $day = $pdo->query(
+        "SELECT COUNT(*) AS attempts, SUM(ok = 1) AS delivered, SUM(ok = 0) AS failed
+           FROM push_deliveries WHERE created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)"
+    )->fetch() ?: [];
+
+    $failures = $pdo->query(
+        "SELECT d.created_at, d.http_code, d.error, d.kind, a.name AS company
+           FROM push_deliveries d
+      LEFT JOIN accounts a ON a.id = d.account_id
+          WHERE d.ok = 0
+          ORDER BY d.id DESC LIMIT 25"
+    )->fetchAll();
+
+    // Jobs in the last day that reached nobody. A run of these in one city is
+    // not a push problem, it is a coverage problem wearing a push costume.
+    $unheard = $pdo->query(
+        "SELECT c.id, c.call_number, c.pickup_city, c.pickup_state, c.offer_amount, c.created_at
+           FROM calls c
+      LEFT JOIN push_deliveries d ON d.call_id = c.id AND d.ok = 1
+          WHERE c.source = 'consumer'
+            AND c.created_at > DATE_SUB(NOW(), INTERVAL 1 DAY)
+            AND d.id IS NULL
+          ORDER BY c.id DESC LIMIT 25"
+    )->fetchAll();
+
+    successResponse([
+        'summary'       => array_map('intval', $summary),
+        'silent_towers' => $silent,
+        'opted_out'     => $optedOut,
+        'last_24h'      => array_map('intval', $day),
+        'failures'      => $failures,
+        'unheard_jobs'  => $unheard,
+        'push_enabled'  => (string)setting('push_enabled', '1') === '1',
+        'configured'    => (string)setting('vapid_public_key', '') !== '',
+    ]);
+}
+
 // ═══ SETTINGS ════════════════════════════════════════════════════════════════
 // Whitelisted. platform_settings also holds the Stripe-adjacent and fee keys,
 // and a generic write endpoint over all of them is a fee-percentage change one
@@ -358,12 +441,28 @@ const EDITABLE_SETTINGS = [
     'auto_submit_for_review','require_coi_to_accept','max_upload_mb',
 ];
 
+// Keys whose VALUE must never leave the server, admin or not. The VAPID private
+// key is the platform's push signing identity: anyone holding it can send a
+// notification to every registered truck in the country. Being behind an admin
+// login is not enough — it would sit in a browser cache, in a screenshot, and
+// in whatever a support session copies out of the panel.
+const SECRET_SETTINGS = ['vapid_private_key'];
+
 if ($method === 'GET' && $action === 'settings') {
     requireAdmin();
     $rows = getDB()->query("SELECT setting_key, setting_value, description FROM platform_settings")->fetchAll();
     $out = [];
     foreach ($rows as $r) {
-        $out[] = $r + ['editable' => in_array($r['setting_key'], EDITABLE_SETTINGS, true)];
+        $secret = in_array($r['setting_key'], SECRET_SETTINGS, true);
+        if ($secret) {
+            // Shown as present-or-missing, never as a value. "Is push configured"
+            // is a legitimate admin question; "what is the key" is not.
+            $r['setting_value'] = $r['setting_value'] === '' ? '' : '••••••••  (set)';
+        }
+        $out[] = $r + [
+            'editable' => !$secret && in_array($r['setting_key'], EDITABLE_SETTINGS, true),
+            'secret'   => $secret,
+        ];
     }
     successResponse(['settings' => $out]);
 }

@@ -180,6 +180,20 @@ function i18nCatalogue(): array {
         'err.reject_reason_required' => 'Escriba el motivo del rechazo — la empresa lo va a ver.',
         'err.surge_range'       => 'El multiplicador debe estar entre 0.5 y {max}.',
 
+        // push notifications
+        'ok.push_on'            => 'Alertas activadas en este teléfono',
+        'ok.push_off'           => 'Alertas desactivadas en este teléfono',
+        'ok.test_sent'          => 'Alerta de prueba enviada — revise su teléfono',
+        'err.test_failed'       => 'No se pudo entregar la alerta de prueba. Vuelva a activar las alertas en el teléfono.',
+        'err.no_devices'        => 'Ningún teléfono tiene las alertas activadas todavía.',
+        'err.radius_range'      => 'El radio de alertas debe estar entre 1 y {max} millas.',
+        'err.min_payout_range'  => 'El mínimo debe estar entre $0 y $1,000.',
+        'err.bad_time'          => 'La hora debe ir en formato 24 horas, por ejemplo 22:00.',
+        'err.quiet_all_day'     => 'La hora de inicio y de fin no pueden ser la misma — eso silenciaría las alertas todo el día.',
+        'err.bad_timezone'      => 'Zona horaria desconocida.',
+        'push.test_title'       => 'Prueba — así se ve un trabajo nuevo',
+        'push.test_body'        => 'Sus alertas funcionan. Los trabajos reales muestran el pago, la zona y la distancia.',
+
         // field names, for "Falta {field}"
         'field.pickup_address'  => 'la dirección',
         'field.pickup_lat'      => 'la ubicación',
@@ -324,6 +338,20 @@ function i18nCatalogue(): array {
         'ok.emergency_off'      => 'Emergency mode off',
         'err.reject_reason_required' => 'Write the reason for rejection — the company will see it.',
         'err.surge_range'       => 'Multiplier must be between 0.5 and {max}.',
+
+        // push notifications
+        'ok.push_on'            => 'Alerts are on for this phone',
+        'ok.push_off'           => 'Alerts are off for this phone',
+        'ok.test_sent'          => 'Test alert sent — check your phone',
+        'err.test_failed'       => 'The test alert could not be delivered. Turn alerts on again on the phone.',
+        'err.no_devices'        => 'No phone has alerts turned on yet.',
+        'err.radius_range'      => 'Alert radius must be between 1 and {max} miles.',
+        'err.min_payout_range'  => 'The minimum must be between $0 and $1,000.',
+        'err.bad_time'          => 'Use 24-hour time, for example 22:00.',
+        'err.quiet_all_day'     => 'Start and end cannot be the same time — that would silence alerts all day.',
+        'err.bad_timezone'      => 'Unknown timezone.',
+        'push.test_title'       => 'Test — this is what a new job looks like',
+        'push.test_body'        => 'Your alerts are working. Real jobs show the payout, the area and the distance.',
 
         'field.pickup_address'  => 'the address',
         'field.pickup_lat'      => 'the location',

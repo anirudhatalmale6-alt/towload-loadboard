@@ -67,6 +67,40 @@ function verifyJWT(string $token): ?array {
     return $data;
 }
 
+/**
+ * Mirror the session token into a cookie alongside the JSON response.
+ *
+ * The app itself authenticates from localStorage and always will. This exists
+ * for the service worker, which cannot read localStorage but does send cookies:
+ * when a push service rotates a subscription out from under a phone, the worker
+ * has to re-register itself with no page open and no token to hand. Without
+ * this the device goes silent permanently while looking perfectly healthy.
+ *
+ * SameSite=Lax, deliberately. Lax still travels on the top-level navigation a
+ * notification tap produces, but is not sent on a cross-site POST — which
+ * matters because jsonInput() falls back to $_POST, so a form-encoded request
+ * from another origin would otherwise be a working CSRF against every
+ * state-changing endpoint the moment this cookie started existing.
+ */
+function issueSessionCookie(string $token): void {
+    $secure = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? '') !== 'off')
+           || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+
+    setcookie('tl_token', $token, [
+        'expires'  => time() + JWT_EXPIRY,
+        'path'     => '/',
+        'secure'   => $secure,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+function clearSessionCookie(): void {
+    setcookie('tl_token', '', [
+        'expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax',
+    ]);
+}
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 function bearerToken(): ?string {
     $authHeader = $_SERVER['HTTP_AUTHORIZATION']

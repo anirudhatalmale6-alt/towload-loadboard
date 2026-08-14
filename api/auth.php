@@ -125,8 +125,11 @@ if ($method === 'POST' && $action === 'register') {
         errorResponse('Registration failed: ' . $e->getMessage(), 500);
     }
 
+    $token = generateJWT(['user_id' => $userId, 'account_id' => $accountId, 'account_type' => $in['account_type']]);
+    issueSessionCookie($token);
+
     successResponse([
-        'token' => generateJWT(['user_id' => $userId, 'account_id' => $accountId, 'account_type' => $in['account_type']]),
+        'token' => $token,
         'user' => [
             'id' => $userId, 'email' => $in['email'],
             'first_name' => $in['first_name'], 'last_name' => $in['last_name'],
@@ -165,12 +168,15 @@ if ($method === 'POST' && $action === 'login') {
     getDB()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = :id")
            ->execute([':id' => $user['id']]);
 
+    $token = generateJWT([
+        'user_id' => (int)$user['id'],
+        'account_id' => (int)$user['account_id'],
+        'account_type' => $user['account_type'],
+    ]);
+    issueSessionCookie($token);
+
     successResponse([
-        'token' => generateJWT([
-            'user_id' => (int)$user['id'],
-            'account_id' => (int)$user['account_id'],
-            'account_type' => $user['account_type'],
-        ]),
+        'token' => $token,
         'user' => [
             'id' => (int)$user['id'], 'email' => $user['email'],
             'first_name' => $user['first_name'], 'last_name' => $user['last_name'],
@@ -185,6 +191,16 @@ if ($method === 'POST' && $action === 'login') {
 }
 
 // ─── ME ──────────────────────────────────────────────────────────────────────
+// ─── LOGOUT ──────────────────────────────────────────────────────────────────
+// Clearing localStorage in the browser is no longer enough now that the service
+// worker authenticates from a cookie: leave it behind and a phone handed to a
+// new driver could still re-register itself against the previous account.
+// Unauthenticated on purpose — logging out must work even from an expired session.
+if ($method === 'POST' && $action === 'logout') {
+    clearSessionCookie();
+    successResponse([], t('ok.saved'));
+}
+
 if ($method === 'GET' && ($action === 'me' || $action === '')) {
     $user = requireAuth();
     $pdo = getDB();

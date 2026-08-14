@@ -6,6 +6,7 @@ require_once __DIR__ . '/../includes/zones.php';
 require_once __DIR__ . '/../includes/surge.php';
 require_once __DIR__ . '/../includes/legal.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
+require_once __DIR__ . '/../includes/webpush.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -320,6 +321,11 @@ if ($method === 'POST' && $action === 'request') {
         $pdo->rollBack();
         errorResponse(t('err.request_failed', ['detail' => $e->getMessage()]), 500);
     }
+
+    // Wake the trucks. Queued rather than sent inline: the job is committed and
+    // the card is authorised by this point, so the alert is a side effect and
+    // the customer should not be watching a spinner while phones ring.
+    pushNewJobAfterResponse($callId);
 
     successResponse([
         'covered'        => true,
