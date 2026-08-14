@@ -116,6 +116,8 @@ es: {
   'c.finding':           'Buscando una grúa',
   'c.finding_sub':       'Enviando su solicitud a las grúas cercanas…',
   'c.eta_about':         'Llega en unos {n} minutos',
+  'c.eta_about_one':     'Llega en menos de un minuto',
+  'c.new_company':       'Compañía nueva en la plataforma',
   'c.thanks':            'Gracias por usar nuestro servicio. Su recibo va en camino.',
   'c.tl_sent':           'Solicitud enviada',
   'c.tl_assigned':       'Grúa asignada',
@@ -127,6 +129,9 @@ es: {
   'c.cancel_req':        'Cancelar esta solicitud',
   'c.cancel_confirm':    '¿Cancelar esta solicitud?',
   'c.charged':           'Cobrado',
+  'c.map_min':           'min de distancia',
+  'c.map_close':         'La grúa está muy cerca',
+  'c.map_updating':      'Actualizando ubicación…',
 
   /* operator board */
   'o.available_jobs':    'Trabajos disponibles',
@@ -237,6 +242,17 @@ es: {
   'p.dev_browser':       'navegador',
   'p.dev_last':          'última entrega {when}',
   'p.dev_never':         'todavía sin entregas',
+
+  /* compartir ubicación (conductor) */
+  'd.on_h':              'Compartiendo su ubicación con el cliente',
+  'd.on_waiting':        'Buscando su ubicación…',
+  'd.on_last':           'Última actualización hace {n} segundos',
+  'd.off_h':             'No está compartiendo su ubicación',
+  'd.off_p':             'El cliente no puede ver dónde está su grúa. Solo se comparte mientras el trabajo está activo.',
+  'd.turn_on':           'Compartir',
+  'd.turn_off':          'Dejar de compartir',
+  'd.denied_h':          'El navegador bloqueó su ubicación',
+  'd.denied_p':          'Actívela en los ajustes del navegador para que el cliente pueda ver la grúa acercarse.',
 
   'svc.tow':             'Grúa',
   'svc.winch_recovery':  'Rescate',
@@ -436,6 +452,8 @@ en: {
   'c.finding':           'Finding you a truck',
   'c.finding_sub':       'Sending your job to nearby drivers…',
   'c.eta_about':         'Estimated arrival in about {n} minutes',
+  'c.eta_about_one':     'Arriving in under a minute',
+  'c.new_company':       'New company on the platform',
   'c.thanks':            'Thanks for using us. Your receipt is on its way.',
   'c.tl_sent':           'Request sent',
   'c.tl_assigned':       'Driver assigned',
@@ -447,6 +465,9 @@ en: {
   'c.cancel_req':        'Cancel this request',
   'c.cancel_confirm':    'Cancel this request?',
   'c.charged':           'Charged',
+  'c.map_min':           'min away',
+  'c.map_close':         'Your truck is very close',
+  'c.map_updating':      'Updating location…',
 
   'o.available_jobs':    'Available jobs',
   'o.my_jobs':           'My jobs',
@@ -554,6 +575,17 @@ en: {
   'p.dev_browser':       'browser',
   'p.dev_last':          'last delivery {when}',
   'p.dev_never':         'no deliveries yet',
+
+  /* driver location sharing */
+  'd.on_h':              'Sharing your location with the customer',
+  'd.on_waiting':        'Getting your location…',
+  'd.on_last':           'Last update {n} seconds ago',
+  'd.off_h':             'Not sharing your location',
+  'd.off_p':             'The customer cannot see where your truck is. It is only ever shared while a job is live.',
+  'd.turn_on':           'Share',
+  'd.turn_off':          'Stop sharing',
+  'd.denied_h':          'Your browser blocked location access',
+  'd.denied_p':          'Turn it on in browser settings so the customer can watch the truck approach.',
   'svc.tow':             'Tow',
   'svc.winch_recovery':  'Recovery',
   'svc.lockout':         'Lockout',

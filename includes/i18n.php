@@ -180,6 +180,12 @@ function i18nCatalogue(): array {
         'err.reject_reason_required' => 'Escriba el motivo del rechazo — la empresa lo va a ver.',
         'err.surge_range'       => 'El multiplicador debe estar entre 0.5 y {max}.',
 
+        // live tracking
+        'err.tracking_off'      => 'El seguimiento en vivo está desactivado.',
+        'err.not_your_job'      => 'Este trabajo no es suyo.',
+        'err.job_not_live'      => 'Este trabajo ya terminó — el seguimiento se detuvo.',
+        'err.bad_location'      => 'Ubicación inválida.',
+
         // push notifications
         'ok.push_on'            => 'Alertas activadas en este teléfono',
         'ok.push_off'           => 'Alertas desactivadas en este teléfono',
@@ -338,6 +344,12 @@ function i18nCatalogue(): array {
         'ok.emergency_off'      => 'Emergency mode off',
         'err.reject_reason_required' => 'Write the reason for rejection — the company will see it.',
         'err.surge_range'       => 'Multiplier must be between 0.5 and {max}.',
+
+        // live tracking
+        'err.tracking_off'      => 'Live tracking is switched off.',
+        'err.not_your_job'      => 'This job is not yours.',
+        'err.job_not_live'      => 'This job has ended — tracking stopped.',
+        'err.bad_location'      => 'Invalid location.',
 
         // push notifications
         'ok.push_on'            => 'Alerts are on for this phone',

@@ -5,6 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>¿Necesita una grúa? Pídala ahora — TowLoad</title>
 <meta name="description" content="Precio real en segundos y una grúa en camino. Sin llamadas, sin regateo. Su tarjeta solo se cobra cuando el trabajo está hecho.">
+
+<!-- ─── Base path ────────────────────────────────────────────────────────
+     /track/{token} is served by an INTERNAL rewrite to this same file. The
+     server resolves it; the browser's address bar still says /track/{token},
+     which is two levels deep. Every relative URL on the page — i18n.js, the
+     api/ calls, the link to the terms — therefore resolved against /track/
+     and 404'd, so the one link a customer is actually given, the one texted to
+     them as their receipt, loaded a blank booking form.
+     Setting <base> before any of those tags are parsed fixes the whole class
+     at once, and does it without hardcoding the folder name, so renaming the
+     directory when the brand is chosen still needs no edit here. -->
+<script>
+(function(){
+  var m = location.pathname.match(/^(.*\/)track\/[a-f0-9]{32}\/?$/);
+  if (!m) return;
+  var b = document.createElement('base');
+  b.href = m[1];
+  document.head.appendChild(b);
+})();
+</script>
+
+<!-- Leaflet + OpenStreetMap tiles. No API key and no per-view billing, which
+     matters on a page every single customer loads. Swappable for Google or
+     Mapbox later if the styling is worth paying for. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <style>
 :root{
   --ink:#0b1220; --ink-2:#40506a; --ink-3:#7d8ba3;
@@ -169,6 +195,40 @@ input::placeholder{color:#aab4c4}
   border-radius:999px;padding:2px 8px;font-size:11.5px;font-weight:750;
   margin-left:7px;vertical-align:middle;
 }
+
+/* ── live map ───────────────────────────────────────────
+   Hidden until there is a real position to draw. An empty grey rectangle at
+   the top of the screen tells a stranded person the app is broken. */
+#mapWrap{
+  display:none;margin:0 -22px 20px;position:relative;
+  border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+}
+#mapWrap.on{display:block}
+#map{height:260px;width:100%;background:var(--wash);z-index:1}
+.map-eta{
+  position:absolute;left:14px;bottom:14px;z-index:400;
+  background:rgba(11,18,32,.92);color:#fff;border-radius:11px;
+  padding:9px 14px;font-size:13.5px;font-weight:650;
+  box-shadow:0 4px 16px rgba(0,0,0,.28);backdrop-filter:blur(6px);
+}
+.map-eta b{font-size:17px;font-weight:800;letter-spacing:-.3px}
+.map-eta.stale{background:rgba(90,80,20,.94)}
+.truck-dot{
+  width:34px;height:34px;border-radius:50%;
+  background:var(--accent);border:3px solid #fff;
+  box-shadow:0 3px 10px rgba(0,0,0,.35);
+  display:flex;align-items:center;justify-content:center;
+  transition:transform .6s linear;
+}
+.truck-dot svg{width:17px;height:17px;fill:#fff}
+.pin-dot{
+  width:16px;height:16px;border-radius:50%;
+  background:#2563eb;border:3px solid #fff;
+  box-shadow:0 2px 7px rgba(0,0,0,.3);
+}
+/* Leaflet ships its own attribution; keep it legible but out of the way. */
+.leaflet-container{font-family:inherit}
+.leaflet-control-attribution{font-size:9px;opacity:.65}
 
 /* ── tracking ──────────────────────────────────────────── */
 .track-status{text-align:center;padding:26px 10px}
@@ -358,6 +418,10 @@ input::placeholder{color:#aab4c4}
       <div class="big" id="trkBig" data-i18n="c.finding">Buscando una grúa</div>
       <div class="sm" id="trkSm" data-i18n="c.finding_sub">Enviando su solicitud a las grúas cercanas…</div>
     </div>
+    <div id="mapWrap">
+      <div id="map"></div>
+      <div class="map-eta" id="mapEta"></div>
+    </div>
     <div id="driverBox"></div>
     <div class="timeline" id="trkTimeline"></div>
     <div class="lines" id="trkLines" style="margin-top:20px"></div>
@@ -531,6 +595,7 @@ async function submitRequest(){
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
   $('trackCard').classList.remove('hide');
   poll(); setInterval(poll, 6000);
+  pollMap(); setInterval(pollMap, 8000);
 }
 
 // ── tracking ────────────────────────────────────────────
@@ -546,9 +611,14 @@ async function poll(){
   const done = ['completed','goa','canceled','expired'].includes(r.status);
   $('trkSpin').classList.toggle('hide', done);
   $('cancelBtn').classList.toggle('hide', done);
+  // The live ETA wins when there is one. r.eta_minutes is what the driver
+  // typed at accept time and never changes, so it is only the stand-in until
+  // the first real position lands.
+  const liveEta = MAP.lastEta;
   $('trkSm').textContent = r.status === 'open'
       ? t('c.finding_sub')
-      : r.eta_minutes ? t('c.eta_about', {n: r.eta_minutes})
+      : liveEta ? (liveEta <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: liveEta}))
+      : r.eta_minutes ? (r.eta_minutes <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: r.eta_minutes}))
       : r.status === 'completed' ? t('c.thanks') : '';
 
   $('driverBox').innerHTML = r.tower ? `
@@ -556,7 +626,9 @@ async function poll(){
       <div class="av">${r.tower.name.charAt(0)}</div>
       <div>
         <div class="nm">${r.tower.name}${r.tower.verified ? `<span class="vbadge">✓ ${t('c.verified')}</span>` : ''}</div>
-        <div class="rt">★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} ${t('c.jobs')}</div>
+        <div class="rt">${r.tower.jobs > 0
+            ? `★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} ${t('c.jobs')}`
+            : t('c.new_company')}</div>
       </div>
       <a href="tel:${r.tower.phone}">${t('c.call')}</a>
     </div>` : '';
@@ -578,6 +650,91 @@ async function poll(){
     `<div class="line total"><span>${r.payment_status==='captured'?t('c.charged'):t('c.total')}</span><span>${money(r.total)}</span></div>`;
 }
 
+/* ── live map ─────────────────────────────────────────────────────────────
+   Drawn only when the server sends a position it is willing to stand behind.
+   Everything about staleness is decided server-side; this just renders what it
+   is told, so the browser can never talk itself into showing a stale truck as
+   live. */
+const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null, fitted:false };
+
+const TRUCK_SVG = '<svg viewBox="0 0 24 24"><path d="M3 6h11v9H3V6zm12 3h3.6l2.4 3v3h-6V9zM6.5 19a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm11 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/></svg>';
+
+function ensureMap(lat, lng){
+  if(MAP.map || typeof L === 'undefined') return MAP.map;
+  MAP.map = L.map('map', {
+    zoomControl:false, attributionControl:true,
+    // A stranded person is one-handed and probably panicking. Let them pan,
+    // but do not let a stray scroll throw the map into orbit.
+    scrollWheelZoom:false,
+  }).setView([lat, lng], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom:19, attribution:'&copy; OpenStreetMap'
+  }).addTo(MAP.map);
+  L.control.zoom({position:'topright'}).addTo(MAP.map);
+  return MAP.map;
+}
+
+function icon(html, cls, size){
+  return L.divIcon({html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+}
+
+async function pollMap(){
+  if(!S.token) return;
+  let r;
+  try { r = await api('/tracking/feed?token=' + S.token); } catch(e){ return; }
+  if(!r || !r.success || !r.tracking_enabled) return;
+
+  const wrap = $('mapWrap');
+
+  // No truck position means nothing honest to draw. Hide rather than show an
+  // empty map or a last-known marker with no timestamp attached to it.
+  if(!r.truck){
+    wrap.classList.remove('on');
+    MAP.lastEta = null;
+    return;
+  }
+
+  wrap.classList.add('on');
+  const m = ensureMap(r.truck.lat, r.truck.lng);
+  if(!m) return;
+  // The container starts hidden, so Leaflet measured it as zero. Tell it to
+  // look again now it has a size, or the tiles render in the wrong place.
+  setTimeout(() => m.invalidateSize(), 60);
+
+  if(!MAP.truck){
+    MAP.truck = L.marker([r.truck.lat, r.truck.lng], {
+      icon: icon('<div class="truck-dot">' + TRUCK_SVG + '</div>', '', 34),
+      zIndexOffset: 1000,
+    }).addTo(m);
+  } else {
+    MAP.truck.setLatLng([r.truck.lat, r.truck.lng]);
+  }
+
+  if(r.pickup && !MAP.pin){
+    MAP.pin = L.marker([r.pickup.lat, r.pickup.lng], {
+      icon: icon('<div class="pin-dot"></div>', '', 16)
+    }).addTo(m);
+  }
+
+  // Fit both once. Refitting on every poll fights the customer every time they
+  // try to pan, which is maddening on a phone.
+  if(!MAP.fitted && MAP.pin){
+    m.fitBounds(L.latLngBounds([[r.truck.lat, r.truck.lng],
+                                [r.pickup.lat, r.pickup.lng]]), {padding:[45,45], maxZoom:15});
+    MAP.fitted = true;
+  }
+
+  MAP.lastEta = r.truck.stale ? null : r.truck.eta_minutes;
+
+  const eta = $('mapEta');
+  eta.classList.toggle('stale', !!r.truck.stale);
+  eta.innerHTML = r.truck.stale
+    ? t('c.map_updating')
+    : (r.truck.eta_minutes
+        ? '<b>' + r.truck.eta_minutes + '</b> ' + t('c.map_min')
+        : t('c.map_close'));
+}
+
 async function cancelJob(){
   if(!confirm(t('c.cancel_confirm'))) return;
   const r = await api('/consumer/cancel', {method:'POST', body:JSON.stringify({token:S.token})});
@@ -586,12 +743,20 @@ async function cancelJob(){
 }
 
 // Returning to a tracking link picks up where they left off.
-const existing = new URLSearchParams(location.search).get('job');
+//
+// The token can arrive two ways and only one of them used to work. /track/{token}
+// is rewritten to tow.html?job={token} on the SERVER, which never changes the
+// address the browser holds — so location.search was empty and the page showed a
+// fresh booking form to a customer whose tow was already on its way. That is the
+// link texted to them as their receipt. Read the path too.
+const existing = new URLSearchParams(location.search).get('job')
+              || (location.pathname.match(/\/track\/([a-f0-9]{32})/) || [])[1];
 if(existing && /^[a-f0-9]{32}$/.test(existing)){
   S.token = existing;
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
   $('trackCard').classList.remove('hide');
   poll(); setInterval(poll, 6000);
+  pollMap(); setInterval(pollMap, 8000);
 }
 </script>
 </body>

@@ -148,6 +148,22 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .bl.net{font-weight:750;color:var(--green,#22c55e)}
 .bl.net b{color:var(--green,#22c55e)}
 
+/* ── driver location sharing ──────────────────────────────
+   Deliberately visible. A driver who cannot see that his location is being
+   sent, and cannot stop it in one tap, will solve the problem by logging out —
+   and then he stops getting jobs too. */
+.share-bar{
+  display:flex;align-items:center;gap:12px;
+  border:1px solid var(--line);background:var(--panel-2);
+  border-radius:12px;padding:12px 15px;margin-bottom:14px;
+}
+.share-bar.on{border-color:#14532d;background:#0e1a13}
+.share-bar.off{border-color:#7c5a10;background:#241d0d}
+.share-bar b{font-size:13px;font-weight:700}
+.share-bar > div{flex:1;min-width:0}
+.share-sub{font-size:11.5px;color:var(--ink-faint);margin-top:2px}
+.share-bar .btn{flex:none;padding:6px 12px;font-size:12px}
+
 /* ── push alerts ──────────────────────────────────────────
    Same visual family as the verification banner on purpose: both are "you
    cannot earn until you finish this", and an operator should read them the
@@ -427,6 +443,7 @@ legend{
 </header>
 
 <main>
+  <div id="shareBar"></div>
   <div id="pushBanner"></div>
   <div id="notices"></div>
   <div class="bar">
@@ -774,6 +791,9 @@ async function load(){
 
   if(!res.success){ list.innerHTML = `<div class="notice err">${res.error}</div>`; return; }
   DATA = res.calls || [];
+  // Location sharing follows the job list: it starts when a live job appears
+  // and stops on its own when there isn't one.
+  if(typeof syncDriverSharing === 'function') syncDriverSharing();
   document.getElementById('viewSub').textContent =
     (VIEW === 'board' && res.search)
       ? t(DATA.length === 1 ? 'o.job_within' : 'o.jobs_within', {n: DATA.length, r: res.search.radius_miles})
@@ -984,6 +1004,7 @@ setInterval(() => { if(ME && DATA.length) render(); }, 1000);
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
 <script src="push.js"></script>
+<script src="driver.js"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>
