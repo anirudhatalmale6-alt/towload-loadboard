@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/matching.php';
+require_once __DIR__ . '/../includes/escrow.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -63,7 +64,7 @@ if ($method === 'POST' && ($action === 'create' || $action === '')) {
     successResponse([
         'call_id' => $callId,
         'amount' => money($amount),
-        'your_net_if_awarded' => money($amount - platformFee($amount)),
+        'your_net_if_awarded' => money($amount - feeForCall($callId, $amount)),
     ], 'Bid submitted');
 }
 

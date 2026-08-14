@@ -1,7 +1,9 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #  Clean URLs — nothing in this app ever shows a .php extension.
 #
-#    /                        -> index.html
+#    /                        -> index.html          (dispatcher board)
+#    /tow                     -> tow.html            (stranded motorist)
+#    /track/{token}           -> tow.html?job={token}
 #    /api/auth/login          -> api/auth.php?action=login
 #    /api/calls/board?radius= -> api/calls.php?action=board&radius=
 #    /api/calls               -> api/calls.php
@@ -34,6 +36,11 @@ RewriteRule ^ /%1/%2/%3/%4? [R=301,L]
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+
+# Consumer-facing pages. /tow is what the Google ads point at; /track/{token}
+# is the link a customer gets by text and comes back to.
+RewriteRule ^tow/?$                          tow.html [L]
+RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 
 # API + webhooks
 RewriteRule ^api/([a-z-]+)/([a-z-]+)/?$      api/$1.php?action=$2 [QSA,L]

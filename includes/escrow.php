@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/pricing.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  ESCROW ENGINE
@@ -13,19 +14,57 @@ require_once __DIR__ . '/helpers.php';
 //    escrowRelease()       completed     -> held -> tower payout + platform fee
 //    escrowRefund()        canceled/expired -> held -> available
 //    escrowPartialRelease() GOA/dispute  -> held -> split between both sides
+//
+//  A hold is backed by one of two things:
+//    funding_source 'balance' — a provider's prepaid balance (board jobs)
+//    funding_source 'card'    — an authorisation on a customer's card
+//                               (direct-from-consumer jobs)
+//  Everything downstream is identical; only the provider_balances bookkeeping
+//  is skipped for card-funded holds, because there is no balance to move.
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Board jobs and consumer jobs carry different cuts. One lookup so the fee can
+// never diverge between what was quoted and what is actually taken.
+function feeForCall(int $callId, float $amount): float {
+    $stmt = getDB()->prepare("SELECT source FROM calls WHERE id = :c");
+    $stmt->execute([':c' => $callId]);
+    $source = $stmt->fetch()['source'] ?? 'board';
+    return $source === 'consumer' ? consumerFee($amount) : platformFee($amount);
+}
 
 /**
  * Move funds from a provider's available balance into escrow for a call.
  * Throws if the provider can't cover it — the caller must treat that as a
  * hard failure and not award the call.
  */
-function escrowHold(int $callId, int $providerAccountId, ?int $towerAccountId, float $amount): int {
+function escrowHold(int $callId, int $providerAccountId, ?int $towerAccountId, float $amount,
+                    string $fundingSource = 'balance', ?string $paymentIntentId = null): int {
     $pdo = getDB();
     $ownTx = !$pdo->inTransaction();
     if ($ownTx) $pdo->beginTransaction();
 
     try {
+        // Card-funded: the money is authorised on the customer's card, not sitting
+        // in a balance we control. Record the hold and stop — there is nothing to
+        // debit, and touching provider_balances here would invent money.
+        if ($fundingSource === 'card') {
+            $pdo->prepare(
+                "INSERT INTO escrow_holds (call_id, provider_account_id, tower_account_id,
+                                           amount, funding_source, stripe_payment_intent_id, status)
+                 VALUES (:c, :p, :t, :amt, 'card', :pi, 'held')
+                 ON DUPLICATE KEY UPDATE tower_account_id = VALUES(tower_account_id),
+                                         amount = VALUES(amount),
+                                         stripe_payment_intent_id = VALUES(stripe_payment_intent_id),
+                                         status = 'held'"
+            )->execute([
+                ':c' => $callId, ':p' => $providerAccountId, ':t' => $towerAccountId,
+                ':amt' => money($amount), ':pi' => $paymentIntentId,
+            ]);
+            $holdId = (int)$pdo->lastInsertId();
+            if ($ownTx) $pdo->commit();
+            return $holdId;
+        }
+
         // Lock the balance row so two dispatchers awarding at once can't both
         // pass the funds check against the same dollars.
         $stmt = $pdo->prepare("SELECT * FROM provider_balances WHERE account_id = :a FOR UPDATE");
@@ -120,19 +159,21 @@ function escrowRelease(int $callId, float $awardedAmount): array {
         $release = min($awardedAmount, $held);
         $refund  = round($held - $release, 2);
 
-        $fee = platformFee($release);
+        $fee = feeForCall($callId, $release);
         $net = round($release - $fee, 2);
 
-        $pdo->prepare(
-            "UPDATE provider_balances
-                SET held = held - :held,
-                    available = available + :refund,
-                    lifetime_spent = lifetime_spent + :spent
-              WHERE account_id = :a"
-        )->execute([
-            ':held' => money($held), ':refund' => money($refund),
-            ':spent' => money($release), ':a' => $hold['provider_account_id'],
-        ]);
+        if ($hold['funding_source'] === 'balance') {
+            $pdo->prepare(
+                "UPDATE provider_balances
+                    SET held = held - :held,
+                        available = available + :refund,
+                        lifetime_spent = lifetime_spent + :spent
+                  WHERE account_id = :a"
+            )->execute([
+                ':held' => money($held), ':refund' => money($refund),
+                ':spent' => money($release), ':a' => $hold['provider_account_id'],
+            ]);
+        }
 
         $pdo->prepare(
             "UPDATE escrow_holds
@@ -154,11 +195,13 @@ function escrowRelease(int $callId, float $awardedAmount): array {
         ]);
         $payoutId = (int)$pdo->lastInsertId();
 
-        ledgerWrite((int)$hold['provider_account_id'], 'hold_release', 0.0,
-            'Released $' . money($release) . ' for call #' . $callId, $callId);
-        if ($refund > 0) {
-            ledgerWrite((int)$hold['provider_account_id'], 'hold_refund', $refund,
-                'Unused hold returned for call #' . $callId, $callId);
+        if ($hold['funding_source'] === 'balance') {
+            ledgerWrite((int)$hold['provider_account_id'], 'hold_release', 0.0,
+                'Released $' . money($release) . ' for call #' . $callId, $callId);
+            if ($refund > 0) {
+                ledgerWrite((int)$hold['provider_account_id'], 'hold_refund', $refund,
+                    'Unused hold returned for call #' . $callId, $callId);
+            }
         }
         ledgerWrite((int)$hold['tower_account_id'], 'payout', $net,
             'Payout for call #' . $callId . ' (fee $' . money($fee) . ')', $callId);
@@ -191,11 +234,13 @@ function escrowRefund(int $callId, string $reason = 'Call canceled'): void {
 
         $amount = (float)$hold['amount'];
 
-        $pdo->prepare(
-            "UPDATE provider_balances
-                SET held = held - :amt1, available = available + :amt2
-              WHERE account_id = :a"
-        )->execute([':amt1' => money($amount), ':amt2' => money($amount), ':a' => $hold['provider_account_id']]);
+        if ($hold['funding_source'] === 'balance') {
+            $pdo->prepare(
+                "UPDATE provider_balances
+                    SET held = held - :amt1, available = available + :amt2
+                  WHERE account_id = :a"
+            )->execute([':amt1' => money($amount), ':amt2' => money($amount), ':a' => $hold['provider_account_id']]);
+        }
 
         $pdo->prepare(
             "UPDATE escrow_holds
@@ -203,8 +248,10 @@ function escrowRefund(int $callId, string $reason = 'Call canceled'): void {
               WHERE id = :id"
         )->execute([':amt' => money($amount), ':id' => $hold['id']]);
 
-        ledgerWrite((int)$hold['provider_account_id'], 'hold_refund', $amount,
-            $reason . ' — call #' . $callId, $callId);
+        if ($hold['funding_source'] === 'balance') {
+            ledgerWrite((int)$hold['provider_account_id'], 'hold_refund', $amount,
+                $reason . ' — call #' . $callId, $callId);
+        }
 
         if ($ownTx) $pdo->commit();
     } catch (Throwable $e) {
@@ -240,19 +287,21 @@ function escrowPartialRelease(int $callId, float $towerAmount, string $reason = 
 
         // On a GOA the fee is charged on what the tower actually receives, so a
         // $45 GOA doesn't get eaten alive by a percentage meant for a full tow.
-        $fee = $toTower > 0 ? platformFee($toTower) : 0.0;
+        $fee = $toTower > 0 ? feeForCall($callId, $toTower) : 0.0;
         $net = round($toTower - $fee, 2);
 
-        $pdo->prepare(
-            "UPDATE provider_balances
-                SET held = held - :held,
-                    available = available + :back,
-                    lifetime_spent = lifetime_spent + :spent
-              WHERE account_id = :a"
-        )->execute([
-            ':held' => money($held), ':back' => money($toProvider),
-            ':spent' => money($toTower), ':a' => $hold['provider_account_id'],
-        ]);
+        if ($hold['funding_source'] === 'balance') {
+            $pdo->prepare(
+                "UPDATE provider_balances
+                    SET held = held - :held,
+                        available = available + :back,
+                        lifetime_spent = lifetime_spent + :spent
+                  WHERE account_id = :a"
+            )->execute([
+                ':held' => money($held), ':back' => money($toProvider),
+                ':spent' => money($toTower), ':a' => $hold['provider_account_id'],
+            ]);
+        }
 
         $pdo->prepare(
             "UPDATE escrow_holds
@@ -279,7 +328,7 @@ function escrowPartialRelease(int $callId, float $towerAmount, string $reason = 
                 $reason . ' payout for call #' . $callId, $callId);
         }
 
-        if ($toProvider > 0) {
+        if ($toProvider > 0 && $hold['funding_source'] === 'balance') {
             ledgerWrite((int)$hold['provider_account_id'], 'hold_refund', $toProvider,
                 $reason . ' — balance returned for call #' . $callId, $callId);
         }

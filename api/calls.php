@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/matching.php';
+require_once __DIR__ . '/../includes/stripe_connect.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -333,7 +334,7 @@ if ($method === 'POST' && $action === 'accept') {
     successResponse([
         'call_id' => $callId,
         'awarded_amount' => money($call['offer_amount']),
-        'your_net' => money((float)$call['offer_amount'] - platformFee((float)$call['offer_amount'])),
+        'your_net' => money((float)$call['offer_amount'] - feeForCall($callId, (float)$call['offer_amount'])),
         'customer_name' => $call['customer_name'],
         'customer_phone' => $call['customer_phone'],
         'pickup_address' => $call['pickup_address'],
@@ -483,6 +484,20 @@ if ($method === 'POST' && $action === 'complete') {
         $pdo->prepare("UPDATE accounts SET jobs_completed = jobs_completed + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
 
+        // Consumer jobs are backed by a card authorisation rather than a
+        // balance, so this is the moment the customer is actually charged.
+        // Nothing before this point takes their money.
+        if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
+            $cap = stripeCapturePayment($call['stripe_payment_intent_id'], $result['gross']);
+            $pdo->prepare("UPDATE calls SET payment_status = :ps WHERE id = :id")
+                ->execute([':ps' => $cap['ok'] ? 'captured' : 'failed', ':id' => $callId]);
+            if (!$cap['ok']) {
+                // Don't fail the driver's completion over a card problem — the
+                // work is done. Flag it and chase the payment separately.
+                logCallEvent($callId, 'payment_failed', $cap['error'] ?? 'Card capture failed');
+            }
+        }
+
         logCallEvent($callId, 'completed',
             'Completed — $' . money($result['gross']) . ' released, $' . money($result['net']) . ' net to tower',
             (int)$user['account_id'], (int)$user['id']);
@@ -554,6 +569,12 @@ if ($method === 'POST' && $action === 'goa') {
 
         $pdo->prepare("UPDATE accounts SET jobs_goa = jobs_goa + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
+
+        if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
+            $cap = stripeCapturePayment($call['stripe_payment_intent_id'], $result['tower_gross']);
+            $pdo->prepare("UPDATE calls SET payment_status = :ps WHERE id = :id")
+                ->execute([':ps' => $cap['ok'] ? 'captured' : 'failed', ':id' => $callId]);
+        }
 
         logCallEvent($callId, 'goa', $in['note'] ?? 'Vehicle not on scene',
             (int)$user['account_id'], (int)$user['id'],
@@ -697,7 +718,8 @@ if ($method === 'GET' && $action === 'my-calls') {
 if ($action === 'expire-sweep') {
     $pdo = getDB();
     $stmt = $pdo->query(
-        "SELECT id, call_number, provider_account_id FROM calls
+        "SELECT id, call_number, provider_account_id, source, stripe_payment_intent_id
+           FROM calls
           WHERE status = 'open' AND expires_at < NOW() LIMIT 500"
     );
     $expired = 0;
@@ -705,6 +727,13 @@ if ($action === 'expire-sweep') {
         try {
             $pdo->beginTransaction();
             escrowRefund((int)$call['id'], 'Call expired with no taker');
+            // Nobody came, so the customer must not be charged. Release the
+            // authorisation rather than leaving it sitting on their card.
+            if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
+                stripeCancelPayment($call['stripe_payment_intent_id']);
+                $pdo->prepare("UPDATE calls SET payment_status = 'refunded' WHERE id = :id")
+                    ->execute([':id' => $call['id']]);
+            }
             $pdo->prepare("UPDATE calls SET status = 'expired' WHERE id = :id")->execute([':id' => $call['id']]);
             $pdo->prepare("UPDATE bids SET status = 'expired' WHERE call_id = :c AND status = 'pending'")
                 ->execute([':c' => $call['id']]);

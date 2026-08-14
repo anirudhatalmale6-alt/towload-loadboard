@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/pricing.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MATCHING + VISIBILITY RULES
@@ -102,10 +103,25 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
         'expires_at'     => $c['expires_at'],
         'status'         => $c['status'],
         'created_at'     => $c['created_at'],
-        'provider_name'  => $c['provider_name'] ?? null,
+        'source'         => $c['source'] ?? 'board',
+        // On a direct-from-customer job the "provider" account IS the stranded
+        // motorist, so showing that name on the open board would leak the very
+        // PII the masking below exists to protect.
+        'provider_name'  => ($c['source'] ?? 'board') === 'consumer'
+                              ? 'Direct customer' : ($c['provider_name'] ?? null),
         'provider_rating'=> isset($c['provider_rating']) ? (float)$c['provider_rating'] : null,
         'is_funded'      => true,   // money is held before a call ever hits the board
     ];
+
+    // What the tower actually takes home, computed server-side with the fee that
+    // will really be applied. Board jobs and consumer jobs carry different cuts,
+    // so a client-side percentage would promise one number at accept time and
+    // pay a different one on completion.
+    $fee = ($c['source'] ?? 'board') === 'consumer'
+             ? consumerFee((float)$c['offer_amount'])
+             : platformFee((float)$c['offer_amount']);
+    $row['platform_fee_estimate'] = $fee;
+    $row['tower_net_estimate']    = round((float)$c['offer_amount'] - $fee, 2);
 
     if ($revealCustomer) {
         $row['pickup_address']  = $c['pickup_address'];

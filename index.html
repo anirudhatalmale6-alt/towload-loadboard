@@ -519,7 +519,7 @@ function render(){
     const mins = Math.floor(secs/60), ss = String(Math.floor(secs%60)).padStart(2,'0');
     const tcls = secs < 300 ? 'crit' : secs < 600 ? 'warn' : '';
     const open = c.status === 'open';
-    const net  = c.offer_amount - feeOn(c.offer_amount);
+    const net  = c.tower_net_estimate ?? (c.offer_amount - feeOn(c.offer_amount));
     const flags = [
       !c.has_keys && 'No keys', !c.wheels_lock && 'Wheels locked',
       c.is_accident && 'Accident', c.is_underground && 'Underground',
@@ -659,7 +659,10 @@ function closeAct(){ document.getElementById('actModal').classList.remove('on');
 function renderActNet(){
   const c = DATA.find(x => x.id === ACT.id);
   const amt = ACT.mode === 'bid' ? Number(document.getElementById('actAmount').value||0) : c.offer_amount;
-  const fee = feeOn(amt);
+  // Fixed-price accepts use the server's figure; a typed bid can only be
+  // estimated client-side, and the real number is confirmed on submit.
+  const fee = (ACT.mode === 'accept' && c.platform_fee_estimate != null)
+                ? c.platform_fee_estimate : feeOn(amt);
   document.getElementById('actNet').innerHTML =
     `You receive <b>${money(amt-fee)}</b> &nbsp;<span style="opacity:.7">(${money(amt)} less ${money(fee)} platform fee)</span>`;
 }

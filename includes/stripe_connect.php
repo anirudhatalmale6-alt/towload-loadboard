@@ -220,3 +220,52 @@ function stripeVerifyWebhook(string $payload, string $sigHeader, string $secret,
     }
     return false;
 }
+
+// ─── CONSUMER CARD PAYMENTS (authorise now, capture on completion) ───────────
+
+/**
+ * Authorise the quoted amount on the customer's card without taking it.
+ *
+ * capture_method=manual is the whole point: the customer is charged only when
+ * a truck actually completes the job. If nobody accepts, or the tower no-shows,
+ * we cancel the authorisation and they were never charged — which is the only
+ * defensible way to take money from someone stranded on a roadside.
+ *
+ * Stripe authorisations last 7 days, far longer than any tow.
+ */
+function stripeAuthorizeConsumerPayment(float $amount, int $callId, string $description,
+                                        ?string $email = null): array {
+    $params = [
+        'amount'                     => (int)round($amount * 100),
+        'currency'                   => 'usd',
+        'capture_method'             => 'manual',
+        'description'                => $description,
+        'metadata[towload_call_id]'  => (string)$callId,
+        'metadata[kind]'             => 'consumer_job',
+        'automatic_payment_methods[enabled]' => 'true',
+    ];
+    if ($email) $params['receipt_email'] = $email;
+
+    return stripeRequest('POST', '/payment_intents', $params, [
+        'idempotency_key' => 'consumer_call_' . $callId,
+    ]);
+}
+
+/**
+ * Take the money. Capturing less than was authorised is allowed and is what
+ * happens on a GOA — the customer is charged the call-out fee, not the full tow.
+ */
+function stripeCapturePayment(string $paymentIntentId, ?float $amount = null): array {
+    $params = [];
+    if ($amount !== null) $params['amount_to_capture'] = (int)round($amount * 100);
+    return stripeRequest('POST', '/payment_intents/' . $paymentIntentId . '/capture', $params, [
+        'idempotency_key' => 'capture_' . $paymentIntentId,
+    ]);
+}
+
+/** Release the authorisation. The customer is never charged. */
+function stripeCancelPayment(string $paymentIntentId): array {
+    return stripeRequest('POST', '/payment_intents/' . $paymentIntentId . '/cancel', [], [
+        'idempotency_key' => 'cancel_' . $paymentIntentId,
+    ]);
+}
