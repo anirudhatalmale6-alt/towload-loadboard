@@ -2,3 +2,5 @@ uploads/
 webhooks/*.log
 *.bak-*
 config/env.php
+ws/node_modules/
+ws/.env

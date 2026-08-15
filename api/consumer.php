@@ -7,6 +7,7 @@ require_once __DIR__ . '/../includes/surge.php';
 require_once __DIR__ . '/../includes/legal.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
 require_once __DIR__ . '/../includes/webpush.php';
+require_once __DIR__ . '/../includes/realtime.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -322,6 +323,11 @@ if ($method === 'POST' && $action === 'request') {
         errorResponse(t('err.request_failed', ['detail' => $e->getMessage()]), 500);
     }
 
+    // Every board that is open sees the job appear without waiting for its
+    // next poll. A nudge only — the browser refetches through the normal API,
+    // which is what decides whether that operator may see this job at all.
+    rtJobPosted($callId, $in['pickup_city'] ?? null, $opts['state'] ?? null);
+
     // Wake the trucks. Queued rather than sent inline: the job is committed and
     // the card is authorised by this point, so the alert is a side effect and
     // the customer should not be watching a spinner while phones ring.
@@ -481,6 +487,8 @@ if ($method === 'POST' && $action === 'cancel') {
         logCallEvent((int)$call['id'], 'canceled', 'Cancelled by customer');
 
         if ($call['awarded_tower_account_id']) {
+            rtJobChanged((int)$call['id'], $call['tracking_token'] ?? null,
+                         (int)$call['awarded_tower_account_id'], 'canceled');
             notify((int)$call['awarded_tower_account_id'], 'call_canceled',
                 $call['call_number'] . ' cancelled by the customer',
                 $charged > 0 ? '$' . money($charged) . ' has been credited to you.' : '',

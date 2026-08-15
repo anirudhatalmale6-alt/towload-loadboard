@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/tracking.php';
+require_once __DIR__ . '/../includes/realtime.php';
 
 setCorsHeaders();
 
@@ -85,6 +86,14 @@ if ($method === 'POST' && $action === 'ping') {
             successResponse(['keep_tracking' => false, 'reason' => $r['error']]);
         }
         errorResponse($r['error'], 422);
+    }
+
+    // The customer's map moves the moment the truck does, instead of on its
+    // next poll. Only the position and ETA their own feed would have handed
+    // them a few seconds later — nothing new is disclosed by being early.
+    if (!empty($r['moved']) && !empty($call['tracking_token'])) {
+        rtTruckMoved($call['tracking_token'], (float)$in['lat'], (float)$in['lng'],
+                     $r['eta']['minutes'] ?? null);
     }
 
     // Housekeeping rides along on roughly one ping in two hundred. No cron on

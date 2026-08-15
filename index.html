@@ -613,6 +613,7 @@ async function logout(){
   // this call. Clearing localStorage alone would leave a phone able to
   // re-register itself against an account its driver has signed out of.
   try { await api('/auth/logout', {method:'POST'}); } catch(e){}
+  try { TLRealtime.disconnect(); } catch(e){}
   try { await TLPush.disable(); } catch(e){}
   TOKEN=''; localStorage.removeItem('tl_token'); location.reload();
 }
@@ -640,6 +641,8 @@ async function boot(){
 
   if(!isTower) await refreshWallet();
   if(isTower){ renderVerifyBar(); renderPushBanner(); }
+
+  startRealtime();
 
   // A notification tap lands on ?job=<id>; go straight to the board so the job
   // is the first thing on screen rather than whichever tab was last open.
@@ -1047,7 +1050,38 @@ async function submitAct(){
 }
 
 // A stale board is a lost call, so refresh on a timer and tick the countdowns.
-setInterval(() => { if(ME && VIEW === 'board') load(); }, 20000);
+/* ── Polling, and realtime on top of it ───────────────────────────────────
+   The interval never stops. When a socket is connected it stretches out; when
+   the socket drops it snaps back. A realtime layer that REPLACED polling would
+   put a new moving part between a stranded customer and a truck, and the
+   failure would be silent — an operator staring at a board that stopped
+   updating half an hour ago and looks completely normal. */
+let BOARD_POLL_MS = 20000;
+let boardTimer = setInterval(boardTick, BOARD_POLL_MS);
+
+function boardTick(){ if(ME && VIEW === 'board') load(); }
+
+function setBoardPoll(ms){
+  if(ms === BOARD_POLL_MS) return;
+  BOARD_POLL_MS = ms;
+  clearInterval(boardTimer);
+  boardTimer = setInterval(boardTick, BOARD_POLL_MS);
+}
+
+// Called by realtime.js on connect/disconnect.
+function onRealtimeUp(){   setBoardPoll(120000); }
+function onRealtimeDown(){ setBoardPoll(20000);  }
+
+// Every handler refetches rather than trusting the payload. The socket says
+// what changed; the API decides what this operator may see.
+function startRealtime(){
+  if(!ME || typeof TLRealtime === 'undefined') return;
+  TLRealtime.connect({ token: TOKEN }, {
+    'job.posted':  () => { if(VIEW === 'board') load(); },
+    'job.closed':  () => { if(VIEW === 'board') load(); },
+    'job.changed': () => load(),
+  });
+}
 
 // Countdowns tick in place. This used to call render(), which rebuilt every
 // card once a second — so an operator who opened the price breakdown watched it
@@ -1061,6 +1095,7 @@ setInterval(tickTimers, 1000);
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
 <script src="push.js"></script>
+<script src="realtime.js"></script>
 <script src="driver.js"></script>
 <script>if(TOKEN) boot();</script>
 </body>

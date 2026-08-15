@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/realtime.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/matching.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
@@ -322,6 +323,10 @@ if ($method === 'POST' && $action === 'accept') {
             $user['account_name'] . ' accepted at $' . money($call['offer_amount']) . ', ETA ' . $etaMinutes . ' min',
             (int)$user['account_id'], (int)$user['id']);
 
+        // Off the board for everyone, and onto the customer's screen at once.
+        rtJobClosed($callId, 'awarded');
+        rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'awarded');
+
         notify((int)$call['provider_account_id'], 'call_awarded',
             'Call ' . $call['call_number'] . ' accepted',
             $user['account_name'] . ' is on the way. ETA ' . $etaMinutes . ' minutes.', $callId);
@@ -448,6 +453,9 @@ if ($method === 'POST' && $action === 'status') {
         isset($in['lat']) ? (float)$in['lat'] : null,
         isset($in['lng']) ? (float)$in['lng'] : null);
 
+    rtJobChanged($callId, $call['tracking_token'] ?? null,
+                 (int)$user['account_id'], $status);
+
     $labels = ['en_route' => 'Driver en route', 'on_scene' => 'Driver on scene', 'in_progress' => 'Service in progress'];
     notify((int)$call['provider_account_id'], 'call_status',
         $call['call_number'] . ' — ' . $labels[$status], $user['account_name'], $callId);
@@ -505,6 +513,8 @@ if ($method === 'POST' && $action === 'complete') {
         logCallEvent($callId, 'completed',
             'Completed — $' . money($result['gross']) . ' released, $' . money($result['net']) . ' net to tower',
             (int)$user['account_id'], (int)$user['id']);
+
+        rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'completed');
 
         notify((int)$call['provider_account_id'], 'call_completed',
             $call['call_number'] . ' completed',
@@ -742,7 +752,9 @@ if ($action === 'expire-sweep') {
             $pdo->prepare("UPDATE bids SET status = 'expired' WHERE call_id = :c AND status = 'pending'")
                 ->execute([':c' => $call['id']]);
             logCallEvent((int)$call['id'], 'expired', 'No tower accepted before expiry');
-            notify((int)$call['provider_account_id'], 'call_expired',
+            rtJobClosed((int)$call['id'], 'expired');
+
+        notify((int)$call['provider_account_id'], 'call_expired',
                 $call['call_number'] . ' expired',
                 'No tower accepted this call. Your funds have been returned to your balance.',
                 (int)$call['id']);

@@ -434,6 +434,7 @@ input::placeholder{color:#aab4c4}
 </div>
 
 <script src="i18n.js"></script>
+<script src="realtime.js"></script>
 <script>
 const API = 'api';
 let S = { svc:'tow', cls:'light', wheels:1, accident:0, pickup:null, dropoff:null, quote:null, token:null };
@@ -594,8 +595,44 @@ async function submitRequest(){
   history.replaceState({}, '', '?job=' + r.tracking_token);
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
   $('trackCard').classList.remove('hide');
-  poll(); setInterval(poll, 6000);
-  pollMap(); setInterval(pollMap, 8000);
+  startTracking();
+}
+
+/* Polling is the floor; realtime only makes it feel instant.
+   The timers are kept and slowed rather than switched off — a socket that
+   quietly stops (a proxy idle timeout, a phone changing networks) would
+   otherwise leave a stranded person watching a screen that froze without
+   saying so. */
+let POLL_MS = 6000, MAP_MS = 8000;
+let pollTimer = null, mapTimer = null;
+
+function setPollRates(status, map){
+  if(status !== POLL_MS){ POLL_MS = status; clearInterval(pollTimer); pollTimer = setInterval(poll, POLL_MS); }
+  if(map !== MAP_MS){     MAP_MS = map;     clearInterval(mapTimer);  mapTimer  = setInterval(pollMap, MAP_MS); }
+}
+function onRealtimeUp(){   setPollRates(45000, 60000); }
+function onRealtimeDown(){ setPollRates(6000, 8000); }
+
+function startTracking(){
+  poll();    pollTimer = setInterval(poll, POLL_MS);
+  pollMap(); mapTimer  = setInterval(pollMap, MAP_MS);
+
+  if(typeof TLRealtime === 'undefined') return;
+  api('/realtime/config?ticket=1&token=' + S.token).then(cfg => {
+    if(!cfg || !cfg.success || !cfg.enabled || !cfg.ticket) return;
+    TLRealtime.connect({ ticket: cfg.ticket }, {
+      // The truck's own position, arriving the moment it is reported instead
+      // of on the next poll. Safe to render directly: it is exactly what this
+      // job's own feed would have returned seconds later, and nothing else.
+      'truck.moved': (d) => {
+        if(!d || typeof d.lat !== 'number') return;
+        MAP.lastEta = d.eta_minutes ?? MAP.lastEta;
+        drawTruck(d.lat, d.lng, d.eta_minutes, false);
+      },
+      // Anything else is a nudge — refetch and let the server decide.
+      'job.changed': () => { poll(); pollMap(); },
+    }, cfg);
+  }).catch(() => {});
 }
 
 // ── tracking ────────────────────────────────────────────
@@ -666,7 +703,7 @@ async function poll(){
    Everything about staleness is decided server-side; this just renders what it
    is told, so the browser can never talk itself into showing a stale truck as
    live. */
-const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null, fitted:false };
+const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null, fitted:false, pickup:null };
 
 const TRUCK_SVG = '<svg viewBox="0 0 24 24"><path d="M3 6h11v9H3V6zm12 3h3.6l2.4 3v3h-6V9zM6.5 19a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm11 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/></svg>';
 
@@ -695,55 +732,62 @@ async function pollMap(){
   try { r = await api('/tracking/feed?token=' + S.token); } catch(e){ return; }
   if(!r || !r.success || !r.tracking_enabled) return;
 
-  const wrap = $('mapWrap');
-
   // No truck position means nothing honest to draw. Hide rather than show an
   // empty map or a last-known marker with no timestamp attached to it.
   if(!r.truck){
-    wrap.classList.remove('on');
+    $('mapWrap').classList.remove('on');
     MAP.lastEta = null;
+    MAP.pickup = null;
     return;
   }
 
+  MAP.pickup = r.pickup || MAP.pickup;
+  drawTruck(r.truck.lat, r.truck.lng, r.truck.eta_minutes, !!r.truck.stale);
+}
+
+/* Draws the marker and the badge. Shared by the poll and by the realtime
+   event, so a position arriving over the socket cannot render differently
+   from one that arrived over HTTP a second later. */
+function drawTruck(lat, lng, etaMinutes, stale){
+  const wrap = $('mapWrap');
   wrap.classList.add('on');
-  const m = ensureMap(r.truck.lat, r.truck.lng);
+
+  const m = ensureMap(lat, lng);
   if(!m) return;
   // The container starts hidden, so Leaflet measured it as zero. Tell it to
   // look again now it has a size, or the tiles render in the wrong place.
   setTimeout(() => m.invalidateSize(), 60);
 
   if(!MAP.truck){
-    MAP.truck = L.marker([r.truck.lat, r.truck.lng], {
+    MAP.truck = L.marker([lat, lng], {
       icon: icon('<div class="truck-dot">' + TRUCK_SVG + '</div>', '', 34),
       zIndexOffset: 1000,
     }).addTo(m);
   } else {
-    MAP.truck.setLatLng([r.truck.lat, r.truck.lng]);
+    MAP.truck.setLatLng([lat, lng]);
   }
 
-  if(r.pickup && !MAP.pin){
-    MAP.pin = L.marker([r.pickup.lat, r.pickup.lng], {
+  if(MAP.pickup && !MAP.pin){
+    MAP.pin = L.marker([MAP.pickup.lat, MAP.pickup.lng], {
       icon: icon('<div class="pin-dot"></div>', '', 16)
     }).addTo(m);
   }
 
-  // Fit both once. Refitting on every poll fights the customer every time they
-  // try to pan, which is maddening on a phone.
+  // Fit both once. Refitting on every update fights the customer every time
+  // they try to pan, which is maddening on a phone.
   if(!MAP.fitted && MAP.pin){
-    m.fitBounds(L.latLngBounds([[r.truck.lat, r.truck.lng],
-                                [r.pickup.lat, r.pickup.lng]]), {padding:[45,45], maxZoom:15});
+    m.fitBounds(L.latLngBounds([[lat, lng], [MAP.pickup.lat, MAP.pickup.lng]]),
+                {padding:[45,45], maxZoom:15});
     MAP.fitted = true;
   }
 
-  MAP.lastEta = r.truck.stale ? null : r.truck.eta_minutes;
+  MAP.lastEta = stale ? null : etaMinutes;
 
   const eta = $('mapEta');
-  eta.classList.toggle('stale', !!r.truck.stale);
-  eta.innerHTML = r.truck.stale
+  eta.classList.toggle('stale', !!stale);
+  eta.innerHTML = stale
     ? t('c.map_updating')
-    : (r.truck.eta_minutes
-        ? '<b>' + r.truck.eta_minutes + '</b> ' + t('c.map_min')
-        : t('c.map_close'));
+    : (etaMinutes ? '<b>' + etaMinutes + '</b> ' + t('c.map_min') : t('c.map_close'));
 }
 
 async function cancelJob(){
@@ -766,8 +810,7 @@ if(existing && /^[a-f0-9]{32}$/.test(existing)){
   S.token = existing;
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
   $('trackCard').classList.remove('hide');
-  poll(); setInterval(poll, 6000);
-  pollMap(); setInterval(pollMap, 8000);
+  startTracking();
 }
 </script>
 </body>
