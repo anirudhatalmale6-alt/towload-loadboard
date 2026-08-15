@@ -769,7 +769,20 @@ async function tlResolveLanguage() {
 
 function t(key, params) {
   const lang = tlLang();
-  let s = (TL_STRINGS[lang] && TL_STRINGS[lang][key]) || TL_STRINGS.es[key] || key;
+  let s = (TL_STRINGS[lang] && TL_STRINGS[lang][key]) || TL_STRINGS.es[key];
+
+  // Neither language has it. That means this file is older than the page that
+  // referenced the key — the exact shape of a stale cached asset. Returning the
+  // raw key put `c.tl_towing` on a customer's screen, so fall back to something
+  // a human can read, and complain loudly enough that it is findable.
+  if (s === undefined) {
+    if (typeof console !== 'undefined' && console.warn) {
+      console.warn('[i18n] missing key: ' + key + ' — this file may be a stale cached copy');
+    }
+    s = String(key).split('.').pop().replace(/_/g, ' ');
+    s = s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   if (params) for (const k in params) s = s.split('{' + k + '}').join(params[k]);
   return s;
 }

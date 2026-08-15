@@ -89,5 +89,35 @@ RedirectMatch 404 ^/.*/uploads/.*$
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
 </IfModule>
 
+# ─── Caching ────────────────────────────────────────────────────────────────
+# The host's default was `Cache-Control: max-age=2592000` on every .js — thirty
+# days — while the HTML that references them expired in ten minutes. So a
+# returning visitor picked up a new page within minutes and kept month-old
+# JavaScript alongside it. That is how a page came to ask the translation file
+# for a key it did not yet contain, and print the key on screen.
+#
+# The filenames here carry no content hash, so the only correct answer is: ask
+# every time. The answer is almost always a 304 with an empty body, which costs
+# a round trip and no bandwidth.
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css|html|json|webmanifest)$">
+        Header always set Cache-Control "no-cache, must-revalidate"
+        Header unset Expires
+        Header unset Pragma
+    </FilesMatch>
+
+    # The service worker decides how long everything ELSE is cached for. A stale
+    # one cannot be corrected by shipping a new anything.
+    <FilesMatch "^sw\.js$">
+        Header always set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+
+    # Icons are a different case: their names change when their content does,
+    # and they are fetched on every cold start of the installed app.
+    <FilesMatch "\.(png|jpg|jpeg|gif|svg|woff2?|ico)$">
+        Header always set Cache-Control "public, max-age=604800"
+    </FilesMatch>
+</IfModule>
+
 # No directory listings.
 Options -Indexes

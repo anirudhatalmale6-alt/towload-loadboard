@@ -12,8 +12,14 @@
    see the old screen".
    ══════════════════════════════════════════════════════════════════════════ */
 
-const CACHE_VERSION = 'towload-v1';
-const SHELL = ['./', './index.html', './i18n.js', './manifest.json'];
+// Bumped whenever a shell file changes. The activate handler deletes every
+// cache that is not this one, so a bump is how a stale copy inside the service
+// worker gets thrown away — the browser cache is only half the problem.
+const CACHE_VERSION = 'towload-v20260815a';
+// Deliberately short. Everything here risks being served from a previous
+// deploy, and the translations in particular caused a page to print a raw key
+// on screen when they fell behind the HTML that referenced it.
+const SHELL = ['./'];
 
 self.addEventListener('install', (event) => {
   // Take over immediately rather than waiting for every tab to close. An
