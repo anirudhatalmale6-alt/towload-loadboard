@@ -99,9 +99,18 @@ RedirectMatch 404 ^/.*/uploads/.*$
 # The filenames here carry no content hash, so the only correct answer is: ask
 # every time. The answer is almost always a 304 with an empty body, which costs
 # a round trip and no bandwidth.
+# mod_expires is what was emitting the thirty days, and it emits BOTH an
+# Expires header and its own Cache-Control. Setting ours on top of it left two
+# conflicting Cache-Control headers on every response, which is not something to
+# leave to a browser's judgement. Switch it off for this folder and state the
+# policy once, here.
+<IfModule mod_expires.c>
+    ExpiresActive Off
+</IfModule>
+
 <IfModule mod_headers.c>
     <FilesMatch "\.(js|css|html|json|webmanifest)$">
-        Header always set Cache-Control "no-cache, must-revalidate"
+        Header set Cache-Control "no-cache, must-revalidate"
         Header unset Expires
         Header unset Pragma
     </FilesMatch>
@@ -109,13 +118,14 @@ RedirectMatch 404 ^/.*/uploads/.*$
     # The service worker decides how long everything ELSE is cached for. A stale
     # one cannot be corrected by shipping a new anything.
     <FilesMatch "^sw\.js$">
-        Header always set Cache-Control "no-cache, no-store, must-revalidate"
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
     </FilesMatch>
 
-    # Icons are a different case: their names change when their content does,
-    # and they are fetched on every cold start of the installed app.
+    # Icons are a different case: they change only when their filename does, and
+    # the installed app fetches them on every cold start.
     <FilesMatch "\.(png|jpg|jpeg|gif|svg|woff2?|ico)$">
-        Header always set Cache-Control "public, max-age=604800"
+        Header set Cache-Control "public, max-age=604800"
+        Header unset Expires
     </FilesMatch>
 </IfModule>
 
