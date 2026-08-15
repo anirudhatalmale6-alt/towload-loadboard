@@ -9,7 +9,9 @@
 //  errors is worse than an English one: it fails exactly at the moment the
 //  user is confused, stranded or about to give up on paying.
 //
-//  Language comes from ?lang= or the X-Lang header, defaulting to Spanish.
+//  Language comes from ?lang= or the X-Lang header. With neither, it follows
+//  the `default_language` setting — Spanish is the default in the Miami market
+//  and English everywhere else, decided per visitor in includes/geo.php.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function currentLang(): string {
@@ -18,7 +20,13 @@ function currentLang(): string {
 
     $raw = $_GET['lang'] ?? $_SERVER['HTTP_X_LANG'] ?? '';
     $raw = strtolower(substr((string)$raw, 0, 2));
-    $lang = $raw === 'en' ? 'en' : 'es';   // Spanish unless English is asked for
+    if ($raw === 'en' || $raw === 'es') return $lang = $raw;
+
+    // Nothing asked for. The page almost always says which language it is in,
+    // so this only covers direct API callers — but it follows the platform
+    // default rather than being hardcoded to Spanish, now that Spanish is the
+    // Miami default and English is the default everywhere else.
+    $lang = (string)setting('default_language', 'en') === 'es' ? 'es' : 'en';
     return $lang;
 }
 
@@ -143,7 +151,7 @@ function i18nCatalogue(): array {
         'err.ein_required'      => 'Necesitamos el número EIN de su empresa.',
         'err.ein_format'        => 'El EIN debe tener 9 dígitos.',
         'err.company_phone_required' => 'Necesitamos el teléfono de la empresa — es el número que le damos al cliente cuando usted acepta un trabajo.',
-        'msg.next_upload_docs'  => 'Suba sus documentos (EIN, registro estatal, seguro e identificación del dueño) para que revisemos su cuenta. Puede ver los trabajos mientras tanto.',
+        'msg.next_upload_docs'  => 'Su cuenta está en revisión. Puede ver los trabajos mientras tanto. Si necesitamos algún documento se lo pedimos directamente.',
 
         'doc.ein_letter'        => 'Carta EIN del IRS',
         'doc.state_registration'=> 'Registro estatal de la empresa',
@@ -309,7 +317,7 @@ function i18nCatalogue(): array {
         'err.ein_required'      => 'We need your company EIN.',
         'err.ein_format'        => 'An EIN is 9 digits.',
         'err.company_phone_required' => 'We need your company phone — it is the number the customer is given when you accept a job.',
-        'msg.next_upload_docs'  => 'Upload your documents (EIN letter, state registration, insurance and owner ID) so we can review your account. You can browse jobs in the meantime.',
+        'msg.next_upload_docs'  => 'Your account is under review. You can browse jobs in the meantime. If we need any documents we will ask you directly.',
 
         'doc.ein_letter'        => 'IRS EIN letter',
         'doc.state_registration'=> 'State business registration',

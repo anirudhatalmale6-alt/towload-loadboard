@@ -439,6 +439,9 @@ const EDITABLE_SETTINGS = [
     'consumer_call_expiry_min','after_hours_start','after_hours_end',
     'tower_minimum_net','required_tower_docs','require_terms_accept','terms_version',
     'auto_submit_for_review','require_coi_to_accept','max_upload_mb',
+    'default_language','spanish_regions','geoip_provider',
+    'tracking_enabled','tracking_ping_seconds','tracking_stale_seconds',
+    'tracking_retain_days','tracking_road_factor','tracking_avg_speed_mph',
 ];
 
 // Keys whose VALUE must never leave the server, admin or not. The VAPID private
@@ -446,7 +449,7 @@ const EDITABLE_SETTINGS = [
 // notification to every registered truck in the country. Being behind an admin
 // login is not enough — it would sit in a browser cache, in a screenshot, and
 // in whatever a support session copies out of the panel.
-const SECRET_SETTINGS = ['vapid_private_key'];
+const SECRET_SETTINGS = ['vapid_private_key', 'geoip_key'];
 
 if ($method === 'GET' && $action === 'settings') {
     requireAdmin();

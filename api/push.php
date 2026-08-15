@@ -177,7 +177,12 @@ if ($method === 'POST' && $action === 'test') {
 if ($action === 'prefs' && $method === 'GET') {
     $stmt = getDB()->prepare(
         "SELECT push_enabled, push_radius_miles, service_radius_miles, push_min_payout,
-                push_quiet_start, push_quiet_end, push_timezone, is_24_7
+                push_quiet_start, push_quiet_end, push_timezone, is_24_7,
+                base_lat, base_lng,
+                -- Whether a yard point exists at all. Signup no longer asks for
+                -- one, so an operator who never sets it is matched against his
+                -- state centroid and quietly sees the wrong jobs.
+                (base_lat IS NOT NULL AND base_lng IS NOT NULL) AS base_set
            FROM tower_profiles WHERE account_id = :a"
     );
     $stmt->execute([':a' => $accountId]);
@@ -192,6 +197,9 @@ if ($action === 'prefs' && $method === 'GET') {
         'quiet_end'      => $p['push_quiet_end']   ? substr($p['push_quiet_end'], 0, 5)   : null,
         'timezone'       => $p['push_timezone'] ?? 'America/New_York',
         'is_24_7'        => (bool)($p['is_24_7'] ?? 0),
+        'base_lat'       => isset($p['base_lat']) ? (float)$p['base_lat'] : null,
+        'base_lng'       => isset($p['base_lng']) ? (float)$p['base_lng'] : null,
+        'base_set'       => !empty($p['base_set']),
     ]]);
 }
 
@@ -247,6 +255,22 @@ if ($action === 'prefs' && $method === 'POST') {
             $bind[':qs'] = $s . ':00';
             $bind[':qe'] = $e . ':00';
         }
+    }
+
+    // The yard point moved off the signup form, so it has to be settable here
+    // — it is what decides which jobs this company is offered at all, and a
+    // company sitting on its state centroid quietly sees the wrong ones.
+    if (array_key_exists('base_lat', $in) && array_key_exists('base_lng', $in)) {
+        $blat = (float)$in['base_lat'];
+        $blng = (float)$in['base_lng'];
+        if ($blat < -90 || $blat > 90 || $blng < -180 || $blng > 180
+            || ($blat == 0.0 && $blng == 0.0)) {
+            errorResponse(t('err.bad_location'), 422);
+        }
+        $set[] = 'base_lat = :blat';
+        $set[] = 'base_lng = :blng';
+        $bind[':blat'] = $blat;
+        $bind[':blng'] = $blng;
     }
 
     if (array_key_exists('timezone', $in)) {

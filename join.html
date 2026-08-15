@@ -207,21 +207,16 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
           <div class="f"><label data-i18n="j.first">Su nombre</label><input id="first" placeholder="Miguel" autocomplete="given-name"></div>
           <div class="f"><label data-i18n="j.last">Apellido</label><input id="last" placeholder="Alvarez" autocomplete="family-name"></div>
         </div>
-        <div class="two">
-          <div class="f"><label data-i18n="j.mobile">Celular</label><input id="phone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
-          <div class="f"><label data-i18n="j.ein">EIN</label><input id="ein" placeholder="12-3456789" inputmode="numeric"></div>
-        </div>
+        <!-- EIN is asked for at review, not here. Every field on this form is a
+             chance for a one-truck operator to give up halfway, and a tax ID he
+             has to go and look up is the most likely place for that to happen. -->
+        <div class="f"><label data-i18n="j.mobile">Celular</label><input id="phone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
         <div class="two">
           <div class="f"><label data-i18n="j.city">Ciudad</label><input id="city" placeholder="Miami"></div>
           <div class="f"><label data-i18n="j.state">Estado</label><select id="state"></select></div>
         </div>
         <div class="f"><label data-i18n="j.email">Correo</label><input id="email" type="email" placeholder="usted@compania.com" autocomplete="email"></div>
         <div class="f"><label data-i18n="j.password">Elija una contraseña</label><input id="pass" type="password" data-i18n-ph="j.ph_password" autocomplete="new-password"></div>
-
-        <!-- The base point decides which jobs a company is offered, so a state
-             centroid is a poor substitute for where the yard actually is. One
-             tap fixes it, and most operators sign up from the yard. -->
-        <button class="btn sec" type="button" onclick="useGPS()" id="gpsBtn" data-i18n="j.use_gps">📍 Usar la ubicación de mi patio</button>
 
         <fieldset>
           <legend data-i18n="j.what_run">¿Qué equipo tiene?</legend>
@@ -324,19 +319,12 @@ document.addEventListener('DOMContentLoaded', () => {
 const $ = id => document.getElementById(id);
 function err(m){ const b=$('errBox'); b.textContent=m; b.classList.remove('hide'); b.scrollIntoView({behavior:'smooth',block:'center'}); }
 
-let BASE = null;   // set by the GPS button; otherwise the state centroid is used
-
-function useGPS(){
-  if(!navigator.geolocation) return err(t('j.err_gps'));
-  $('gpsBtn').textContent = t('j.gps_finding');
-  navigator.geolocation.getCurrentPosition(p => {
-    BASE = {lat:p.coords.latitude, lng:p.coords.longitude};
-    $('gpsBtn').textContent = t('j.gps_found');
-  }, () => {
-    $('gpsBtn').textContent = t('j.use_gps');
-    err(t('j.err_gps'));
-  }, {enableHighAccuracy:true, timeout:9000});
-}
+// The yard location is no longer asked for here. It still MATTERS — it is what
+// decides which jobs a company is offered — so it moved to a one-tap control on
+// the operator's own Alerts screen, and the state centroid stands in until then.
+// A company that never sets it would otherwise be matched against the middle of
+// its state and quietly see the wrong jobs.
+const BASE = null;
 
 async function signup(){
   $('errBox').classList.add('hide');
@@ -350,15 +338,13 @@ async function signup(){
   if(pass.length < 8) return err(t('j.err_password'));
   if(phone.replace(/\D/g,'').length < 10) return err(t('j.err_phone'));
 
-  const ein = $('ein').value.replace(/\D/g,'');
-  if(ein.length !== 9) return err(t('j.err_ein'));
   if(!$('jTerms').checked) return err(t('j.err_terms'));
 
   const state = $('state').value || 'FL';
   const pt = BASE || {lat:STATE_POINTS[state][0], lng:STATE_POINTS[state][1]};
 
   const body = {
-    account_type:'tower', company_name:company, legal_name:company, ein,
+    account_type:'tower', company_name:company, legal_name:company,
     email, password:pass,
     first_name:first, last_name:last, phone, company_phone:phone,
     city:$('city').value.trim() || null, state,

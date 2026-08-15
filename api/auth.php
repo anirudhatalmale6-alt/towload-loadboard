@@ -34,15 +34,17 @@ if ($method === 'POST' && $action === 'register') {
         errorResponse(t('err.terms_required'), 422);
     }
 
-    // The EIN is the anchor of the whole verification file — it is what ties
-    // the insurance certificate, the state registration and the bank account
-    // to one legal entity. Asked for at signup rather than later, because a
-    // company that will not give it is not a company we can vet.
+    // The EIN is still the anchor of the verification file — it ties the
+    // insurance certificate, the state registration and the bank account to one
+    // legal entity. It is just no longer demanded at signup: a tax ID a
+    // one-truck operator has to go and look up is the most likely place for him
+    // to abandon the form. It is collected at review instead, which is also
+    // where a human is looking at it. Accepted here if offered, never required.
     $ein = preg_replace('/\D+/', '', (string)($in['ein'] ?? ''));
+    if ($ein !== '' && strlen($ein) !== 9) errorResponse(t('err.ein_format'));
+
     $companyPhone = !empty($in['company_phone']) ? $in['company_phone'] : ($in['phone'] ?? '');
     if ($in['account_type'] === 'tower') {
-        if ($ein === '') errorResponse(t('err.ein_required'));
-        if (strlen($ein) !== 9) errorResponse(t('err.ein_format'));
         // The company number is what the customer is given once this operator
         // accepts their job. A tower with no number on file reaches the
         // roadside with a stranded person who has no way to call them.
@@ -63,9 +65,15 @@ if ($method === 'POST' && $action === 'register') {
     $pdo->beginTransaction();
     try {
         $pdo->prepare(
-            "INSERT INTO accounts (account_type, name, legal_name, ein, slug, email, phone, address, city, state, zip, lat, lng, website)
-             VALUES (:t, :n, :ln, :ein, :s, :e, :p, :ad, :c, :st, :z, :lat, :lng, :w)"
+            "INSERT INTO accounts (account_type, name, legal_name, ein, slug, email, phone,
+                                   address, city, state, zip, lat, lng, website, verification_status)
+             VALUES (:t, :n, :ln, :ein, :s, :e, :p, :ad, :c, :st, :z, :lat, :lng, :w, :vs)"
         )->execute([
+            // A towing company lands straight in the review queue. Documents are
+            // no longer demanded at signup, so nothing else would ever push the
+            // account into 'pending' — every new company would sit invisible and
+            // the queue would stay empty while operators waited to be approved.
+            ':vs' => $in['account_type'] === 'tower' ? 'pending' : 'unverified',
             ':t' => $in['account_type'], ':n' => $in['company_name'],
             ':ln' => $in['legal_name'] ?? $in['company_name'],
             ':ein' => $ein !== '' ? $ein : null,
@@ -137,7 +145,8 @@ if ($method === 'POST' && $action === 'register') {
         ],
         'account' => [
             'id' => $accountId, 'name' => $in['company_name'],
-            'account_type' => $in['account_type'], 'verification_status' => 'unverified',
+            'account_type' => $in['account_type'],
+            'verification_status' => $in['account_type'] === 'tower' ? 'pending' : 'unverified',
         ],
         'next_step' => $in['account_type'] === 'tower'
             ? t('msg.next_upload_docs')

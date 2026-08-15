@@ -62,7 +62,7 @@ es: {
   'c.cls_medium':        'Van / camioneta grande',
   'c.cls_moto':          'Motocicleta',
   'c.cls_heavy':         'Camión / casa rodante',
-  'c.make_model':        'Marca y modelo',
+  'c.make_model':        'Año, marca y modelo',
   'c.ph_vehicle':        'ej. 2019 Honda Accord',
   'c.q_wheels':          '¿Ruedan las llantas?',
   'c.q_accident':        '¿Fue un accidente?',
@@ -123,6 +123,7 @@ es: {
   'c.tl_assigned':       'Grúa asignada',
   'c.tl_enroute':        'Grúa en camino',
   'c.tl_arrived':        'Grúa llegó',
+  'c.tl_towing':         'Grúa remolcando',
   'c.tl_done':           'Servicio completado',
   'c.call':              'Llamar',
   'c.jobs':              'servicios',
@@ -150,6 +151,7 @@ es: {
   'o.nothing_mine':      'Los trabajos que tome aparecerán aquí.',
   'o.enroute':           'En camino',
   'o.onscene':           'En el lugar',
+  'o.towing':            'Remolcando',
   'o.complete':          'Completar',
   'o.accept_job':        'Aceptar este trabajo',
   'o.eta_min':           'Llego en (minutos)',
@@ -173,9 +175,11 @@ es: {
   'o.verified_h':        'Cuenta verificada',
   'o.verified_p':        'Su empresa está aprobada. Los clientes ven su distintivo de verificada cuando usted toma un trabajo.',
   'o.review_h':          'Su cuenta está en revisión',
-  'o.review_p':          'Ya recibimos sus documentos. Puede ver los trabajos, pero todavía no aceptarlos. Le avisamos apenas quede aprobada.',
-  'o.unverified_h':      'Complete su verificación',
-  'o.unverified_p':      'Le faltan {n} documentos. Hasta que su empresa esté aprobada puede ver los trabajos pero no aceptarlos ni cobrar.',
+  'o.review_p':          'Recibimos su registro y estamos revisando su empresa. Puede ver los trabajos mientras tanto. Si necesitamos su EIN o algún documento se lo pedimos directamente — no hace falta subir nada todavía.',
+  'o.unverified_h':      'Su empresa está en revisión',
+  'j.docs_optional':     'Subir documentos ahora (opcional)',
+  'j.docs_fix':          'Documentos que hay que corregir',
+  'o.unverified_p':      'Hasta que su empresa esté aprobada puede ver los trabajos pero no aceptarlos ni cobrar. Si quiere adelantar, puede subir sus documentos abajo — es opcional.',
   'o.rejected_p':        'Su verificación fue rechazada. Revise los documentos marcados abajo y vuelva a subirlos.',
   'o.job_yours':         'El trabajo es suyo.',
   'o.completed_msg':     'Completado. {amount} va en camino a su banco.',
@@ -200,7 +204,7 @@ es: {
   'p.ios_2':             'Elija “Agregar a inicio”',
   'p.ios_3':             'Abra TowLoad desde el ícono nuevo y active las alertas',
   'p.ios_fine':          'Es una regla de Apple, no de nosotros. Safari no permite pedir permiso de alertas hasta que la app esté en la pantalla de inicio.',
-  'p.blocked_h':         'Las alertas están bloqueadas en este teléfono',
+  'p.blocked_h':         'Las alertas están bloqueadas en este dispositivo',
   'p.blocked_p':         'Usted rechazó el permiso antes. Vaya a Ajustes → TowLoad → Notificaciones y actívelas; el navegador ya no vuelve a preguntar.',
   'p.unsupported_h':     'Este navegador no soporta alertas',
   'p.unsupported_p':     'Abra el tablero en Safari (iPhone) o Chrome (Android) para recibir los trabajos en el teléfono.',
@@ -208,14 +212,14 @@ es: {
   'p.err_sw':            'No se pudo iniciar el servicio de alertas. Recargue la página.',
   'p.err_denied':        'Usted no dio permiso. Sin permiso no podemos avisarle de los trabajos.',
   'p.err_server':        'El servidor no pudo registrar este teléfono. Intente otra vez.',
-  'p.this_phone':        'Este teléfono',
+  'p.this_phone':        'Este dispositivo',
   'p.st_on':             'Alertas activas',
   'p.st_ready':          'Alertas apagadas',
   'p.st_ios':            'Falta instalar en la pantalla de inicio',
   'p.st_blocked':        'Bloqueadas en los ajustes del teléfono',
   'p.st_unsupported':    'No soportadas en este navegador',
   'p.send_test':         'Enviar alerta de prueba',
-  'p.turn_off':          'Apagar en este teléfono',
+  'p.turn_off':          'Apagar en este dispositivo',
   'p.testing':           'Enviando…',
   'p.test_ok':           'Enviada a {n} teléfono(s). Si no llega en 30 segundos, revise las notificaciones en Ajustes.',
   'p.test_fail':         'No se pudo enviar.',
@@ -233,8 +237,8 @@ es: {
   'p.save':              'Guardar',
   'p.saved':             'Guardado',
   'p.save_fail':         'No se pudo guardar.',
-  'p.devices_h':         'Teléfonos registrados',
-  'p.no_devices':        'Todavía ningún teléfono tiene las alertas activas.',
+  'p.devices_h':         'Dispositivos registrados',
+  'p.no_devices':        'Todavía ningún dispositivo tiene las alertas activas.',
   'p.dev_ok':            'Funcionando',
   'p.dev_untested':      'Registrado, sin probar',
   'p.dev_not_installed': 'No va a recibir nada — falta agregarlo a la pantalla de inicio',
@@ -253,6 +257,14 @@ es: {
   'd.turn_off':          'Dejar de compartir',
   'd.denied_h':          'El navegador bloqueó su ubicación',
   'd.denied_p':          'Actívela en los ajustes del navegador para que el cliente pueda ver la grúa acercarse.',
+  'd.yard_h':            'Ubicación de su patio',
+  'd.yard_p':            'Esto decide qué trabajos le ofrecemos. Póngalo una vez, estando en su patio o base, y ya queda guardado.',
+  'd.yard_btn':          '📍 Usar mi ubicación actual',
+  'd.yard_set':          'Guardada',
+  'd.yard_unset':        'Sin configurar',
+  'd.yard_finding':      'Buscando su ubicación…',
+  'd.yard_saved':        'Listo — ya usamos su patio para buscarle trabajos cerca.',
+  'd.yard_nogps':        'No pudimos obtener su ubicación. Actívela en los ajustes del navegador.',
 
   'svc.tow':             'Grúa',
   'svc.winch_recovery':  'Rescate',
@@ -405,7 +417,7 @@ en: {
   'c.cls_medium':        'Van / big truck',
   'c.cls_moto':          'Motorcycle',
   'c.cls_heavy':         'Semi / RV',
-  'c.make_model':        'Make & model',
+  'c.make_model':        'Year, make and model',
   'c.ph_vehicle':        'e.g. 2019 Honda Accord',
   'c.q_wheels':          'Do the wheels roll?',
   'c.q_accident':        'Was it in an accident?',
@@ -459,6 +471,7 @@ en: {
   'c.tl_assigned':       'Driver assigned',
   'c.tl_enroute':        'Driver on the way',
   'c.tl_arrived':        'Driver arrived',
+  'c.tl_towing':         'Towing',
   'c.tl_done':           'Job complete',
   'c.call':              'Call',
   'c.jobs':              'jobs',
@@ -485,6 +498,7 @@ en: {
   'o.nothing_mine':      'Jobs you take will show up here.',
   'o.enroute':           'En route',
   'o.onscene':           'On scene',
+  'o.towing':            'Towing',
   'o.complete':          'Complete',
   'o.accept_job':        'Accept this job',
   'o.eta_min':           'ETA (minutes)',
@@ -506,9 +520,11 @@ en: {
   'o.verified_h':        'Verified account',
   'o.verified_p':        'Your company is approved. Customers see your verified badge when you take a job.',
   'o.review_h':          'Your account is under review',
-  'o.review_p':          'We have your documents. You can browse jobs but not accept them yet. We will let you know as soon as you are approved.',
-  'o.unverified_h':      'Finish your verification',
-  'o.unverified_p':      'You are missing {n} documents. Until your company is approved you can browse jobs but not accept them or get paid.',
+  'o.review_p':          'We have your registration and we are reviewing your company. You can browse jobs in the meantime. If we need your EIN or any documents we will ask you directly — nothing to upload yet.',
+  'o.unverified_h':      'Your company is under review',
+  'j.docs_optional':     'Upload documents now (optional)',
+  'j.docs_fix':          'Documents that need fixing',
+  'o.unverified_p':      'Until your company is approved you can browse jobs but not accept them or get paid. If you want to speed it up you can upload your documents below — optional.',
   'o.rejected_p':        'Your verification was rejected. Check the documents flagged below and upload them again.',
   'o.job_yours':         'Job is yours.',
   'o.completed_msg':     'Completed. {amount} is on its way to your bank.',
@@ -533,7 +549,7 @@ en: {
   'p.ios_2':             'Choose “Add to Home Screen”',
   'p.ios_3':             'Open TowLoad from the new icon, then turn on alerts',
   'p.ios_fine':          'This is Apple’s rule, not ours. Safari will not let a website even ask for alert permission until it has been added to the Home Screen.',
-  'p.blocked_h':         'Alerts are blocked on this phone',
+  'p.blocked_h':         'Alerts are blocked on this device',
   'p.blocked_p':         'Permission was denied earlier. Go to Settings → TowLoad → Notifications and switch them on — the browser will not ask again on its own.',
   'p.unsupported_h':     'This browser cannot do alerts',
   'p.unsupported_p':     'Open the board in Safari (iPhone) or Chrome (Android) to get jobs on your phone.',
@@ -541,14 +557,14 @@ en: {
   'p.err_sw':            'Could not start the alert service. Reload the page.',
   'p.err_denied':        'You did not allow notifications. Without permission we cannot tell you about jobs.',
   'p.err_server':        'The server could not register this phone. Try again.',
-  'p.this_phone':        'This phone',
+  'p.this_phone':        'This device',
   'p.st_on':             'Alerts on',
   'p.st_ready':          'Alerts off',
   'p.st_ios':            'Needs adding to the Home Screen',
   'p.st_blocked':        'Blocked in phone settings',
   'p.st_unsupported':    'Not supported in this browser',
   'p.send_test':         'Send a test alert',
-  'p.turn_off':          'Turn off on this phone',
+  'p.turn_off':          'Turn off on this device',
   'p.testing':           'Sending…',
   'p.test_ok':           'Sent to {n} phone(s). If nothing arrives within 30 seconds, check Notifications in Settings.',
   'p.test_fail':         'Could not send.',
@@ -566,8 +582,8 @@ en: {
   'p.save':              'Save',
   'p.saved':             'Saved',
   'p.save_fail':         'Could not save.',
-  'p.devices_h':         'Registered phones',
-  'p.no_devices':        'No phone has alerts turned on yet.',
+  'p.devices_h':         'Registered devices',
+  'p.no_devices':        'No device has alerts turned on yet.',
   'p.dev_ok':            'Working',
   'p.dev_untested':      'Registered, never tested',
   'p.dev_not_installed': 'Will receive nothing — not added to the Home Screen',
@@ -586,6 +602,14 @@ en: {
   'd.turn_off':          'Stop sharing',
   'd.denied_h':          'Your browser blocked location access',
   'd.denied_p':          'Turn it on in browser settings so the customer can watch the truck approach.',
+  'd.yard_h':            'Your yard location',
+  'd.yard_p':            'This decides which jobs you are offered. Set it once while you are at your yard or base and it stays saved.',
+  'd.yard_btn':          '📍 Use my current location',
+  'd.yard_set':          'Saved',
+  'd.yard_unset':        'Not set',
+  'd.yard_finding':      'Getting your location…',
+  'd.yard_saved':        'Done — we now use your yard to find jobs near you.',
+  'd.yard_nogps':        'Could not get your location. Turn it on in browser settings.',
   'svc.tow':             'Tow',
   'svc.winch_recovery':  'Recovery',
   'svc.lockout':         'Lockout',
@@ -693,10 +717,54 @@ en: {
 };
 
 /* Spanish unless this browser has explicitly chosen English. */
+/* Language priority, highest first:
+     1. ?lang= in the URL      — lets an ad campaign land in a chosen language
+     2. what this visitor chose last time, which is never overridden by a guess
+     3. a suggestion from the server: Spanish in the Miami market, English
+        elsewhere; see includes/geo.php
+     4. the browser's own preference
+     5. English
+   Steps 3 and 4 are resolved once, asynchronously, and cached — so the first
+   paint never waits on a network call, and a returning visitor never does the
+   lookup at all. */
 function tlLang() {
   const q = new URLSearchParams(location.search).get('lang');
   if (q === 'en' || q === 'es') { localStorage.setItem('tl_lang', q); return q; }
-  return localStorage.getItem('tl_lang') === 'en' ? 'en' : 'es';
+
+  const chosen = localStorage.getItem('tl_lang');
+  if (chosen === 'en' || chosen === 'es') return chosen;
+
+  const suggested = localStorage.getItem('tl_lang_suggested');
+  if (suggested === 'en' || suggested === 'es') return suggested;
+
+  // Nothing known yet. Use the browser now so the page renders immediately;
+  // tlResolveLanguage() may refine it a moment later.
+  return (navigator.languages || [navigator.language || 'en'])
+           .some(l => String(l).toLowerCase().startsWith('es')) ? 'es' : 'en';
+}
+
+/* Ask the server once which language this visitor should see. Only ever writes
+   a SUGGESTION — an explicit choice is never overwritten by geography, because
+   nothing is more irritating than a site that keeps switching back. */
+async function tlResolveLanguage() {
+  if (localStorage.getItem('tl_lang')) return;            // they chose already
+  if (localStorage.getItem('tl_lang_suggested')) return;  // asked before
+
+  let r;
+  try {
+    r = await fetch('api/geo/lang').then(x => x.json());
+  } catch (e) { return; }
+  if (!r || !r.success || (r.lang !== 'en' && r.lang !== 'es')) return;
+
+  const before = tlLang();
+  localStorage.setItem('tl_lang_suggested', r.lang);
+
+  // Reload rather than re-translate. tlApply() only touches elements carrying a
+  // data-i18n attribute, and by this point the board or the tracking screen has
+  // rendered a lot of text from JavaScript that it would leave in the old
+  // language. This happens at most once per browser — the suggestion is stored
+  // above, so the reloaded page takes this branch's early return.
+  if (r.lang !== before) location.reload();
 }
 
 function t(key, params) {
@@ -718,6 +786,8 @@ function tlApply(root) {
 
 /* One tap swaps the whole interface, including anything already rendered. */
 function tlToggle() {
+  // Written to tl_lang, not tl_lang_suggested: from here on this visitor has
+  // decided, and no geo lookup gets to argue with them.
   localStorage.setItem('tl_lang', tlLang() === 'es' ? 'en' : 'es');
   location.reload();
 }
@@ -727,4 +797,9 @@ function tlQuery(sep) {
   return (sep || '?') + 'lang=' + tlLang();
 }
 
-document.addEventListener('DOMContentLoaded', () => tlApply());
+document.addEventListener('DOMContentLoaded', () => {
+  tlApply();
+  // Fire and forget. The page is already painted in the browser's best guess;
+  // this only steps in when the server knows better.
+  tlResolveLanguage();
+});

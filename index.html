@@ -245,7 +245,15 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .verify-bar.ok h4{color:#4ade80}
 .verify-bar p{font-size:13px;color:var(--ink-2);line-height:1.6;margin-bottom:0}
 .verify-bar .vb-act{margin-top:12px}
-.vdocs{margin-top:16px;border-top:1px solid var(--line);padding-top:6px}
+.vdocs{margin-top:6px;border-top:1px solid var(--line);padding-top:6px}
+.vdocs-wrap{margin-top:14px}
+.vdocs-wrap summary{
+  cursor:pointer;list-style:none;font-size:12.5px;font-weight:700;
+  color:var(--ink-dim);padding:6px 0;user-select:none;
+}
+.vdocs-wrap summary::-webkit-details-marker{display:none}
+.vdocs-wrap summary::before{content:'▸ ';color:var(--ink-faint)}
+.vdocs-wrap[open] summary::before{content:'▾ '}
 .vrow{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line)}
 .vrow:last-child{border-bottom:0}
 .vrow .vm{
@@ -665,6 +673,12 @@ async function renderVerifyBar(){
         : status === 'rejected' ? (r.rejection_reason || t('o.rejected_p'))
         : t('o.unverified_p', {n: missing})}</p>
     ${missing || status === 'rejected' ? `
+      <!-- Collapsed unless something was actually rejected. A company that just
+           signed up is not asked for four documents before it has seen a single
+           job; the platform asks at review, and this is here only for the
+           operator who wants to get ahead of it. -->
+      <details class="vdocs-wrap" ${status === 'rejected' ? 'open' : ''}>
+        <summary>${status === 'rejected' ? t('j.docs_fix') : t('j.docs_optional')}</summary>
       <div class="vdocs">
         ${list.map(c => `
           <div class="vrow ${c.uploaded ? 'have' : ''}">
@@ -680,7 +694,8 @@ async function renderVerifyBar(){
                      onchange="uploadVerifyDoc('${c.doc_type}', this)">
             </label>
           </div>`).join('')}
-      </div>` : ''}
+      </div>
+      </details>` : ''}
   </div>`;
 }
 
@@ -807,6 +822,28 @@ function renderNotices(res){
     ? `<div class="notice warn"><b>${t('o.cannot_accept')}</b> ${res.blocked_reason}</div>` : '';
 }
 
+// Which price breakdowns the operator has open. Survives a redraw, because
+// losing it mid-read is exactly what made the panel feel broken.
+const OPEN_BREAKDOWNS = new Set();
+function rememberBreakdown(el){
+  const id = el.dataset.call;
+  if(el.open) OPEN_BREAKDOWNS.add(id); else OPEN_BREAKDOWNS.delete(id);
+}
+
+// Rewrite only the countdown text and its urgency colour.
+function tickTimers(){
+  if(!ME) return;
+  document.querySelectorAll('.timer[data-expires]').forEach(el => {
+    const secs = Math.max(0, (new Date(el.dataset.expires.replace(' ','T')) - new Date())/1000);
+    const t = el.querySelector('.t');
+    if(t) t.textContent = Math.floor(secs/60) + ':' + String(Math.floor(secs%60)).padStart(2,'0');
+    el.classList.toggle('crit', secs < 300);
+    el.classList.toggle('warn', secs >= 300 && secs < 600);
+    const card = el.closest('.call');
+    if(card) card.classList.toggle('urgent', secs < 300);
+  });
+}
+
 function render(){
   const list = document.getElementById('list');
   if(!DATA.length){
@@ -827,7 +864,7 @@ function render(){
       c.is_ev && t('o.flag_ev'), c.needs_flatbed && t('o.flag_flatbed')
     ].filter(Boolean);
 
-    return `<div class="call ${open && secs<300 ? 'urgent' : ''} ${!open ? 'mine' : ''}">
+    return `<div class="call ${open && secs<300 ? 'urgent' : ''} ${!open ? 'mine' : ''}" data-call="${c.id}">
       <div class="c-main">
         <div class="c-top">
           <span class="svc ${c.service_type}">${t('svc.' + c.service_type)}</span>
@@ -849,7 +886,8 @@ function render(){
         </div>
 
         ${isTower && c.lines && c.lines.length ? `
-        <details class="bd">
+        <details class="bd" data-call="${c.id}" ${OPEN_BREAKDOWNS.has(String(c.id)) ? 'open' : ''}
+                 ontoggle="rememberBreakdown(this)">
           <summary>${t('o.breakdown')}</summary>
           ${c.lines.map(l => `<div class="bl"><span>${l.label}</span><b>${money(l.amount)}</b></div>`).join('')}
           <div class="bl tot"><span>${t('o.job_total')}</span><b>${money(c.offer_amount)}</b></div>
@@ -859,7 +897,7 @@ function render(){
       </div>
       <div class="c-side">
         ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">${t('o.miles')}</span></div>` : ''}
-        ${open ? `<div class="timer ${tcls}"><div class="t">${mins}:${ss}</div><div class="l">${t('o.left')}</div></div>` : ''}
+        ${open ? `<div class="timer ${tcls}" data-expires="${c.expires_at}"><div class="t">${mins}:${ss}</div><div class="l">${t('o.left')}</div></div>` : ''}
         <div class="pay">
           <div class="amt">${money(c.offer_amount)}</div>
           ${isTower ? `<div class="net">${money(net)} ${t('o.to_you')}</div>` : ''}
@@ -871,8 +909,8 @@ function render(){
                 ? `<button class="btn ${c.already_bid?'ghost':'go'}" onclick="openAct(${c.id},'bid')">${c.already_bid?'Update bid':'Place bid'}</button>`
                 : `<button class="btn go" onclick="openAct(${c.id},'accept')">${t('o.accept')}</button>`)
             : ''}
-          ${isTower && !open && ['awarded','en_route','on_scene'].includes(c.status)
-            ? `<button class="btn green" onclick="advance(${c.id},'${c.status}')">${nextLabel(c.status)}</button>` : ''}
+          ${isTower && !open && ['awarded','en_route','on_scene','in_progress'].includes(c.status)
+            ? `<button class="btn green" onclick="advance(${c.id},'${c.status}','${c.service_type}')">${nextLabel(c.status, c.service_type)}</button>` : ''}
           ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">${t('o.cancel')}</button>` : ''}
         </div>
       </div>
@@ -898,14 +936,25 @@ function renderBids(bids){
     </div></div></div>`).join('');
 }
 
-const nextLabel = s => ({awarded:t('o.enroute'), en_route:t('o.onscene'), on_scene:t('o.complete')})[s];
-async function advance(id, cur){
-  if(cur === 'on_scene'){
+// A tow has one more step than a jump start: the stretch with the car on the
+// back. Only tows get it — "Towing" on a lockout would be nonsense, and the
+// customer's timeline is built from the same rule.
+const towSteps = svc => svc === 'tow'
+  ? {awarded:'en_route', en_route:'on_scene', on_scene:'in_progress', in_progress:'complete'}
+  : {awarded:'en_route', en_route:'on_scene', on_scene:'complete'};
+
+const nextLabel = (cur, svc) => ({
+  en_route: t('o.enroute'), on_scene: t('o.onscene'),
+  in_progress: t('o.towing'), complete: t('o.complete'),
+}[towSteps(svc)[cur]] || t('o.complete'));
+
+async function advance(id, cur, svc){
+  const next = towSteps(svc)[cur];
+  if(next === 'complete'){
     const r = await api('/calls/complete', {method:'POST', body:JSON.stringify({call_id:id})});
     if(!r.success) return alert(r.error);
     alert(t('o.completed_msg', {amount: money(r.net_to_you)}));
   } else {
-    const next = cur === 'awarded' ? 'en_route' : 'on_scene';
     const r = await api('/calls/status', {method:'POST', body:JSON.stringify({call_id:id, status:next})});
     if(!r.success) return alert(r.error);
   }
@@ -996,7 +1045,12 @@ async function submitAct(){
 
 // A stale board is a lost call, so refresh on a timer and tick the countdowns.
 setInterval(() => { if(ME && VIEW === 'board') load(); }, 20000);
-setInterval(() => { if(ME && DATA.length) render(); }, 1000);
+
+// Countdowns tick in place. This used to call render(), which rebuilt every
+// card once a second — so an operator who opened the price breakdown watched it
+// slam shut within a second, every time. Nothing else on a card changes between
+// server refreshes, so nothing else needs redrawing.
+setInterval(tickTimers, 1000);
 
 </script>
 

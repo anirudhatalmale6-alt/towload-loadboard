@@ -599,10 +599,14 @@ async function submitRequest(){
 }
 
 // ── tracking ────────────────────────────────────────────
-const STEPS = [
-  ['posted','c.tl_sent'], ['awarded','c.tl_assigned'],
-  ['en_route','c.tl_enroute'], ['on_scene','c.tl_arrived'], ['completed','c.tl_done']
-];
+// The towing leg only exists on a tow. A lockout or a jump start goes from
+// "truck arrived" straight to "done", and showing an empty Towing step on those
+// would leave the customer waiting for something that is never coming.
+const stepsFor = svc => svc === 'tow'
+  ? [['posted','c.tl_sent'], ['awarded','c.tl_assigned'], ['en_route','c.tl_enroute'],
+     ['on_scene','c.tl_arrived'], ['in_progress','c.tl_towing'], ['completed','c.tl_done']]
+  : [['posted','c.tl_sent'], ['awarded','c.tl_assigned'], ['en_route','c.tl_enroute'],
+     ['on_scene','c.tl_arrived'], ['completed','c.tl_done']];
 async function poll(){
   const r = await api('/consumer/track?token=' + S.token);
   if(!r.success) return;
@@ -615,7 +619,13 @@ async function poll(){
   // typed at accept time and never changes, so it is only the stand-in until
   // the first real position lands.
   const liveEta = MAP.lastEta;
-  $('trkSm').textContent = r.status === 'open'
+  // Once the truck is on scene the ETA is meaningless — it already arrived.
+  // Leaving "arriving in about 20 minutes" under the words "Driver has arrived"
+  // is the sort of contradiction that makes someone stop trusting the screen.
+  const arrived = ['on_scene','in_progress','completed','goa'].includes(r.status);
+  $('trkSm').textContent = arrived
+      ? (r.status === 'completed' ? t('c.thanks') : '')
+      : r.status === 'open'
       ? t('c.finding_sub')
       : liveEta ? (liveEta <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: liveEta}))
       : r.eta_minutes ? (r.eta_minutes <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: r.eta_minutes}))
@@ -635,6 +645,7 @@ async function poll(){
 
   const reached = {};
   (r.timeline||[]).forEach(t => reached[t.event_type] = t.created_at);
+  const STEPS = stepsFor(r.service_type);
   const lastIdx = STEPS.reduce((acc,[k],i) => reached[k] ? i : acc, 0);
   $('trkTimeline').innerHTML = STEPS.map(([k,labelKey],i) => {
     const cls = reached[k] ? (i === lastIdx && !done ? 'now' : 'done') : '';

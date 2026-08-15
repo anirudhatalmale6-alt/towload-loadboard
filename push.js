@@ -282,6 +282,20 @@ async function renderAlertsPane() {
     </div>
 
     <div class="pane">
+      <div class="pane-h">
+        <h3>${t('d.yard_h')}</h3>
+        <div class="pane-status">${p.base_set
+          ? `<span class="dot ok"></span> ${t('d.yard_set')}`
+          : `<span class="dot warn"></span> ${t('d.yard_unset')}`}</div>
+      </div>
+      <div class="pane-b">
+        <p class="push-fine" style="margin-top:0">${t('d.yard_p')}</p>
+        <button class="btn go" onclick="setYard(this)">${t('d.yard_btn')}</button>
+        <div id="yardMsg" class="push-fine"></div>
+      </div>
+    </div>
+
+    <div class="pane">
       <div class="pane-h"><h3>${t('p.devices_h')}</h3></div>
       <div class="pane-b">
         ${devices.length ? devices.map(deviceRow).join('') : `<p class="push-fine">${t('p.no_devices')}</p>`}
@@ -382,4 +396,31 @@ if ('serviceWorker' in navigator) {
       TLPush.enable().catch(() => {});
     }
   });
+}
+
+/* ─── Yard location ───────────────────────────────────────────────────────
+   Used to be a button on the signup form. It came off there because every
+   extra step on that form is a chance for a one-truck operator to give up
+   halfway — but the point itself still decides which jobs this company is
+   offered at all, so it has to live somewhere. Here, where it can be set once
+   from the yard and forgotten. */
+async function setYard(btn){
+  const msg = document.getElementById('yardMsg');
+  if(!navigator.geolocation){ msg.textContent = t('d.yard_nogps'); return; }
+
+  btn.disabled = true;
+  msg.textContent = t('d.yard_finding');
+
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const r = await api('/push/prefs', {
+      method: 'POST',
+      body: JSON.stringify({ base_lat: pos.coords.latitude, base_lng: pos.coords.longitude }),
+    });
+    btn.disabled = false;
+    msg.textContent = r.success ? t('d.yard_saved') : (r.error || t('p.save_fail'));
+    if(r.success) renderAlertsPane();
+  }, () => {
+    btn.disabled = false;
+    msg.textContent = t('d.yard_nogps');
+  }, { enableHighAccuracy: true, timeout: 12000 });
 }
