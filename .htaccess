@@ -65,7 +65,11 @@ DirectoryIndex index.html
 
 # ─── Hardening ──────────────────────────────────────────────────────────────
 # Config, includes and the schema must never be fetchable over HTTP.
-RedirectMatch 404 ^/.*/(config|includes|migrations)/.*$
+# `ws` is the realtime server: Node source, its package files and the .env that
+# holds the shared secret. It runs from the operator's home directory, not from
+# here — it only lives in the deploy tree so it version-controls with everything
+# else, and nothing in it should ever be fetchable.
+RedirectMatch 404 ^/.*/(config|includes|migrations|ws)/.*$
 RedirectMatch 404 ^/.*/schema\.sql$
 RedirectMatch 404 ^/.*/\.git
 
