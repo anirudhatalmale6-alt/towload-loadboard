@@ -162,8 +162,22 @@ try {
 
             $payoutId = (int)($object['metadata']['towload_payout_id'] ?? 0);
             if ($payoutId) {
+                // Back to 'pending' with the claim released, NOT 'failed'.
+                //
+                // A withdrawal now sends one transfer per job rather than one
+                // for the batch, so a reversal lands here rather than on the
+                // withdrawal branch above. Marking it failed while leaving
+                // withdrawal_id set would take the money out of the tower's
+                // available balance and never put it back — the balance counts
+                // pending payouts with no withdrawal against them — so the
+                // company would simply be short, with nothing on screen saying
+                // why. Released, it returns to their balance to be retried.
                 getDB()->prepare(
-                    "UPDATE payouts SET status = 'failed', failure_reason = 'Transfer reversed at Stripe' WHERE id = :id"
+                    "UPDATE payouts
+                        SET status = 'pending', withdrawal_id = NULL, paid_at = NULL,
+                            stripe_transfer_id = NULL,
+                            failure_reason = 'Transfer reversed at Stripe'
+                      WHERE id = :id"
                 )->execute([':id' => $payoutId]);
 
                 $stmt = getDB()->prepare("SELECT tower_account_id, net_amount FROM payouts WHERE id = :id");

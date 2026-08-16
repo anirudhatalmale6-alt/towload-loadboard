@@ -103,9 +103,13 @@ function requestWithdrawal(int $accountId): array {
     try {
         // FOR UPDATE so two taps on a slow phone cannot both claim the same
         // payouts and open two withdrawals for one balance.
+        // The call's charge id comes along for the ride: each job is transferred
+        // against the charge that paid for it.
         $sel = $pdo->prepare(
-            "SELECT id, net_amount FROM payouts
-              WHERE tower_account_id = :a AND status = 'pending' AND withdrawal_id IS NULL
+            "SELECT p.id, p.net_amount, p.call_id, c.stripe_charge_id
+               FROM payouts p
+               LEFT JOIN calls c ON c.id = p.call_id
+              WHERE p.tower_account_id = :a AND p.status = 'pending' AND p.withdrawal_id IS NULL
               FOR UPDATE"
         );
         $sel->execute([':a' => $accountId]);
@@ -131,37 +135,70 @@ function requestWithdrawal(int $accountId): array {
         return ['ok' => false, 'error' => t('err.wd_failed')];
     }
 
-    // Outside the transaction: a Stripe call can take seconds and must not hold
-    // row locks on the payouts table while it does.
-    $res = stripeRequest('POST', '/transfers', [
-        'amount'      => (int)round($total * 100),
-        'currency'    => 'usd',
-        'destination' => $stripeAccountId,
-        'description' => 'TowSling withdrawal #' . $withdrawalId,
-        'metadata[towsling_withdrawal_id]' => (string)$withdrawalId,
-        'metadata[towsling_account_id]'    => (string)$accountId,
-    ], ['idempotency_key' => 'withdrawal_' . $withdrawalId]);
+    // Outside the transaction: Stripe calls take seconds and must not hold row
+    // locks on the payouts table while they do.
+    //
+    // ONE TRANSFER PER JOB, not one for the batch. Each has to name the charge
+    // that funded it (source_transaction), and a charge id is per job — so a
+    // single batched transfer could only ever be earmarked against one of them.
+    //
+    // This is what fixes "you have insufficient available funds in your Stripe
+    // account". A card capture lands in the pending balance and takes about two
+    // business days to become available; a plain transfer can only spend what
+    // is already available. Money genuinely collected from a customer therefore
+    // could not be paid to the company that earned it.
+    $paid = 0.0; $failed = []; $transferIds = [];
 
-    if (!empty($res['ok'])) {
-        $pdo->prepare("UPDATE withdrawals SET status='paid', stripe_transfer_id=:t, paid_at=NOW()
-                        WHERE id = :id")
-            ->execute([':t' => $res['data']['id'] ?? null, ':id' => $withdrawalId]);
-        $pdo->prepare("UPDATE payouts SET status='paid', paid_at=NOW(), stripe_transfer_id=:t
-                        WHERE withdrawal_id = :id")
-            ->execute([':t' => $res['data']['id'] ?? null, ':id' => $withdrawalId]);
+    foreach ($rows as $r) {
+        $res = stripeTransferToTower(
+            (int)$r['id'], $stripeAccountId, (float)$r['net_amount'],
+            (int)$r['call_id'], $r['stripe_charge_id'] ?: null, $withdrawalId
+        );
 
-        return ['ok' => true, 'withdrawal_id' => $withdrawalId, 'amount' => $total];
+        if (!empty($res['ok'])) {
+            $tid = $res['data']['id'] ?? null;
+            $transferIds[] = $tid;
+            $paid += (float)$r['net_amount'];
+            $pdo->prepare("UPDATE payouts SET status='paid', paid_at=NOW(), stripe_transfer_id=:t
+                            WHERE id = :id")
+                ->execute([':t' => $tid, ':id' => $r['id']]);
+        } else {
+            // Unclaim just this one so it returns to the available balance and
+            // can be retried. The others already sent stay sent — reversing a
+            // transfer that succeeded to tidy up a sibling that did not would
+            // take money back off a company that has done nothing wrong.
+            $failed[] = (string)($res['error'] ?? 'unknown');
+            $pdo->prepare("UPDATE payouts SET withdrawal_id = NULL, failure_reason = :r WHERE id = :id")
+                ->execute([':r' => mb_substr((string)($res['error'] ?? 'unknown'), 0, 255), ':id' => $r['id']]);
+        }
     }
 
-    // Failed: hand the money back to the available balance so they can try
-    // again. Leaving the payouts claimed would strand the balance at zero with
-    // nothing to show for it.
-    $pdo->prepare("UPDATE withdrawals SET status='failed', failure_reason=:r WHERE id = :id")
-        ->execute([':r' => mb_substr((string)($res['error'] ?? 'unknown'), 0, 255), ':id' => $withdrawalId]);
-    $pdo->prepare("UPDATE payouts SET withdrawal_id = NULL WHERE withdrawal_id = :id")
-        ->execute([':id' => $withdrawalId]);
+    $paid = round($paid, 2);
 
-    return ['ok' => false, 'error' => t('err.wd_stripe', ['msg' => (string)($res['error'] ?? '')])];
+    // Nothing got through.
+    if ($paid <= 0) {
+        $pdo->prepare("UPDATE withdrawals SET status='failed', failure_reason=:r WHERE id = :id")
+            ->execute([':r' => mb_substr($failed[0] ?? 'unknown', 0, 255), ':id' => $withdrawalId]);
+        return ['ok' => false, 'error' => t('err.wd_stripe', ['msg' => $failed[0] ?? ''])];
+    }
+
+    // The withdrawal records what actually left, which may be less than what
+    // was claimed. Saying $99 went when $49 did is the kind of number somebody
+    // reconciles against their bank statement.
+    $pdo->prepare("UPDATE withdrawals SET status='paid', amount=:amt, stripe_transfer_id=:t,
+                          paid_at=NOW(), failure_reason=:r
+                    WHERE id = :id")
+        ->execute([
+            ':amt' => money($paid),
+            ':t'   => $transferIds[0] ?? null,
+            ':r'   => $failed ? mb_substr('Some jobs could not be sent: ' . $failed[0], 0, 255) : null,
+            ':id'  => $withdrawalId,
+        ]);
+
+    return [
+        'ok' => true, 'withdrawal_id' => $withdrawalId, 'amount' => $paid,
+        'jobs_sent' => count($transferIds), 'jobs_failed' => count($failed),
+    ];
 }
 
 function withdrawalHistory(int $accountId, int $limit = 50): array {

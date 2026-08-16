@@ -209,15 +209,44 @@ function stripeCreateCustomer(array $account): array {
  * The idempotency key is the payout row id, so a retried webhook or a
  * double-clicked release button can never pay twice.
  */
-function stripeTransferToTower(int $payoutId, string $stripeAccountId, float $netAmount, int $callId): array {
-    return stripeRequest('POST', '/transfers', [
+function stripeTransferToTower(int $payoutId, string $stripeAccountId, float $netAmount,
+                              int $callId, ?string $sourceCharge = null,
+                              ?int $withdrawalId = null): array {
+    $params = [
         'amount'      => (int)round($netAmount * 100),
         'currency'    => 'usd',
         'destination' => $stripeAccountId,
         'description' => 'Call #' . $callId . ' payout',
         'metadata[towload_payout_id]' => (string)$payoutId,
         'metadata[towload_call_id]'   => (string)$callId,
-    ], ['idempotency_key' => 'payout_' . $payoutId]);
+    ];
+    // So a reversal can find the withdrawal this job was part of. Without it
+    // the webhook can only see the payout, and a reversed transfer would leave
+    // the withdrawal still reading "paid".
+    if ($withdrawalId) $params['metadata[towsling_withdrawal_id]'] = (string)$withdrawalId;
+
+    // Earmark the transfer against the charge that paid for this job.
+    //
+    // Without it Stripe refuses with "you have insufficient available funds",
+    // and that refusal is CORRECT: a card capture lands in the PENDING balance
+    // and only becomes available after the settlement delay — around two
+    // business days. So money we had genuinely collected from a customer could
+    // not be sent on to the company that earned it, and the operator was told
+    // to go and create test charges.
+    //
+    // source_transaction ties the payout to its own charge. Stripe accepts it
+    // immediately and releases it when that specific charge settles, which is
+    // the designed answer for separate charges and transfers. It also means a
+    // tower can only ever be paid out of the job they actually did, rather
+    // than out of whatever happens to be sitting in the platform balance.
+    //
+    // Omitted for board jobs: those were funded from the posting provider's
+    // topped-up balance, which really is available platform money with no
+    // single charge behind it.
+    if ($sourceCharge) $params['source_transaction'] = $sourceCharge;
+
+    return stripeRequest('POST', '/transfers', $params,
+        ['idempotency_key' => 'payout_' . $payoutId]);
 }
 
 // ─── WEBHOOK SIGNATURE ───────────────────────────────────────────────────────

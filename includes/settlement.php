@@ -96,8 +96,14 @@ function settleCall(int $callId, string $mode, float $amount): array {
                     'error' => (string)($cap['error'] ?? 'The card could not be charged')];
         }
 
-        $pdo->prepare("UPDATE calls SET payment_status = 'captured' WHERE id = :id")
-            ->execute([':id' => $callId]);
+        // Keep the charge id. The tower's payout is transferred against THIS
+        // charge (source_transaction), which is what lets it go out before the
+        // card money has finished settling into the available balance.
+        $chargeId = $cap['data']['latest_charge'] ?? null;
+        if (is_array($chargeId)) $chargeId = $chargeId['id'] ?? null;
+
+        $pdo->prepare("UPDATE calls SET payment_status = 'captured', stripe_charge_id = :ch WHERE id = :id")
+            ->execute([':ch' => $chargeId, ':id' => $callId]);
         logCallEvent($callId, 'payment_captured', 'Charged $' . money($amount) . ' to the card');
     }
 
