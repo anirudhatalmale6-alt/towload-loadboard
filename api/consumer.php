@@ -10,6 +10,7 @@ require_once __DIR__ . '/../includes/stripe_connect.php';
 require_once __DIR__ . '/../includes/webpush.php';
 require_once __DIR__ . '/../includes/realtime.php';
 require_once __DIR__ . '/../includes/ratings.php';
+require_once __DIR__ . '/../includes/sweep.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -479,6 +480,11 @@ function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks): voi
 
 // ═══ TRACK — the customer's own view, by token ═══════════════════════════════
 if ($action === 'track') {
+    // The other heartbeat for the sweep. A stranded customer polls this every
+    // few seconds, which means an expiring job gets cleaned up even at an hour
+    // when no towing company has the board open. Rate-limited inside.
+    runSweepIfDue();
+
     $token = $_GET['token'] ?? '';
     if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse(t('err.bad_tracking'), 404);
 
@@ -503,6 +509,18 @@ if ($action === 'track') {
     $friendly = [];
     foreach (['draft','open','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired'] as $st) {
         $friendly[$st] = t('status.' . $st);
+    }
+
+    $promisedRemaining = null;
+    if ($call['awarded_at'] !== null && $call['awarded_eta_minutes'] !== null) {
+        $q = getDB()->prepare(
+            "SELECT TIMESTAMPDIFF(SECOND, NOW(),
+                     DATE_ADD(:aw, INTERVAL :eta MINUTE)) AS secs"
+        );
+        $q->execute([':aw' => $call['awarded_at'], ':eta' => (int)$call['awarded_eta_minutes']]);
+        $secs = $q->fetch();
+        // Rounded up, so 30 seconds left reads as "1 minute" rather than "0".
+        if ($secs !== false) $promisedRemaining = (int)ceil(((int)$secs['secs']) / 60);
     }
 
     // A customer who closed the tab on the card screen and came back to their
@@ -539,6 +557,18 @@ if ($action === 'track') {
         'total'         => (float)$call['offer_amount'],
         'payment_status'=> $call['payment_status'],
         'eta_minutes'   => $call['awarded_eta_minutes'],
+        // What the driver promised, counted down.
+        //
+        // eta_minutes is the number he typed when he accepted and it never
+        // changes — so a customer told "about 20 minutes" at 11:51 was still
+        // reading "about 20 minutes" at 12:15. Computed in SQL against NOW()
+        // rather than in the browser, because the browser's clock and its idea
+        // of this server's timezone are both things that can be wrong.
+        //
+        // Goes negative once he is overdue, and the screen says so rather than
+        // counting back up. A live GPS ETA still beats this whenever there is
+        // one — this is the fallback for a driver who is not sharing location.
+        'eta_promised_remaining' => $promisedRemaining,
         'awarded_at'    => $call['awarded_at'],
         'expires_at'    => $call['expires_at'],
         // The driver's number only appears once someone is actually coming, and

@@ -4,6 +4,7 @@ require_once __DIR__ . '/../includes/realtime.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/matching.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
+require_once __DIR__ . '/../includes/sweep.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -156,6 +157,12 @@ if ($method === 'GET' && $action === 'board') {
         ? (float)$_GET['radius']
         : (float)$profile['service_radius_miles'];
     $radius = max(1, min($radius, MAX_SEARCH_RADIUS_MILES));
+
+    // No cron on this host. The board is the busiest authenticated page in the
+    // product, so it is where the expiry sweep gets its heartbeat — a tower
+    // refreshing his jobs is what releases a customer's card hold on a job
+    // nobody took. Rate-limited inside; costs nothing when it is not due.
+    runSweepIfDue();
 
     $box = boundingBox($lat, $lng, $radius);
 
@@ -730,76 +737,22 @@ if ($method === 'GET' && $action === 'my-calls') {
     successResponse(['calls' => $out, 'count' => count($out)]);
 }
 
-// ═══ EXPIRY SWEEP (cron) ═════════════════════════════════════════════════════
-// Open calls nobody took. Refund the hold and clear them off the board —
-// otherwise providers' money sits frozen behind dead calls.
+// ═══ EXPIRY SWEEP ════════════════════════════════════════════════════════════
+// The work now lives in includes/sweep.php so that the same code runs whether
+// it is reached from here or from runSweepIfDue() riding along on ordinary
+// traffic. This endpoint stays so a real cron can be pointed at it.
 if ($action === 'expire-sweep') {
-    $pdo = getDB();
-    $stmt = $pdo->query(
-        "SELECT id, call_number, provider_account_id, source, stripe_payment_intent_id
-           FROM calls
-          WHERE status = 'open' AND expires_at < NOW() LIMIT 500"
-    );
-    $expired = 0;
-    foreach ($stmt->fetchAll() as $call) {
-        try {
-            $pdo->beginTransaction();
-            escrowRefund((int)$call['id'], 'Call expired with no taker');
-            // Nobody came, so the customer must not be charged. Release the
-            // authorisation rather than leaving it sitting on their card.
-            if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
-                stripeCancelPayment($call['stripe_payment_intent_id']);
-                $pdo->prepare("UPDATE calls SET payment_status = 'refunded' WHERE id = :id")
-                    ->execute([':id' => $call['id']]);
-            }
-            $pdo->prepare("UPDATE calls SET status = 'expired' WHERE id = :id")->execute([':id' => $call['id']]);
-            $pdo->prepare("UPDATE bids SET status = 'expired' WHERE call_id = :c AND status = 'pending'")
-                ->execute([':c' => $call['id']]);
-            logCallEvent((int)$call['id'], 'expired', 'No tower accepted before expiry');
-            rtJobClosed((int)$call['id'], 'expired');
-
-        notify((int)$call['provider_account_id'], 'call_expired',
-                $call['call_number'] . ' expired',
-                'No tower accepted this call. Your funds have been returned to your balance.',
-                (int)$call['id']);
-            $pdo->commit();
-            $expired++;
-        } catch (Throwable $e) {
-            if ($pdo->inTransaction()) $pdo->rollBack();
-        }
+    // Guarded. It was reachable by anybody who typed the URL, and it cancels
+    // Stripe authorisations and closes jobs — not something a stranger should
+    // be able to fire at will. The sweep no longer NEEDS calling from outside
+    // (runSweepIfDue rides on ordinary traffic), so this exists only for a real
+    // cron, and a cron can carry a secret.
+    $given = $_GET['key'] ?? ($_SERVER['HTTP_X_SWEEP_KEY'] ?? '');
+    $want  = (string)setting('sweep_key', '');
+    if ($want === '' || !hash_equals($want, (string)$given)) {
+        errorResponse(t('err.no_permission'), 403);
     }
-    // ─── Abandoned at the card screen ────────────────────────────────────────
-    // A draft is a request whose customer never finished paying. No operator
-    // ever saw it, so there is nothing to release and nobody to tell — but the
-    // PaymentIntent is still open at Stripe and the row still counts as live
-    // demand for surge. Close both off after an hour.
-    $stmt = $pdo->query(
-        "SELECT id, call_number, stripe_payment_intent_id
-           FROM calls
-          WHERE status = 'draft' AND created_at < DATE_SUB(NOW(), INTERVAL 60 MINUTE)
-          LIMIT 200"
-    );
-    $abandoned = 0;
-    foreach ($stmt->fetchAll() as $call) {
-        try {
-            if ($call['stripe_payment_intent_id']) {
-                stripeCancelPayment($call['stripe_payment_intent_id']);
-            }
-            // 'canceled', not 'expired'. Surge reads 'expired' as "a real job no
-            // truck would take" and raises prices in that area on the strength
-            // of it. Somebody who closed the tab before entering a card is not
-            // evidence of a shortage of trucks, and must not make the next
-            // customer pay more.
-            $pdo->prepare("UPDATE calls SET status = 'canceled' WHERE id = :id AND status = 'draft'")
-                ->execute([':id' => $call['id']]);
-            logCallEvent((int)$call['id'], 'canceled', 'Request abandoned before payment');
-            $abandoned++;
-        } catch (Throwable $e) {
-            error_log('[sweep] could not close draft ' . $call['id'] . ': ' . $e->getMessage());
-        }
-    }
-
-    successResponse(['expired' => $expired, 'abandoned' => $abandoned]);
+    successResponse(runSweep());
 }
 
 errorResponse('Unknown action', 404);

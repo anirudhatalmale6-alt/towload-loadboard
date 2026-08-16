@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816w">
+<link rel="manifest" href="manifest.json?v=20260817b">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -422,6 +422,32 @@ legend{
   }
   .tabs::-webkit-scrollbar{display:none}
   .tab{padding:8px 15px;font-size:13px;white-space:nowrap;flex:none}
+
+  /* Sign out was off the right edge of the screen and unreachable.
+     The header's first row was carrying the logo, the duty switch, the company
+     name, the account badge, the language button AND sign out. A name like
+     "R&M Towing & Recovery" pushed the last item past the viewport, and since
+     nothing wrapped there was no way to scroll to it either — the button
+     existed but could not be pressed on a phone.
+
+     Row 1 keeps the logo and the duty switch, which is the control an operator
+     touches several times a day. Everything else drops to its own row, and the
+     company name truncates instead of shoving its neighbours off the screen. */
+  .whoami{
+    order:8;width:100%;justify-content:flex-end;flex-wrap:wrap;
+    gap:8px;margin-top:9px;min-width:0;
+  }
+  #dutyBtn{order:-1;margin-right:auto}
+  #acctName{
+    min-width:0;max-width:46vw;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  /* The account-type badge is the one thing here a phone can do without: an
+     operator knows what kind of account he has, and the duty switch and the
+     tabs beside it say so anyway. Dropping it is what lets the name, the
+     language button and sign out share a single line. */
+  .whoami .badge{display:none}
+  .spacer{display:none}
 
   .pane-b .f2{grid-template-columns:1fr}
 }
@@ -818,9 +844,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816w"></script>
-<script src="presence.js?v=20260816w" defer></script>
-<script src="places.js?v=20260816w"></script>
+<script src="i18n.js?v=20260817b"></script>
+<script src="presence.js?v=20260817b" defer></script>
+<script src="places.js?v=20260817b"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2332,9 +2358,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816w"></script>
-<script src="realtime.js?v=20260816w"></script>
-<script src="driver.js?v=20260816w"></script>
+<script src="push.js?v=20260817b"></script>
+<script src="realtime.js?v=20260817b"></script>
+<script src="driver.js?v=20260817b"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

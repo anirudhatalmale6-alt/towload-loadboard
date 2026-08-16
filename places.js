@@ -21,13 +21,20 @@
    it refuses by DISABLING the input.)
    ═══════════════════════════════════════════════════════════════════════════ */
 window.TLPlaces = (function () {
+  var apiLoading = null;
   var loading = null;
   var MIN_CHARS = 3;
   var DEBOUNCE_MS = 250;
 
-  function loadPlaces() {
-    if (loading) return loading;
-    loading = (async function () {
+  /* Loads the Google Maps JS bootstrap once, whoever asks first.
+     Shared by the address suggestions and by the customer's tracking map, so
+     the key is fetched once and the script tag exists once — two callers each
+     appending their own would load the API twice and Google logs a warning
+     about exactly that. Resolves true when google.maps.importLibrary is
+     genuinely callable. */
+  function loadApi() {
+    if (apiLoading) return apiLoading;
+    apiLoading = (async function () {
       var key = '';
       try {
         var r = await fetch('api/geo/maps-key').then(function (x) { return x.json(); });
@@ -57,8 +64,15 @@ window.TLPlaces = (function () {
           setTimeout(poll, 60);
         })();
       });
-      if (!ready) return null;
+      return ready;
+    })();
+    return apiLoading;
+  }
 
+  function loadPlaces() {
+    if (loading) return loading;
+    loading = (async function () {
+      if (!await loadApi()) return null;
       try { return await google.maps.importLibrary('places'); }
       catch (e) { console.warn('[places] library failed', e); return null; }
     })();
@@ -199,5 +213,5 @@ window.TLPlaces = (function () {
     return true;
   }
 
-  return { attach: attach };
+  return { attach: attach, loadApi: loadApi };
 })();

@@ -68,11 +68,16 @@
 })();
 </script>
 
-<!-- Leaflet + OpenStreetMap tiles. No API key and no per-view billing, which
-     matters on a page every single customer loads. Swappable for Google or
-     Mapbox later if the styling is worth paying for. -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+<!-- The tracking map is Google Maps in satellite view, loaded on demand through
+     the shared loader in places.js — the same script tag and the same key the
+     address suggestions already use, so it is fetched once per page.
+
+     It replaced Leaflet + OpenStreetMap. Those tiles were free and Google's are
+     billed per map load, but a stranded person matching what is on their screen
+     to what is in front of them is worth paying for: on satellite you can see
+     the actual parking lot, the actual roof, the actual line of trees. Nothing
+     is loaded until a truck is genuinely on the way, so a customer who is still
+     waiting for a driver never triggers a map load at all. -->
 <style>
 :root{
   --ink:#0b1220; --ink-2:#40506a; --ink-3:#7d8ba3;
@@ -251,8 +256,11 @@ input::placeholder{color:#aab4c4}
 }
 #mapWrap.on{display:block}
 #map{height:260px;width:100%;background:var(--wash);z-index:1}
+/* Top-left, not bottom-left. Google's logo and attribution sit in the bottom
+   corners and their terms require both to stay visible — the badge was covering
+   the logo outright. The zoom buttons are top-right, so this corner is free. */
 .map-eta{
-  position:absolute;left:14px;bottom:14px;z-index:400;
+  position:absolute;left:14px;top:14px;z-index:400;
   background:rgba(11,18,32,.92);color:#fff;border-radius:11px;
   padding:9px 14px;font-size:13.5px;font-weight:650;
   box-shadow:0 4px 16px rgba(0,0,0,.28);backdrop-filter:blur(6px);
@@ -272,9 +280,10 @@ input::placeholder{color:#aab4c4}
   background:#2563eb;border:3px solid #fff;
   box-shadow:0 2px 7px rgba(0,0,0,.3);
 }
-/* Leaflet ships its own attribution; keep it legible but out of the way. */
-.leaflet-container{font-family:inherit}
-.leaflet-control-attribution{font-size:9px;opacity:.65}
+/* Google draws its own controls and attribution inside the map element, so
+   there is nothing to restyle here. The truck and pickup markers are SVG icons
+   handed to the Maps API rather than HTML, which is why .truck-dot/.pin-dot
+   above are no longer used by the tracking map. */
 
 /* ── tracking ──────────────────────────────────────────── */
 .track-status{text-align:center;padding:26px 10px}
@@ -610,7 +619,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816z';
+  var v = '?v=20260817d';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -1192,6 +1201,34 @@ const stepsFor = svc => svc === 'tow'
      ['on_scene','c.tl_arrived'], ['in_progress','c.tl_towing'], ['completed','c.tl_done']]
   : [['posted','c.tl_sent'], ['awarded','c.tl_assigned'], ['en_route','c.tl_enroute'],
      ['on_scene','c.tl_arrived'], ['completed','c.tl_done']];
+/* What the customer reads under "Driver on the way".
+   Three sources, in order of how much they can be trusted:
+
+     1. the live GPS ETA, recomputed on the server every time the truck
+        reports a position — this is the one that shortens as he closes in
+     2. the driver's promised ETA, counted down against the clock
+     3. nothing, rather than a number we cannot stand behind
+
+   (2) exists because most of the time there is no (1): a browser only reports
+   position while the driver has the page open and unlocked, so on a locked
+   phone the map goes stale. Before this, that fell back to the raw number he
+   typed at accept time, which sat at "about 20 minutes" for half an hour. */
+function etaLine(r, liveEta){
+  if(liveEta) return liveEta <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: liveEta});
+
+  const left = r.eta_promised_remaining;
+  if(typeof left === 'number'){
+    // Overdue. Say so plainly — a customer watching an empty road already
+    // knows, and a screen still claiming "about 5 minutes" is what makes them
+    // stop believing the rest of it.
+    if(left < -1) return t('c.eta_overdue', {n: Math.abs(left)});
+    if(left <= 1) return t('c.eta_about_one');
+    return t('c.eta_about', {n: left});
+  }
+  if(r.status === 'completed') return t('c.thanks');
+  return '';
+}
+
 async function poll(){
   const r = await api('/consumer/track?token=' + S.token);
   if(!r.success) return;
@@ -1212,9 +1249,7 @@ async function poll(){
       ? (r.status === 'completed' ? t('c.thanks') : '')
       : r.status === 'open'
       ? t('c.finding_sub')
-      : liveEta ? (liveEta <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: liveEta}))
-      : r.eta_minutes ? (r.eta_minutes <= 1 ? t('c.eta_about_one') : t('c.eta_about', {n: r.eta_minutes}))
-      : r.status === 'completed' ? t('c.thanks') : '';
+      : etaLine(r, liveEta);
 
   $('driverBox').innerHTML = r.tower ? `
     <div class="driver">
@@ -1253,27 +1288,86 @@ async function poll(){
    Everything about staleness is decided server-side; this just renders what it
    is told, so the browser can never talk itself into showing a stale truck as
    live. */
-const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null, fitted:false, pickup:null };
+const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null,
+              fitted:false, pickup:null, loading:null, api:null };
 
-const TRUCK_SVG = '<svg viewBox="0 0 24 24"><path d="M3 6h11v9H3V6zm12 3h3.6l2.4 3v3h-6V9zM6.5 19a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm11 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/></svg>';
-
-function ensureMap(lat, lng){
-  if(MAP.map || typeof L === 'undefined') return MAP.map;
-  MAP.map = L.map('map', {
-    zoomControl:false, attributionControl:true,
-    // A stranded person is one-handed and probably panicking. Let them pan,
-    // but do not let a stray scroll throw the map into orbit.
-    scrollWheelZoom:false,
-  }).setView([lat, lng], 14);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom:19, attribution:'&copy; OpenStreetMap'
-  }).addTo(MAP.map);
-  L.control.zoom({position:'topright'}).addTo(MAP.map);
-  return MAP.map;
+/* The markers are SVG data URIs rather than styled HTML.
+   Google's HTML marker (AdvancedMarkerElement) needs a Map ID provisioned in
+   the Cloud console, and a missing one fails at runtime rather than degrading
+   — not a dependency worth taking for a coloured circle on the one screen a
+   stranded customer is watching. */
+function svgIcon(svg, size){
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new MAP.api.Size(size, size),
+    anchor:     new MAP.api.Point(size / 2, size / 2),
+  };
 }
 
-function icon(html, cls, size){
-  return L.divIcon({html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2]});
+const TRUCK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44">
+  <circle cx="22" cy="22" r="16" fill="#ff6a00" stroke="#fff" stroke-width="3.5"/>
+  <path fill="#fff" transform="translate(11 11) scale(0.92)"
+        d="M3 6h11v9H3V6zm12 3h3.6l2.4 3v3h-6V9zM6.5 19a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm11 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6z"/>
+</svg>`;
+
+const PIN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="7" fill="#2563eb" stroke="#fff" stroke-width="3.5"/>
+</svg>`;
+
+/* Builds the map the first time there is something to put on it.
+   Async, because the Maps API is fetched on demand — so every caller has to
+   await it, and drawTruck may be called again before the first one resolves.
+   MAP.loading is that guard: without it a fast second position creates a
+   second map in the same div. */
+async function ensureMap(lat, lng){
+  if(MAP.map) return MAP.map;
+  if(MAP.loading) return MAP.loading;
+
+  MAP.loading = (async () => {
+    if(typeof TLPlaces === 'undefined' || !await TLPlaces.loadApi()) return null;
+    try {
+      // Both libraries, and then the NAMESPACE — not the object importLibrary
+      // returns. importLibrary('maps') hands back only that library's exports:
+      // Map is there, but Size, Point, LatLngBounds, ControlPosition and event
+      // are core, and Marker is in 'marker'. Reading ControlPosition off the
+      // returned object threw and the map never got built.
+      await Promise.all([
+        google.maps.importLibrary('maps'),
+        google.maps.importLibrary('marker'),
+      ]);
+      MAP.api = google.maps;
+    } catch(e){ console.warn('[map] could not load', e); return null; }
+
+    MAP.map = new MAP.api.Map($('map'), {
+      center: {lat, lng},
+      zoom: 14,
+      // Satellite WITH labels. Ricardo asked for satellite; plain imagery has
+      // no street names on it, and "he is on the road just north of you" is
+      // unreadable without them. Hybrid keeps the aerial view and puts the
+      // roads back on top of it.
+      mapTypeId: 'hybrid',
+      // A stranded person is one-handed and probably panicking. Let them pan
+      // and pinch, but do not let a stray scroll throw the map into orbit, and
+      // do not offer controls that only exist to get them lost.
+      gestureHandling: 'cooperative',
+      disableDefaultUI: true,
+      zoomControl: true,
+      zoomControlOptions: { position: MAP.api.ControlPosition.RIGHT_TOP },
+      clickableIcons: false,
+      keyboardShortcuts: false,
+      // Every shop, clinic and casino for a mile around, each with its own
+      // pin, on a screen whose entire job is to show one truck and one
+      // customer. Business pins go; road labels stay, because those are how
+      // somebody works out which way the truck is coming from.
+      styles: [
+        { featureType:'poi',              stylers:[{visibility:'off'}] },
+        { featureType:'transit',          stylers:[{visibility:'off'}] },
+        { featureType:'poi.business',     stylers:[{visibility:'off'}] },
+      ],
+    });
+    return MAP.map;
+  })();
+  return MAP.loading;
 }
 
 async function pollMap(){
@@ -1298,39 +1392,55 @@ async function pollMap(){
 /* Draws the marker and the badge. Shared by the poll and by the realtime
    event, so a position arriving over the socket cannot render differently
    from one that arrived over HTTP a second later. */
-function drawTruck(lat, lng, etaMinutes, stale){
+async function drawTruck(lat, lng, etaMinutes, stale){
   const wrap = $('mapWrap');
+  // Shown before the map exists so the container has a real height by the time
+  // Google measures it. A map built inside a display:none div renders its
+  // tiles against a zero-sized box and comes back grey.
   wrap.classList.add('on');
 
-  const m = ensureMap(lat, lng);
+  // The badge does not wait for the map. If the key is missing or Google is
+  // blocked, the customer still gets the ETA — losing the picture is a
+  // downgrade, losing the number is a broken screen.
+  paintEta(etaMinutes, stale);
+
+  const m = await ensureMap(lat, lng);
   if(!m) return;
-  // The container starts hidden, so Leaflet measured it as zero. Tell it to
-  // look again now it has a size, or the tiles render in the wrong place.
-  setTimeout(() => m.invalidateSize(), 60);
 
   if(!MAP.truck){
-    MAP.truck = L.marker([lat, lng], {
-      icon: icon('<div class="truck-dot">' + TRUCK_SVG + '</div>', '', 34),
-      zIndexOffset: 1000,
-    }).addTo(m);
+    MAP.truck = new MAP.api.Marker({
+      map: m, position: {lat, lng}, icon: svgIcon(TRUCK_ICON, 40),
+      zIndex: 1000, optimized: false,
+    });
   } else {
-    MAP.truck.setLatLng([lat, lng]);
+    MAP.truck.setPosition({lat, lng});
   }
 
   if(MAP.pickup && !MAP.pin){
-    MAP.pin = L.marker([MAP.pickup.lat, MAP.pickup.lng], {
-      icon: icon('<div class="pin-dot"></div>', '', 16)
-    }).addTo(m);
+    MAP.pin = new MAP.api.Marker({
+      map: m, position: {lat: MAP.pickup.lat, lng: MAP.pickup.lng},
+      icon: svgIcon(PIN_ICON, 20), zIndex: 900, optimized: false,
+    });
   }
 
   // Fit both once. Refitting on every update fights the customer every time
   // they try to pan, which is maddening on a phone.
   if(!MAP.fitted && MAP.pin){
-    m.fitBounds(L.latLngBounds([[lat, lng], [MAP.pickup.lat, MAP.pickup.lng]]),
-                {padding:[45,45], maxZoom:15});
+    const b = new MAP.api.LatLngBounds();
+    b.extend({lat, lng});
+    b.extend({lat: MAP.pickup.lat, lng: MAP.pickup.lng});
+    m.fitBounds(b, 45);
+    // fitBounds on two points a few streets apart zooms in far enough to lose
+    // all context, so cap it the way the Leaflet version's maxZoom did.
+    MAP.api.event.addListenerOnce(m, 'idle', () => {
+      if(m.getZoom() > 16) m.setZoom(16);
+    });
     MAP.fitted = true;
   }
 
+}
+
+function paintEta(etaMinutes, stale){
   MAP.lastEta = stale ? null : etaMinutes;
 
   const eta = $('mapEta');
