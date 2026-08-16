@@ -163,6 +163,11 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
         'has_keys'       => (bool)$c['has_keys'],
         'wheels_lock'    => (bool)$c['wheels_lock'],
         'is_accident'    => (bool)$c['is_accident'],
+        // What the customer said is wrong with it. The single most useful line
+        // on the card for a driver deciding what to bring — a no-start and a
+        // wreck are the same "tow" to the board and completely different jobs
+        // in the yard.
+        'problem'        => $c['problem'] ?? null,
         'is_underground' => (bool)$c['is_underground'],
         'needs_flatbed'  => (bool)$c['needs_flatbed'],
         'is_ev'          => (bool)$c['is_ev'],

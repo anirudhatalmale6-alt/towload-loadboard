@@ -102,10 +102,11 @@ input,select,textarea{font:inherit;color:inherit}
   position:sticky; top:0; z-index:30;
 }
 .brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px;letter-spacing:-.4px}
+/* The client's logo, straight onto the white header. Height is fixed and the
+   width follows it, so the artwork is never squashed if it is replaced later
+   with something a different shape. */
 .brand .mark{
-  width:30px;height:30px;border-radius:8px;display:grid;place-items:center;
-  background:linear-gradient(145deg,var(--accent),var(--accent-dark));
-  color:#fff;font-weight:900;font-size:13px;
+  height:30px;width:auto;display:block;
 }
 .top .live{
   margin-left:auto;font-size:12.5px;font-weight:700;color:var(--green);
@@ -416,7 +417,7 @@ input::placeholder{color:#aab4c4}
 <body>
 
 <div class="top">
-  <div class="brand"><div class="mark">TS</div>TowSling</div>
+  <div class="brand"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</div>
   <div class="live"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Drivers available</span></div>
   <button id="langBtn" onclick="tlToggle()" style="margin-left:12px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--ink-2)">English</button>
 </div>
@@ -498,11 +499,24 @@ input::placeholder{color:#aab4c4}
           <button class="on" data-v="1" data-i18n="c.yes">Yes</button><button data-v="0" data-i18n="c.no">No</button>
         </div>
       </div>
+      <!-- Replaced the old "was it in an accident?" yes/no. That question only
+           had a useful answer one time in twenty, and the thing a driver
+           actually wants to know before loading the truck — is it a no-start,
+           is it cooked, is it wrecked — was not being asked at all.
+           Accident is still one of the answers, and picking it applies the
+           same surcharge and raises the same flag on the board as before. -->
       <div class="f">
-        <label data-i18n="c.q_accident">Was it in an accident?</label>
-        <div class="yn" data-yn="accident">
-          <button data-v="1" data-i18n="c.yes">Yes</button><button class="on" data-v="0" data-i18n="c.no">No</button>
-        </div>
+        <label for="problem" data-i18n="c.q_problem">What is wrong with it?</label>
+        <select id="problem">
+          <option value=""             data-i18n="c.pr_pick">Choose one…</option>
+          <option value="wont_start"   data-i18n="c.pr_wont_start">Will not start</option>
+          <option value="overheated"   data-i18n="c.pr_overheated">Overheated</option>
+          <option value="accident"     data-i18n="c.pr_accident">Accident</option>
+          <option value="flat_tire"    data-i18n="c.pr_flat">Flat tire</option>
+          <option value="transmission" data-i18n="c.pr_transmission">Will not go into gear</option>
+          <option value="wont_move"    data-i18n="c.pr_wont_move">Runs but will not move</option>
+          <option value="other"        data-i18n="c.pr_other">Something else</option>
+        </select>
       </div>
       <button class="btn" onclick="getQuote()" id="quoteBtn" data-i18n="c.see_price">See my price</button>
       <button class="back" onclick="go(2)" data-i18n="c.back">← Back</button>
@@ -619,7 +633,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260817d';
+  var v = '?v=20260817e';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -628,7 +642,7 @@ input::placeholder{color:#aab4c4}
 </script>
 <script>
 const API = 'api';
-let S = { svc:'tow', cls:'light', wheels:1, accident:0, pickup:null, dropoff:null, quote:null, token:null };
+let S = { svc:'tow', cls:'light', wheels:1, problem:'', pickup:null, dropoff:null, quote:null, token:null };
 
 async function api(path, opts={}){
   // Language rides along so API errors come back in the page's language.
@@ -716,6 +730,12 @@ async function getQuote(){
   clearErr();
   if(!$('pickup').value.trim()) { go(2); return err(t('c.err_where')); }
 
+  // Read it here rather than on a change event. The quote and the confirm both
+  // send this value and they have to agree — the signed quote is fingerprinted
+  // on it, and a mismatch silently re-prices the job.
+  S.problem = $('problem').value;
+  if(!S.problem){ $('problem').focus(); return err(t('c.err_problem')); }
+
   // No position, no quote. This used to fall back to downtown Miami when GPS
   // was denied or unavailable, which is the worst kind of bug: it succeeds.
   // A customer in Orlando who declines the location prompt got a Miami price,
@@ -734,7 +754,7 @@ async function getQuote(){
   const body = {
     service_type:S.svc, vehicle_class:S.cls,
     pickup_lat:pk.lat, pickup_lng:pk.lng,
-    is_accident:!!S.accident, wheels_lock:!!S.wheels, has_keys:true
+    problem:S.problem || null, wheels_lock:!!S.wheels, has_keys:true
   };
   // The drop-off can be priced properly now that it carries real coordinates.
   // Quoting without it and then booking with it would show one price and
@@ -827,7 +847,7 @@ async function submitRequest(){
     pickup_state: pk.state || null,
     pickup_zip:   pk.zip   || null,
     customer_name:name, customer_phone:phone, customer_email:$('cEmail').value.trim(),
-    is_accident:!!S.accident, wheels_lock:!!S.wheels, has_keys:true,
+    problem:S.problem || null, wheels_lock:!!S.wheels, has_keys:true,
     accept_terms:true,
     // Locks in the price they were actually shown. Without this the job would
     // be re-priced at confirm time and could come back higher than the number

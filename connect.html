@@ -55,9 +55,9 @@ body{background:var(--bg);color:var(--ink);min-height:100vh;
   -webkit-font-smoothing:antialiased;display:grid;place-items:center;padding:24px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
   padding:30px;max-width:520px;width:100%}
-.mark{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
-  background:linear-gradient(145deg,var(--accent),var(--accent-dim));
-  color:#fff;font-weight:900;font-size:15px;margin-bottom:18px}
+.mark{height:38px;width:auto;display:block;margin-bottom:18px;
+  background:#fff;border-radius:9px;padding:5px 8px;
+  box-shadow:0 2px 8px rgba(0,0,0,.4)}
 h1{font-size:21px;font-weight:750;letter-spacing:-.4px;margin-bottom:8px}
 p{color:var(--ink-dim);margin-bottom:14px}
 .state{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
@@ -80,7 +80,7 @@ li{margin-bottom:4px}
 </head>
 <body>
 <div class="card" id="card">
-  <div class="mark">TS</div>
+  <img class="mark" src="assets/logo-96.png?v=1" alt="" width="44" height="38">
   <div class="spin"></div>
   <h1 data-i18n="cn.checking">Checking with Stripe…</h1>
   <p data-i18n="cn.checking_p">One moment while we confirm the state of your account.</p>
@@ -109,7 +109,7 @@ async function api(path, opts){
 }
 
 function show(html){ document.getElementById('card').innerHTML =
-  '<div class="mark">TS</div>' + html; }
+  '<img class="mark" src="assets/logo-96.png?v=1" alt="" width="44" height="38">' + html; }
 
 function signedOut(){
   show(`<h1>${t('cn.signin_h')}</h1>

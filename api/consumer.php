@@ -59,12 +59,31 @@ function readQuoteToken(?string $token): ?array {
     return $facts;
 }
 
+/**
+ * What is wrong with the vehicle. The customer picks one of these; anything
+ * else is discarded rather than stored, because this string is shown to a
+ * driver deciding what to bring and is not free text a stranger gets to write.
+ *
+ * 'accident' is the one that carries weight beyond the label: it sets
+ * is_accident, which prices a surcharge and puts a hazard flag on the board.
+ */
+const VEHICLE_PROBLEMS = [
+    'wont_start', 'overheated', 'accident', 'flat_tire',
+    'transmission', 'wont_move', 'other',
+];
+
+function cleanProblem($raw): ?string {
+    $v = is_string($raw) ? trim($raw) : '';
+    return in_array($v, VEHICLE_PROBLEMS, true) ? $v : null;
+}
+
 // The inputs that decide a price. If any of them changed between the quote and
 // the request, the quote no longer describes this job and we re-price.
 function quoteFingerprint(array $o): string {
     return implode('|', [
         $o['service_type'], $o['vehicle_class'], number_format((float)$o['tow_miles'], 1, '.', ''),
         !empty($o['is_accident']) ? 1 : 0, !empty($o['has_keys']) ? 1 : 0,
+        (string)($o['problem'] ?? ''),
         !empty($o['wheels_lock']) ? 1 : 0, !empty($o['is_underground']) ? 1 : 0,
         (int)$o['zone_id'],
     ]);
@@ -94,7 +113,12 @@ function normaliseJobOpts(array $in, float $lat, float $lng): array {
         'service_type'   => $service,
         'vehicle_class'  => $class,
         'tow_miles'      => $miles,
-        'is_accident'    => !empty($in['is_accident']),
+        'problem'        => cleanProblem($in['problem'] ?? null),
+        // Derived, not asked. The separate "was it in an accident?" question is
+        // gone from the form, but the surcharge and the board's hazard flag
+        // both still hang off this boolean. The ?? keeps a browser running a
+        // cached copy of the old page pricing the same as it always did.
+        'is_accident'    => (($in['problem'] ?? null) === 'accident') || !empty($in['is_accident']),
         // Absent means the customer never saw the question. Defaulting these to
         // false would flag almost every job "no keys, wheels locked" and price
         // it as a recovery.
@@ -245,7 +269,7 @@ if ($method === 'POST' && $action === 'request') {
                 pickup_address, pickup_city, pickup_state, pickup_zip, pickup_lat, pickup_lng, pickup_notes,
                 dropoff_address, dropoff_city, dropoff_state, dropoff_lat, dropoff_lng, tow_miles,
                 vehicle_year, vehicle_make, vehicle_model, vehicle_color, vehicle_plate,
-                has_keys, wheels_lock, is_accident, is_underground, is_ev,
+                has_keys, wheels_lock, is_accident, problem, is_underground, is_ev,
                 customer_name, customer_phone, customer_email,
                 pricing_mode, offer_amount, goa_amount, price_breakdown,
                 surge_multiplier, surge_reason, surge_demand, surge_supply,
@@ -255,7 +279,7 @@ if ($method === 'POST' && $action === 'request') {
                 :addr, :city, :state, :zip, :lat, :lng, :notes,
                 :daddr, :dcity, :dstate, :dlat, :dlng, :miles,
                 :vy, :vm, :vmo, :vcol, :vplate,
-                :keys, :wheels, :accident, :under, :ev,
+                :keys, :wheels, :accident, :problem, :under, :ev,
                 :cname, :cphone, :cemail,
                 'accept', :offer, :goa, :breakdown,
                 :sm, :sr, :sd, :ss,
@@ -277,6 +301,7 @@ if ($method === 'POST' && $action === 'request') {
             ':vplate' => $in['vehicle_plate'] ?? null,
             ':keys' => $opts['has_keys'] ? 1 : 0, ':wheels' => $opts['wheels_lock'] ? 1 : 0,
             ':accident' => $opts['is_accident'] ? 1 : 0,
+            ':problem'  => $opts['problem'],
             ':under' => $opts['is_underground'] ? 1 : 0,
             ':ev' => !empty($in['is_ev']) ? 1 : 0,
             ':cname' => $in['customer_name'], ':cphone' => $phone,
