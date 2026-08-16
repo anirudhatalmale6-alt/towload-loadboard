@@ -1323,10 +1323,13 @@ function tlLang() {
   const suggested = localStorage.getItem('tl_lang_suggested');
   if (suggested === 'en' || suggested === 'es') return suggested;
 
-  // Nothing known yet. Use the browser now so the page renders immediately;
-  // tlResolveLanguage() may refine it a moment later.
-  return (navigator.languages || [navigator.language || 'en'])
-           .some(l => String(l).toLowerCase().startsWith('es')) ? 'es' : 'en';
+  // Nothing known yet: English. Not the browser's language.
+  //
+  // This used to sniff navigator.languages, which meant a Spanish-configured
+  // phone got a Spanish page even when it had arrived from an English ad —
+  // the ad and the landing page disagreeing is the fastest way to lose the
+  // click. English is the default and the toggle is how anyone changes it.
+  return 'en';
 }
 
 /* Ask the server once which language this visitor should see. Only ever writes
@@ -1341,6 +1344,13 @@ async function tlResolveLanguage() {
     r = await fetch('api/geo/lang').then(x => x.json());
   } catch (e) { return; }
   if (!r || !r.success || (r.lang !== 'en' && r.lang !== 'es')) return;
+
+  // Only ever act on this when the platform has it switched on. With it off —
+  // the default — the endpoint still reports what it would have suggested,
+  // which keeps the behaviour debuggable, but nothing is changed under the
+  // visitor. Otherwise this would quietly reload a Miami visitor into Spanish
+  // and undo the English default a moment after the page appeared.
+  if (!r.auto) return;
 
   const before = tlLang();
   localStorage.setItem('tl_lang_suggested', r.lang);

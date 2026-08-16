@@ -10,6 +10,11 @@ setCorsHeaders();
 if (($_GET['action'] ?? '') === 'lang') {
     $s = suggestLanguage();
     successResponse([
+        // Whether the client should ACT on this. Off by default: the site
+        // defaults to English, and silently reloading somebody into Spanish
+        // because of where they are undoes that. Flip `auto_language_by_region`
+        // in Settings to turn regional detection back on — no deploy needed.
+        'auto'   => (string)setting('auto_language_by_region', '0') === '1',
         'lang'   => $s['lang'],
         // Returned so the behaviour is debuggable from the outside — "why is
         // this in English" has a one-word answer instead of a support thread.

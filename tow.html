@@ -380,7 +380,7 @@ input::placeholder{color:#aab4c4}
 
 <div class="top">
   <div class="brand"><div class="mark">TS</div>TowSling</div>
-  <div class="live"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Grúas disponibles</span></div>
+  <div class="live"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Drivers available</span></div>
   <button id="langBtn" onclick="tlToggle()" style="margin-left:12px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--ink-2)">English</button>
 </div>
 
@@ -388,13 +388,13 @@ input::placeholder{color:#aab4c4}
 
   <!-- ═══ HERO ═══ -->
   <div class="hero" id="hero">
-    <h1><span data-i18n="c.hero_1">¿Necesita una grúa?</span><br><span data-i18n="c.hero_2">Se la mandamos.</span></h1>
-    <p data-i18n="c.hero_sub">Precio claro por adelantado. Grúas profesionales cerca de usted. Sin llamar a nadie.</p>
-    <p class="hero-sub2" data-i18n="c.hero_sub2">Pida asistencia en carretera y siga su grúa desde que sale hasta que llega.</p>
+    <h1><span data-i18n="c.hero_1">Need a tow?</span><br><span data-i18n="c.hero_2">We'll sling one your way.</span></h1>
+    <p data-i18n="c.hero_sub">Upfront pricing. Nearby towing professionals. No calling around.</p>
+    <p class="hero-sub2" data-i18n="c.hero_sub2">Request roadside help and track your truck from pickup to arrival.</p>
     <div class="trust">
-      <span><i class="tick">✓</i> <span data-i18n="c.trust_1">Con licencia y seguro</span></span>
-      <span><i class="tick">✓</i> <span data-i18n="c.trust_2">Paga después del servicio</span></span>
-      <span><i class="tick">✓</i> <span data-i18n="c.trust_3">Seguimiento en vivo</span></span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_1">Licensed &amp; insured</span></span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_2">Pay after the job</span></span>
+      <span><i class="tick">✓</i> <span data-i18n="c.trust_3">Live tracking</span></span>
     </div>
   </div>
 
@@ -408,92 +408,92 @@ input::placeholder{color:#aab4c4}
 
     <!-- step 1 — what -->
     <div class="step" data-step="1">
-      <h2 data-i18n="c.q_what">¿Qué necesita?</h2>
-      <p class="hint" data-i18n="c.q_what_hint">Elija lo más parecido.</p>
+      <h2 data-i18n="c.q_what">What do you need?</h2>
+      <p class="hint" data-i18n="c.q_what_hint">Pick the closest match.</p>
       <div class="opts" id="svcOpts">
-        <button class="opt on" data-svc="tow"><span class="ic">🚙</span><span data-i18n="c.svc_tow">Grúa</span></button>
-        <button class="opt" data-svc="jumpstart"><span class="ic">🔋</span><span data-i18n="c.svc_jump">Paso de corriente</span></button>
-        <button class="opt" data-svc="tire_change"><span class="ic">🛞</span><span data-i18n="c.svc_tire">Llanta pinchada</span></button>
-        <button class="opt" data-svc="lockout"><span class="ic">🔑</span><span data-i18n="c.svc_lockout">Llaves adentro</span></button>
-        <button class="opt" data-svc="fuel_delivery"><span class="ic">⛽</span><span data-i18n="c.svc_fuel">Sin gasolina</span></button>
-        <button class="opt" data-svc="winch_recovery"><span class="ic">🪝</span><span data-i18n="c.svc_winch">Atascado</span></button>
+        <button class="opt on" data-svc="tow"><span class="ic">🚙</span><span data-i18n="c.svc_tow">Tow</span></button>
+        <button class="opt" data-svc="jumpstart"><span class="ic">🔋</span><span data-i18n="c.svc_jump">Jump start</span></button>
+        <button class="opt" data-svc="tire_change"><span class="ic">🛞</span><span data-i18n="c.svc_tire">Flat tire</span></button>
+        <button class="opt" data-svc="lockout"><span class="ic">🔑</span><span data-i18n="c.svc_lockout">Locked out</span></button>
+        <button class="opt" data-svc="fuel_delivery"><span class="ic">⛽</span><span data-i18n="c.svc_fuel">Out of fuel</span></button>
+        <button class="opt" data-svc="winch_recovery"><span class="ic">🪝</span><span data-i18n="c.svc_winch">Stuck / ditch</span></button>
       </div>
-      <button class="btn" style="margin-top:16px" onclick="go(2)" data-i18n="c.continue">Continuar</button>
+      <button class="btn" style="margin-top:16px" onclick="go(2)" data-i18n="c.continue">Continue</button>
     </div>
 
     <!-- step 2 — where -->
     <div class="step hide" data-step="2">
-      <h2 data-i18n="c.q_where">¿Dónde está?</h2>
-      <p class="hint" data-i18n="c.q_where_hint">Sirve la dirección más cercana, una esquina o el marcador de milla.</p>
+      <h2 data-i18n="c.q_where">Where are you?</h2>
+      <p class="hint" data-i18n="c.q_where_hint">Nearest address, intersection or mile marker is fine.</p>
       <div class="f">
-        <label data-i18n="c.your_location">Su ubicación</label>
-        <input id="pickup" data-i18n-ph="c.ph_pickup" autocomplete="street-address">
+        <label data-i18n="c.your_location">Your location</label>
+        <input id="pickup" data-i18n-ph="c.ph_pickup" autocomplete="street-address" placeholder="e.g. 1200 NW 27th Ave, Miami">
       </div>
-      <button class="btn sec" style="margin-bottom:15px" onclick="useGPS()" id="gpsBtn" data-i18n="c.use_gps">📍 Usar mi ubicación actual</button>
+      <button class="btn sec" style="margin-bottom:15px" onclick="useGPS()" id="gpsBtn" data-i18n="c.use_gps">📍 Use my current location</button>
       <div class="f" id="dropWrap">
-        <label data-i18n="c.where_to">¿A dónde la llevamos?</label>
-        <input id="dropoff" data-i18n-ph="c.ph_dropoff">
+        <label data-i18n="c.where_to">Where should we take it?</label>
+        <input id="dropoff" data-i18n-ph="c.ph_dropoff" placeholder="Shop, home, or dealership">
       </div>
-      <button class="btn" onclick="go(3)" data-i18n="c.continue">Continuar</button>
-      <button class="back" onclick="go(1)" data-i18n="c.back">← Atrás</button>
+      <button class="btn" onclick="go(3)" data-i18n="c.continue">Continue</button>
+      <button class="back" onclick="go(1)" data-i18n="c.back">← Back</button>
     </div>
 
     <!-- step 3 — vehicle -->
     <div class="step hide" data-step="3">
-      <h2 data-i18n="c.q_vehicle">Sobre el vehículo</h2>
-      <p class="hint" data-i18n="c.q_vehicle_hint">Esto define qué grúa le enviamos.</p>
+      <h2 data-i18n="c.q_vehicle">About the vehicle</h2>
+      <p class="hint" data-i18n="c.q_vehicle_hint">This decides which truck we send.</p>
       <div class="f">
-        <label data-i18n="c.type">Tipo</label>
+        <label data-i18n="c.type">Type</label>
         <div class="opts">
-          <button class="opt on" data-cls="light"><span class="ic">🚗</span><span data-i18n="c.cls_light">Auto / SUV</span></button>
-          <button class="opt" data-cls="medium"><span class="ic">🚐</span><span data-i18n="c.cls_medium">Van / camioneta grande</span></button>
-          <button class="opt" data-cls="motorcycle"><span class="ic">🏍️</span><span data-i18n="c.cls_moto">Motocicleta</span></button>
-          <button class="opt" data-cls="heavy"><span class="ic">🚛</span><span data-i18n="c.cls_heavy">Camión / casa rodante</span></button>
+          <button class="opt on" data-cls="light"><span class="ic">🚗</span><span data-i18n="c.cls_light">Car / SUV</span></button>
+          <button class="opt" data-cls="medium"><span class="ic">🚐</span><span data-i18n="c.cls_medium">Van / big truck</span></button>
+          <button class="opt" data-cls="motorcycle"><span class="ic">🏍️</span><span data-i18n="c.cls_moto">Motorcycle</span></button>
+          <button class="opt" data-cls="heavy"><span class="ic">🚛</span><span data-i18n="c.cls_heavy">Semi / RV</span></button>
         </div>
       </div>
       <div class="f">
-        <label data-i18n="c.make_model">Marca y modelo</label>
-        <input id="vehicle" data-i18n-ph="c.ph_vehicle">
+        <label data-i18n="c.make_model">Year, make and model</label>
+        <input id="vehicle" data-i18n-ph="c.ph_vehicle" placeholder="e.g. 2019 Honda Accord">
       </div>
       <div class="f">
-        <label data-i18n="c.q_wheels">¿Ruedan las llantas?</label>
+        <label data-i18n="c.q_wheels">Do the wheels roll?</label>
         <div class="yn" data-yn="wheels">
-          <button class="on" data-v="1" data-i18n="c.yes">Sí</button><button data-v="0" data-i18n="c.no">No</button>
+          <button class="on" data-v="1" data-i18n="c.yes">Yes</button><button data-v="0" data-i18n="c.no">No</button>
         </div>
       </div>
       <div class="f">
-        <label data-i18n="c.q_accident">¿Fue un accidente?</label>
+        <label data-i18n="c.q_accident">Was it in an accident?</label>
         <div class="yn" data-yn="accident">
-          <button data-v="1" data-i18n="c.yes">Sí</button><button class="on" data-v="0" data-i18n="c.no">No</button>
+          <button data-v="1" data-i18n="c.yes">Yes</button><button class="on" data-v="0" data-i18n="c.no">No</button>
         </div>
       </div>
-      <button class="btn" onclick="getQuote()" id="quoteBtn" data-i18n="c.see_price">Ver mi precio</button>
-      <button class="back" onclick="go(2)" data-i18n="c.back">← Atrás</button>
+      <button class="btn" onclick="getQuote()" id="quoteBtn" data-i18n="c.see_price">See my price</button>
+      <button class="back" onclick="go(2)" data-i18n="c.back">← Back</button>
     </div>
 
     <!-- step 4 — price + confirm -->
     <div class="step hide" data-step="4">
       <div class="price-head">
         <div class="amt" id="qTotal">—</div>
-        <div class="sub" id="qSub" data-i18n="c.all_in">Todo incluido. Sin cargos ocultos.</div>
+        <div class="sub" id="qSub" data-i18n="c.all_in">All in. No hidden fees.</div>
       </div>
       <div class="avail" id="qAvail"></div>
       <!-- Demand pricing is disclosed BEFORE the confirm tap, never after.
            The customer is told prices are higher than usual right now; they are
            not shown a multiplier, because that invites an argument about a
            number they cannot check. -->
-      <div class="busy hide" id="qBusy" data-i18n="c.busy_now"></div>
+      <div class="busy hide" id="qBusy" data-i18n="c.busy_now">It is busy in your area right now, so the price is higher than usual. This is the final price — it does not change afterwards.</div>
       <!-- What the one price covers. Not line items — Ricardo's call, and the
            right one: an itemised "no keys" surcharge starts a roadside argument
            about whether the keys were really lost. -->
       <div class="incs" id="qIncludes"></div>
-      <div class="assure" data-i18n-html="c.assure"></div>
-      <div class="f"><label data-i18n="c.your_name">Su nombre</label><input id="cName" data-i18n-ph="c.ph_name" autocomplete="name"></div>
-      <div class="f"><label data-i18n="c.mobile">Número de celular</label><input id="cPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
-      <div class="f"><label data-i18n="c.email_receipt">Correo para el recibo</label><input id="cEmail" type="email" data-i18n-ph="c.ph_email" autocomplete="email"></div>
-      <label class="terms"><input type="checkbox" id="cTerms"><span data-i18n-html="c.accept_terms"></span></label>
-      <button class="btn" onclick="submitRequest()" id="reqBtn" data-i18n="c.confirm">Confirmar y buscar grúa</button>
-      <button class="back" onclick="go(3)" data-i18n="c.back">← Atrás</button>
+      <div class="assure" data-i18n-html="c.assure"><b>Your card is not charged now.</b> We only place a hold. You pay when the job is finished — and if no driver takes it, the hold is released and you pay nothing.</div>
+      <div class="f"><label data-i18n="c.your_name">Your name</label><input id="cName" data-i18n-ph="c.ph_name" autocomplete="name" placeholder="First and last name"></div>
+      <div class="f"><label data-i18n="c.mobile">Mobile number</label><input id="cPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
+      <div class="f"><label data-i18n="c.email_receipt">Email for the receipt</label><input id="cEmail" type="email" data-i18n-ph="c.ph_email" autocomplete="email" placeholder="you@email.com"></div>
+      <label class="terms"><input type="checkbox" id="cTerms"><span data-i18n-html="c.accept_terms">I accept the <a href="terms?doc=customer" target="_blank">Terms of Service</a> and <a href="terms?doc=privacy" target="_blank">Privacy Policy</a>, and authorise the hold on my card.</span></label>
+      <button class="btn" onclick="submitRequest()" id="reqBtn" data-i18n="c.confirm">Confirm &amp; find my driver</button>
+      <button class="back" onclick="go(3)" data-i18n="c.back">← Back</button>
     </div>
   </div>
 
@@ -503,19 +503,19 @@ input::placeholder{color:#aab4c4}
        outcome; this turns that click into a name on the recruiting list. -->
   <div class="card hide" id="noCovCard">
     <div class="nocov-ico">📍</div>
-    <div class="nocov-h" data-i18n="c.nocov_head">Todavía no llegamos a su zona</div>
+    <div class="nocov-h" data-i18n="c.nocov_head">We are not in your area yet</div>
     <div class="nocov-p" id="noCovMsg"></div>
-    <div class="f"><label data-i18n="c.mobile">Número de celular</label><input id="lPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
-    <button class="btn" onclick="saveLead()" id="leadBtn" data-i18n="c.notify_me">Avísenme cuando lleguen</button>
-    <div class="nocov-note" data-i18n="c.nocov_note"></div>
+    <div class="f"><label data-i18n="c.mobile">Mobile number</label><input id="lPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
+    <button class="btn" onclick="saveLead()" id="leadBtn" data-i18n="c.notify_me">Let me know when you get here</button>
+    <div class="nocov-note" data-i18n="c.nocov_note">If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.</div>
   </div>
 
   <!-- ═══ TRACKING ═══ -->
   <div class="card hide" id="trackCard">
     <div class="track-status">
       <div class="spinner" id="trkSpin"></div>
-      <div class="big" id="trkBig" data-i18n="c.finding">Buscando una grúa</div>
-      <div class="sm" id="trkSm" data-i18n="c.finding_sub">Enviando su solicitud a las grúas cercanas…</div>
+      <div class="big" id="trkBig" data-i18n="c.finding">Finding you a truck</div>
+      <div class="sm" id="trkSm" data-i18n="c.finding_sub">Sending your job to nearby drivers…</div>
     </div>
     <div id="mapWrap">
       <div id="map"></div>
@@ -526,22 +526,22 @@ input::placeholder{color:#aab4c4}
     <div id="rateBox"></div>
     <div class="timeline" id="trkTimeline"></div>
     <div class="lines" id="trkLines" style="margin-top:20px"></div>
-    <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn" data-i18n="c.cancel_req">Cancelar esta solicitud</button>
+    <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn" data-i18n="c.cancel_req">Cancel this request</button>
 
     <!-- A customer has no login and no settings page. This tracking link is the
          only place they can ever reach us or ask to be forgotten, so both live
          here rather than behind an account they do not have. -->
     <div class="csupport">
-      <a href="#" onclick="openCSupport();return false" data-i18n="cs.need_help">¿Necesita ayuda?</a>
+      <a href="#" onclick="openCSupport();return false" data-i18n="cs.need_help">Need help?</a>
       <span>·</span>
-      <a href="#" onclick="openCErase();return false" data-i18n="cs.erase">Borrar mis datos</a>
+      <a href="#" onclick="openCErase();return false" data-i18n="cs.erase">Delete my data</a>
     </div>
     <div id="cSupportBox"></div>
   </div>
 
   <div class="foot">
-    <span data-i18n="foot.licensed"></span><br><span data-i18n="foot.verified"></span><br>
-    <a href="support" data-i18n="sup.h" style="color:var(--ink-3);text-decoration:underline">Soporte</a>
+    <span data-i18n="foot.licensed">Licensed, insured, document-verified companies only</span><br><span data-i18n="foot.verified">Every driver's insurance is verified before they can take a job.</span><br>
+    <a href="support" data-i18n="sup.h" style="color:var(--ink-3);text-decoration:underline">Support</a>
   </div>
 </div>
 
@@ -561,7 +561,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816s';
+  var v = '?v=20260816t';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');

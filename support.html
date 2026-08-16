@@ -110,71 +110,71 @@ input::placeholder,textarea::placeholder{color:#aab4c4}
 </div>
 
 <div class="wrap">
-  <h1 data-i18n="sup.h">Soporte</h1>
-  <p class="lead" data-i18n="sup.lead">Cuéntenos qué pasó y le respondemos por correo. No hace falta tener una cuenta.</p>
+  <h1 data-i18n="sup.h">Support</h1>
+  <p class="lead" data-i18n="sup.lead">Tell us what happened and we will reply by email. You do not need an account.</p>
 
   <div class="card">
-    <h2 data-i18n="sup.form_h">Escríbanos</h2>
-    <p data-i18n="sup.form_p">Le damos un número de referencia y le respondemos al correo que nos deje.</p>
+    <h2 data-i18n="sup.form_h">Write to us</h2>
+    <p data-i18n="sup.form_p">We give you a reference number and reply to the email address you leave.</p>
 
     <div id="formBox">
       <div class="f">
-        <label data-i18n="sup.name">Su nombre</label>
+        <label data-i18n="sup.name">Your name</label>
         <input id="sName" autocomplete="name">
       </div>
       <div class="f">
-        <label data-i18n="sup.email">Su correo</label>
+        <label data-i18n="sup.email">Your email</label>
         <input id="sEmail" type="email" autocomplete="email" placeholder="usted@correo.com">
       </div>
       <div class="f">
-        <label data-i18n="sup.phone">Teléfono (opcional)</label>
+        <label data-i18n="sup.phone">Phone (optional)</label>
         <input id="sPhone" type="tel" autocomplete="tel" placeholder="(305) 555-1234">
       </div>
       <div class="f">
-        <label data-i18n="sup.subject">Asunto</label>
-        <input id="sSubject" data-i18n-ph="sup.subject_ph">
+        <label data-i18n="sup.subject">Subject</label>
+        <input id="sSubject" data-i18n-ph="sup.subject_ph" placeholder="What can we help with?">
       </div>
       <div class="f">
-        <label data-i18n="sup.message">Mensaje</label>
-        <textarea id="sMessage" rows="5" data-i18n-ph="sup.message_ph"></textarea>
+        <label data-i18n="sup.message">Message</label>
+        <textarea id="sMessage" rows="5" data-i18n-ph="sup.message_ph" placeholder="Tell us what happened, with the job number if you have one."></textarea>
       </div>
-      <button class="btn" id="sBtn" onclick="sendIt()" data-i18n="sup.send">Enviar</button>
+      <button class="btn" id="sBtn" onclick="sendIt()" data-i18n="sup.send">Send</button>
       <div class="out" id="sOut"></div>
     </div>
   </div>
 
   <div class="card">
-    <h2 data-i18n="sup.ways_h">Otras formas de contactarnos</h2>
+    <h2 data-i18n="sup.ways_h">Other ways to reach us</h2>
     <div class="ways">
       <div class="way">
         <div class="ic">✉️</div>
-        <div><b data-i18n="sup.by_email">Por correo</b>
+        <div><b data-i18n="sup.by_email">By email</b>
           <span><a href="mailto:support@towsling.com">support@towsling.com</a>
-          — <span data-i18n="sup.by_email_p">le respondemos lo antes posible.</span></span></div>
+          — <span data-i18n="sup.by_email_p">we reply as soon as we can.</span></span></div>
       </div>
       <div class="way">
         <div class="ic">🔗</div>
-        <div><b data-i18n="sup.tracking">¿Tiene un servicio en curso?</b>
-          <span data-i18n="sup.tracking_p">Abra el enlace de seguimiento que le enviamos por mensaje: ahí puede ver su grúa, llamar al conductor y escribirnos sobre ese servicio.</span></div>
+        <div><b data-i18n="sup.tracking">Have a job in progress?</b>
+          <span data-i18n="sup.tracking_p">Open the tracking link we texted you — from there you can watch your truck, call the driver, and write to us about that job.</span></div>
       </div>
       <div class="way">
         <div class="ic">🚛</div>
-        <div><b data-i18n="sup.towers">¿Es una compañía de grúas?</b>
-          <span data-i18n="sup.towers_p">Entre a su panel y use la sección de Soporte — así vemos su cuenta y sus trabajos junto a su mensaje.</span></div>
+        <div><b data-i18n="sup.towers">Are you a towing company?</b>
+          <span data-i18n="sup.towers_p">Sign in to your dashboard and use the Support section — that way we see your account and your jobs alongside your message.</span></div>
       </div>
     </div>
   </div>
 </div>
 
 <div class="foot">
-  <a href="./" data-i18n="sup.f_home">Pedir una grúa</a> ·
-  <a href="terms" data-i18n="sup.f_terms">Términos</a> ·
-  <a href="privacy" data-i18n="sup.f_privacy">Privacidad</a><br>
-  <span data-i18n="foot.licensed"></span>
+  <a href="./" data-i18n="sup.f_home">Request a tow</a> ·
+  <a href="terms" data-i18n="sup.f_terms">Terms</a> ·
+  <a href="privacy" data-i18n="sup.f_privacy">Privacy</a><br>
+  <span data-i18n="foot.licensed">Licensed, insured, document-verified companies only</span>
 </div>
 
-<script src="i18n.js?v=20260816s"></script>
-<script src="presence.js?v=20260816s" defer></script>
+<script src="i18n.js?v=20260816t"></script>
+<script src="presence.js?v=20260816t" defer></script>
 <script>
 const API = 'api';
 
