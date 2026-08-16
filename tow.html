@@ -433,8 +433,27 @@ input::placeholder{color:#aab4c4}
   </div>
 </div>
 
-<script src="i18n.js?v=20260815a"></script>
-<script src="realtime.js?v=20260815a"></script>
+<!-- These two are written into the page rather than sitting here as plain
+     <script src> tags, and it is not a style choice.
+
+     On /track/{token} the <base> above is inserted by script, but Chrome's
+     preload scanner races ahead of it: it reads the raw HTML, resolves any
+     src it finds against /track/{token}/ and fires the request before the
+     base element exists. The page still worked — the parser fetched the right
+     URL a moment later — but every customer tracking page quietly threw two
+     404s, and a console with permanent noise in it is a console nobody reads
+     the real errors in.
+
+     A src that only exists after the base is set is never speculated on.
+     document.write keeps them blocking and in order, which the inline script
+     below depends on: it calls tlLang() on the first line. -->
+<script>
+(function(){
+  var v = '?v=20260815a';
+  document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
+  document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
+})();
+</script>
 <script>
 const API = 'api';
 let S = { svc:'tow', cls:'light', wheels:1, accident:0, pickup:null, dropoff:null, quote:null, token:null };
