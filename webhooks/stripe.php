@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
+require_once __DIR__ . '/../includes/adminauth.php';   // adminLog()
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  STRIPE WEBHOOK
@@ -122,8 +123,43 @@ try {
             break;
 
         // ── Payout to a tower failed at the bank ─────────────────────────────
+        // `transfer.failed` no longer exists at Stripe — it is kept here only
+        // so an old endpoint still subscribed to it does not fall through to
+        // the default. `transfer.reversed` is the live one.
         case 'transfer.failed':
         case 'transfer.reversed':
+            // A withdrawal covers many jobs in one transfer and carries its own
+            // metadata key. Without this branch a reversed withdrawal was
+            // invisible: the company would be told the money was sent, Stripe
+            // would have taken it back, and the balance would still read zero.
+            $withdrawalId = (int)($object['metadata']['towsling_withdrawal_id'] ?? 0);
+            if ($withdrawalId) {
+                $pdo = getDB();
+                $pdo->prepare(
+                    "UPDATE withdrawals SET status = 'failed',
+                            failure_reason = 'Reversed at Stripe'
+                      WHERE id = :id"
+                )->execute([':id' => $withdrawalId]);
+
+                // Hand the jobs back to the available balance so the company can
+                // try again once the bank details are fixed.
+                $pdo->prepare(
+                    "UPDATE payouts SET status = 'pending', withdrawal_id = NULL,
+                            paid_at = NULL, failure_reason = 'Withdrawal reversed at Stripe'
+                      WHERE withdrawal_id = :id"
+                )->execute([':id' => $withdrawalId]);
+
+                $stmt = $pdo->prepare("SELECT account_id, amount FROM withdrawals WHERE id = :id");
+                $stmt->execute([':id' => $withdrawalId]);
+                if ($w = $stmt->fetch()) {
+                    notify((int)$w['account_id'], 'payout_failed',
+                        'Withdrawal could not be sent',
+                        'Your $' . money($w['amount']) . ' withdrawal was returned. '
+                        . 'Check your bank details — the money is back in your available balance.');
+                }
+                break;
+            }
+
             $payoutId = (int)($object['metadata']['towload_payout_id'] ?? 0);
             if ($payoutId) {
                 getDB()->prepare(
@@ -138,6 +174,24 @@ try {
                         'Your $' . money($p['net_amount']) . ' payout failed. Check your bank details in your payout settings.');
                 }
             }
+            break;
+
+        // ── The platform's own money reaching Ricardo's bank ─────────────────
+        // Different from a transfer: a `payout` is Stripe moving the platform
+        // balance to the platform's own bank account. Without these two he
+        // would press "send to my bank" and never learn whether it landed.
+        case 'payout.paid':
+        case 'payout.failed':
+            $amount = number_format(((int)($object['amount'] ?? 0)) / 100, 2);
+            $ok     = $type === 'payout.paid';
+            // admin_id 0 — this was Stripe reporting back, not a person acting.
+            adminLog(0,
+                $ok ? 'platform_payout_paid' : 'platform_payout_failed',
+                ($ok ? 'Payout of $' . $amount . ' arrived.'
+                     : 'Payout of $' . $amount . ' FAILED: '
+                       . ($object['failure_message'] ?? $object['failure_code'] ?? 'no reason given'))
+                . ' (' . ($object['id'] ?? '?') . ')'
+            );
             break;
 
         // ── Tower subscription lifecycle ─────────────────────────────────────
