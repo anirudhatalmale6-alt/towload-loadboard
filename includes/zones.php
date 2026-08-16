@@ -121,6 +121,11 @@ function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null): in
           WHERE a.account_type = 'tower'
             AND a.is_active = 1
             AND a.verification_status = 'approved'
+            -- Off duty means off duty. A company that has switched itself to
+            -- 'not taking jobs' is not coverage, and counting it is how a
+            -- customer's card gets authorised at 3am for a job nobody has any
+            -- intention of turning out for.
+            AND tp.is_available = 1
             AND tp.base_lat BETWEEN :minlat AND :maxlat
             AND tp.base_lng BETWEEN :minlng AND :maxlng"
     );

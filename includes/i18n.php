@@ -108,6 +108,8 @@ function i18nCatalogue(): array {
         'ok.rating_saved'         => 'Gracias por calificar.',
         'err.truck_label_required'=> 'Póngale un nombre a la grúa (por ejemplo "Grúa 3").',
         'err.truck_not_found'     => 'No encontramos esa grúa.',
+        'ok.now_available'        => 'Ya está recibiendo trabajos.',
+        'ok.now_unavailable'      => 'Dejamos de enviarle trabajos.',
         'ok.truck_saved'          => 'Grúa guardada.',
         'ok.truck_deleted'        => 'Grúa eliminada.',
 
@@ -401,6 +403,8 @@ function i18nCatalogue(): array {
         'ok.rating_saved'         => 'Thanks for rating.',
         'err.truck_label_required'=> 'Give the truck a name (for example "Truck 3").',
         'err.truck_not_found'     => 'We could not find that truck.',
+        'ok.now_available'        => 'You are now taking jobs.',
+        'ok.now_unavailable'      => 'We have stopped sending you jobs.',
         'ok.truck_saved'          => 'Truck saved.',
         'ok.truck_deleted'        => 'Truck removed.',
 

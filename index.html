@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816n">
+<link rel="manifest" href="manifest.json?v=20260816q">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -522,6 +522,37 @@ legend{
   letter-spacing:2px;font-weight:700}
 .vc-code:focus{border-color:var(--accent)}
 
+/* Google's address widget, dark. It is a web component with its own shadow
+   DOM, so the form's input styles do not reach inside — these are the custom
+   properties it exposes. */
+.pac-el{
+  display:block;width:100%;
+  --gmp-mat-color-surface:var(--panel-2);
+  --gmp-mat-color-on-surface:var(--ink);
+  --gmp-mat-color-on-surface-variant:var(--ink-faint);
+  --gmp-mat-color-outline:var(--line);
+  --gmp-mat-color-primary:var(--accent);
+  --gmp-mat-font-family:inherit;
+  --gmp-mat-font-size-body-medium:14px;
+}
+
+/* ── duty switch ────────────────────────────────────────────────────
+   Green when taking jobs, grey when not. The colour is the STATE, never the
+   action — a control that shows what pressing it would do is a control people
+   read backwards. */
+.duty{
+  display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:20px;
+  font-size:12.5px;font-weight:700;border:1px solid;transition:.15s;white-space:nowrap;
+  margin-right:10px;
+}
+.duty .dot{width:8px;height:8px;border-radius:50%;flex:none}
+.duty.on{background:#0f2417;border-color:var(--green-dim);color:#7ee2a0}
+.duty.on .dot{background:var(--green);box-shadow:0 0 0 3px rgba(46,160,67,.18)}
+.duty.off{background:var(--panel-2);border-color:var(--line);color:var(--ink-dim)}
+.duty.off .dot{background:var(--ink-faint)}
+.duty:hover{filter:brightness(1.15)}
+.duty:disabled{opacity:.55;cursor:wait}
+
 /* ── toasts ────────────────────────────────────────────────────────
    Fixed to the viewport and hung off <body>, NOT off anything inside <main>.
    Every pane in there is replaced wholesale on re-render, so a confirmation
@@ -621,6 +652,10 @@ legend{
   <div class="tabs" id="tabs"></div>
   <div class="spacer"></div>
   <div class="whoami">
+    <!-- The duty switch lives in the header, not buried in a settings tab.
+         It is the one control an operator changes several times a day, and it
+         has to state its current position without being opened. -->
+    <button id="dutyBtn" class="duty hide" onclick="toggleDuty()"></button>
     <span id="walletBox"></span>
     <span id="acctName"></span>
     <span class="badge" id="acctType"></span>
@@ -755,7 +790,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816n"></script>
+<script src="i18n.js?v=20260816q"></script>
+<script src="presence.js?v=20260816q" defer></script>
+<script src="places.js?v=20260816q"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -829,7 +866,15 @@ async function boot(){
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
   if(!isTower) await refreshWallet();
-  if(isTower){ renderVerifyBar(); renderPushBanner(); }
+  if(isTower){
+    renderVerifyBar();
+    renderPushBanner();
+    // Read the duty switch straight away — the header must never show a guess
+    // about whether this company is currently being offered work.
+    api('/company/overview').then(r => {
+      if(r && r.success && r.company){ DUTY = Number(r.company.is_available) === 1; renderDuty(); }
+    }).catch(() => {});
+  }
 
   startRealtime();
 
@@ -1024,6 +1069,52 @@ function fmtDate(d){
   catch(e){ return d; }
 }
 
+/* ── duty switch ─────────────────────────────────────────────────
+   "Taking jobs" / "Not taking jobs". Off means we do not offer them work —
+   no alerts, and they stop counting as coverage for customers nearby. It does
+   NOT hide the board or block accepting: someone who flips back on should not
+   have to wait for the next alert, and a company that spots a job it wants
+   should be able to take it. Not offered and not allowed are different. */
+let DUTY = null;
+
+function renderDuty(){
+  const btn = document.getElementById('dutyBtn');
+  if(!btn) return;
+  if(DUTY === null || !ME || ME.account.account_type !== 'tower'){
+    btn.classList.add('hide');
+    return;
+  }
+  btn.classList.remove('hide');
+  btn.disabled = false;
+  btn.className = 'duty ' + (DUTY ? 'on' : 'off');
+  btn.innerHTML = `<span class="dot"></span>${t(DUTY ? 'duty.on' : 'duty.off')}`;
+  btn.title = t(DUTY ? 'duty.on_hint' : 'duty.off_hint');
+}
+
+async function toggleDuty(){
+  const btn = document.getElementById('dutyBtn');
+  const next = !DUTY;
+
+  // Going off duty is the one direction worth a confirmation — it stops work
+  // arriving, and an accidental tap would look like the platform going quiet.
+  if(!next && !confirm(t('duty.confirm_off'))) return;
+
+  btn.disabled = true;
+  const r = await api('/company/availability', {method:'POST', body: JSON.stringify({available: next})});
+  if(!r.success){
+    btn.disabled = false;
+    toast(r.error || '', true);
+    return;
+  }
+  DUTY = !!r.available;
+  renderDuty();
+  toast(r.message || '');
+
+  // Coverage and the steps banner both move with this, so re-read rather than
+  // assume. A company that just came back on duty should see that reflected.
+  refreshVerification();
+}
+
 /* ── money ───────────────────────────────────────────────────────
    Earned, in escrow, on its way to the bank. */
 async function renderMoneyPane(){
@@ -1161,6 +1252,40 @@ async function connectBank(){
   location.href = url;
 }
 
+/* Where this company is based, in words. Coordinates alone mean nothing to an
+   operator, and this is the field that decides which jobs they ever see. */
+let BASE_PICK = null;
+
+function baseNoteHTML(c){
+  if(c.base_lat === null || c.base_lat === undefined || c.base_lat === '')
+    return t('co.base_none');
+  return t('co.base_now', {lat: Number(c.base_lat).toFixed(4), lng: Number(c.base_lng).toFixed(4)});
+}
+
+async function wireBasePicker(){
+  const el = document.getElementById('co_base');
+  if(!el || typeof TLPlaces === 'undefined') return;
+  BASE_PICK = null;
+
+  const ok = await TLPlaces.attach(el, p => {
+    BASE_PICK = p;
+    const note = document.getElementById('baseNote');
+    if(note){
+      note.textContent = t('co.base_picked', {addr: p.address});
+      note.style.color = 'var(--green)';
+    }
+  });
+
+  // If suggestions cannot load, say so rather than leaving a box that looks
+  // like it works: typing an address here without choosing a suggestion cannot
+  // produce coordinates, so it would appear to save and change nothing.
+  if(!ok){
+    const note = document.getElementById('baseNote');
+    if(note) note.textContent = t('co.base_nomaps');
+    el.disabled = true;
+  }
+}
+
 /* ── company ─────────────────────────────────────────────────────
    Details, verification, equipment, trucks. */
 let CO = null;   // last loaded overview, so the truck editor can read it back
@@ -1184,6 +1309,10 @@ async function renderCompanyPane(){
   if(!r.success){ pane.innerHTML = `<div class="empty"><p>${esc(r.error||'')}</p></div>`; return; }
   CO = r;
   const c = r.company;
+
+  // Same source of truth as the header switch, so the two can never disagree.
+  DUTY = Number(c.is_available) === 1;
+  renderDuty();
 
   const field = (id, label, val, type) =>
     `<label class="cf"><span>${label}</span>
@@ -1209,6 +1338,17 @@ async function renderCompanyPane(){
           ${field('mc_number',  t('co.mc'),   c.mc_number)}
           ${field('service_radius_miles', t('co.radius'), c.service_radius_miles, 'number')}
         </div>
+
+        <!-- Where the trucks actually sit. This decides which jobs reach this
+             company at all, and until now there was no way to correct it: if
+             location was declined at signup the account was filed at the middle
+             of its state, which for a Miami company is 240 miles out. -->
+        <label class="cf" style="margin-bottom:6px">
+          <span>${t('co.base')}</span>
+          <input id="co_base" placeholder="${t('co.base_ph')}"
+                 value="${esc(c.base_address || '')}">
+        </label>
+        <p class="push-fine" id="baseNote">${baseNoteHTML(c)}</p>
         <p class="push-fine">${t('co.email_note', {email: esc(c.email)})}</p>
         <button class="btn go" onclick="saveCompany()">${t('co.save')}</button>
         <span id="coMsg" class="push-fine"></span>
@@ -1269,6 +1409,7 @@ async function renderCompanyPane(){
     </div>`;
 
   loadMyTickets();
+  wireBasePicker();
 }
 
 /* ── support ─────────────────────────────────────────────────── */
@@ -1475,6 +1616,17 @@ async function saveCompany(){
     service_radius_miles: val('service_radius_miles')
   };
   CAPABILITY_KEYS.forEach(k => { body[k] = document.getElementById('co_' + k)?.checked ? 1 : 0; });
+
+  // Only sent when a suggestion was actually chosen. Typed text is an address,
+  // not a position, and guessing one here would file the company in the wrong
+  // place — which is exactly the bug this field exists to fix.
+  if(BASE_PICK){
+    body.base_lat = BASE_PICK.lat;
+    body.base_lng = BASE_PICK.lng;
+    if(!body.city  && BASE_PICK.city)  body.city  = BASE_PICK.city;
+    if(!body.state && BASE_PICK.state) body.state = BASE_PICK.state;
+    if(!body.zip   && BASE_PICK.zip)   body.zip   = BASE_PICK.zip;
+  }
 
   // Changing the number un-verifies it — the verified value is compared against
   // the current one server-side. Say so before saving rather than letting the
@@ -2152,9 +2304,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816n"></script>
-<script src="realtime.js?v=20260816n"></script>
-<script src="driver.js?v=20260816n"></script>
+<script src="push.js?v=20260816q"></script>
+<script src="realtime.js?v=20260816q"></script>
+<script src="driver.js?v=20260816q"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

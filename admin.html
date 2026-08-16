@@ -153,6 +153,12 @@ p{color:var(--ink-2);font-size:13px;line-height:1.6}
 .notice.bad{background:#3b1515;border:1px solid #7f1d1d;color:#fca5a5}
 .notice b{font-weight:750}
 
+/* live visitor kind pills */
+.pill.customer{background:#0f2233;color:#7fc4f5}
+.pill.tower{background:#241d0d;color:#f0c674}
+.pill.admin{background:#231433;color:#c79ef5}
+.pill.anon{background:var(--panel-2);color:var(--ink-3)}
+
 /* ── suspend / remove ──────────────────────────────────────────── */
 .danger-zone{margin-top:22px;padding:14px;border:1px solid #4a2320;border-radius:10px;
   background:#1a1112}
@@ -276,7 +282,7 @@ function signOut(){
 const TABS = [
   ['dashboard','Overview'], ['review','Review queue'], ['markets','Markets & pricing'],
   ['rates','Rate table'], ['leads','Coverage leads'], ['jobs','Jobs'],
-  ['money','Money'], ['support','Support'],
+  ['money','Money'], ['support','Support'], ['live','Live'],
   ['push','Phone alerts'], ['settings','Settings'],
 ];
 
@@ -295,7 +301,7 @@ function render(){
   $('view').innerHTML = '<div class="empty">Loading…</div>';
   ({dashboard:vDashboard, review:vReview, markets:vMarkets,
     rates:vRates, leads:vLeads, jobs:vJobs, money:vMoney, support:vSupport,
-    push:vPush, settings:vSettings}[TAB] || vDashboard)();
+    live:vLive, push:vPush, settings:vSettings}[TAB] || vDashboard)();
 }
 
 // ═══ MONEY ═══════════════════════════════════════════════════
@@ -452,6 +458,68 @@ async function ticketStatus(id, status){
   const r = await api('/admin/ticket-status', {method:'POST', body:JSON.stringify({id, status})});
   if(!r.success) return flash(r.error, true);
   render();
+}
+
+// ═══ LIVE VISITORS ═══════════════════════════════════════════
+// Who is on the site right now. Refreshes itself while the tab is open —
+// a "live" screen you have to reload by hand is not live.
+let liveTimer = null;
+
+async function vLive(){
+  clearInterval(liveTimer);
+  await drawLive();
+  // Only keep polling while this tab is the one being looked at.
+  liveTimer = setInterval(() => { if(TAB === 'live') drawLive(); else clearInterval(liveTimer); }, 10000);
+}
+
+async function drawLive(){
+  const r = await api('/admin/live');
+  if(!r.success) return;
+
+  const c = r.counts || {};
+  const ago = n => n < 10 ? 'just now' : n + 's ago';
+  const dur = n => n < 60 ? n + 's' : (n < 3600 ? Math.round(n/60) + 'm' : Math.round(n/3600) + 'h');
+  const dev = ua => !ua ? '—'
+      : /iPhone|iPad/i.test(ua) ? 'iPhone'
+      : /Android/i.test(ua) ? 'Android'
+      : /Macintosh/i.test(ua) ? 'Mac'
+      : /Windows/i.test(ua) ? 'Windows' : 'Other';
+
+  const pages = Object.entries(r.by_page || {});
+
+  $('view').innerHTML = `
+    <div class="tiles">
+      <div class="tile ${r.online ? 'alert' : ''}"><div class="n">${r.online}</div><div class="l">On the site now</div></div>
+      <div class="tile"><div class="n">${c.customer||0}</div><div class="l">Customers</div></div>
+      <div class="tile"><div class="n">${c.tower||0}</div><div class="l">Towing companies</div></div>
+      <div class="tile"><div class="n">${r.last_hour||0}</div><div class="l">Last hour</div></div>
+      <div class="tile"><div class="n">${r.last_24h||0}</div><div class="l">Last 24 hours</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>Where they are</h3>
+      ${pages.length ? `<table style="margin-top:12px">
+        <tr><th>Page</th><th>People</th></tr>
+        ${pages.map(([p,n]) => `<tr><td>${esc(p)}</td><td><b>${n}</b></td></tr>`).join('')}
+      </table>` : '<div class="empty">Nobody on the site right now.</div>'}
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>Right now <span class="dim" style="font-weight:400;font-size:13px">
+        · counted as online if seen in the last ${r.window_seconds}s</span></h3>
+      ${(r.visitors||[]).length ? `<table style="margin-top:12px">
+        <tr><th>Who</th><th>Page</th><th>On site</th><th>Last seen</th><th>Device</th><th>Came from</th></tr>
+        ${r.visitors.map(v => `<tr>
+          <td>${v.label ? '<b>' + esc(v.label) + '</b>' : '<span class="dim">Anonymous visitor</span>'}
+              <span class="pill ${esc(v.kind)}">${esc(v.kind)}</span></td>
+          <td>${esc(v.page || '—')}</td>
+          <td class="dim">${dur(Number(v.on_site_seconds)||0)}</td>
+          <td class="dim">${ago(Number(v.seconds_ago)||0)}</td>
+          <td class="dim">${esc(dev(v.user_agent))}</td>
+          <td class="dim">${v.referrer ? esc(String(v.referrer).slice(0,40)) : 'direct'}</td>
+        </tr>`).join('')}
+      </table>` : '<div class="empty">Nobody on the site right now.</div>'}
+    </div>`;
 }
 
 // ═══ PHONE ALERTS ════════════════════════════════════════
@@ -1203,3 +1271,4 @@ function closeModal(){ $('modalHost').innerHTML = ''; }
   if(TOKEN && saved){ ADMIN = JSON.parse(saved); boot(); }
 })();
 </script>
+<script src="presence.js?v=20260816q" defer></script>

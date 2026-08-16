@@ -431,6 +431,10 @@ function towersToAlert(array $call): array {
                AND p.push_enabled = 1
                AND a.is_active = 1
                AND a.account_type = 'tower'
+               -- The duty switch. Turning it off is the operator telling us not
+               -- to send them work, which is the single most important thing to
+               -- honour if they are ever to trust these alerts at all.
+               AND p.is_available = 1
                -- Only approved companies. An unverified tower can browse, but
                -- being pushed a job you are not allowed to accept is worse
                -- than silence.

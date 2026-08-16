@@ -900,4 +900,52 @@ if ($method === 'POST' && $action === 'platform-payout') {
     successResponse($res, t('ok.payout_queued', ['amount' => number_format($amount, 2)]));
 }
 
+// ═══ WHO IS ON THE SITE RIGHT NOW ════════════════════════════════════════════
+if ($method === 'GET' && $action === 'live') {
+    requireAdmin();
+    $pdo = getDB();
+
+    // The window has to be longer than the client heartbeat, or everyone
+    // flickers between online and offline between beats.
+    $window = max(20, (int)setting('presence_window_seconds', 75));
+
+    $stmt = $pdo->prepare(
+        "SELECT session_key, account_id, kind, page, label, ip, user_agent, referrer,
+                first_seen, last_seen,
+                TIMESTAMPDIFF(SECOND, last_seen, NOW()) AS seconds_ago,
+                TIMESTAMPDIFF(SECOND, first_seen, NOW()) AS on_site_seconds
+           FROM presence
+          WHERE last_seen > DATE_SUB(NOW(), INTERVAL :w SECOND)
+          ORDER BY last_seen DESC LIMIT 300"
+    );
+    $stmt->execute([':w' => $window]);
+    $rows = $stmt->fetchAll();
+
+    $counts = ['customer' => 0, 'tower' => 0, 'admin' => 0, 'anon' => 0];
+    $byPage = [];
+    foreach ($rows as $r) {
+        $counts[$r['kind']] = ($counts[$r['kind']] ?? 0) + 1;
+        $p = $r['page'] ?: '(unknown)';
+        $byPage[$p] = ($byPage[$p] ?? 0) + 1;
+    }
+    arsort($byPage);
+
+    // Context for the live number: without it, "3 people" means nothing.
+    $seen = function (string $interval) use ($pdo) {
+        $q = $pdo->query("SELECT COUNT(DISTINCT session_key) n FROM presence
+                           WHERE last_seen > DATE_SUB(NOW(), INTERVAL $interval)");
+        return (int)($q->fetch()['n'] ?? 0);
+    };
+
+    successResponse([
+        'window_seconds' => $window,
+        'online'         => count($rows),
+        'counts'         => $counts,
+        'by_page'        => $byPage,
+        'visitors'       => $rows,
+        'last_hour'      => $seen('1 HOUR'),
+        'last_24h'       => $seen('24 HOUR'),
+    ]);
+}
+
 errorResponse('Unknown action', 404);

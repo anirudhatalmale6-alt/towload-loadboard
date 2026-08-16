@@ -73,7 +73,8 @@ if ($method === 'GET' && ($action === 'overview' || $action === '')) {
                 p.has_light_duty, p.has_medium_duty, p.has_heavy_duty, p.has_flatbed,
                 p.has_wheel_lift, p.has_winch_recovery, p.has_lockout, p.has_jumpstart,
                 p.has_tire_change, p.has_fuel_delivery, p.has_motorcycle, p.has_ev_certified,
-                p.has_lowclearance, p.is_24_7, p.trucks_count, p.accepts_auto_dispatch
+                p.has_lowclearance, p.is_24_7, p.trucks_count, p.accepts_auto_dispatch,
+                p.is_available, p.available_changed_at
            FROM accounts a
            JOIN tower_profiles p ON p.account_id = a.id
           WHERE a.id = :a"
@@ -187,6 +188,31 @@ if ($method === 'POST' && $action === 'truck-delete') {
 
     syncTruckCount((int)$user['account_id']);
     successResponse(['trucks' => myTrucks((int)$user['account_id'])], t('ok.truck_deleted'));
+}
+
+// ═══ READY FOR JOBS ══════════════════════════════════════════════════════════
+// The duty switch. Off means the company is not offered work: no job alerts,
+// and it stops counting as coverage for customers looking for a truck nearby.
+//
+// It deliberately does NOT hide the job board or block accepting. Someone who
+// flips back on should not have to wait for the next alert to work, and a
+// company that spots a job it wants should be able to take it. "Not offered"
+// and "not allowed" are different things.
+if ($method === 'POST' && $action === 'availability') {
+    $user = requireAuth();
+    requireAccountType($user, 'tower');
+    requireRole($user, ['owner', 'dispatcher']);
+
+    $in = jsonInput();
+    if (!array_key_exists('available', $in)) errorResponse(t('err.bad_request'));
+    $on = !empty($in['available']);
+
+    getDB()->prepare(
+        "UPDATE tower_profiles SET is_available = :v, available_changed_at = NOW()
+          WHERE account_id = :a"
+    )->execute([':v' => $on ? 1 : 0, ':a' => $user['account_id']]);
+
+    successResponse(['available' => $on], t($on ? 'ok.now_available' : 'ok.now_unavailable'));
 }
 
 errorResponse('Unknown action', 404);
