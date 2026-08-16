@@ -206,6 +206,8 @@ function i18nCatalogue(): array {
         'ok.status_updated'       => 'Estado actualizado',
         'ok.job_completed'        => 'Trabajo completado — pago en camino',
         'ok.goa_recorded'         => 'Vehículo ausente registrado',
+        'ok.job_done_payment_pending' => 'Trabajo completado. El cobro al cliente no se pudo procesar todavía — su pago queda pendiente y lo estamos revisando.',
+        'ok.goa_recorded_payment_pending' => 'Vehículo ausente registrado. El cobro al cliente no se pudo procesar todavía — su pago queda pendiente y lo estamos revisando.',
         'ok.job_canceled'         => 'Trabajo cancelado',
 
         // consumer
@@ -514,6 +516,8 @@ function i18nCatalogue(): array {
         'ok.status_updated'       => 'Status updated',
         'ok.job_completed'        => 'Job completed — payout queued',
         'ok.goa_recorded'         => 'Gone on arrival recorded',
+        'ok.job_done_payment_pending' => 'Job completed. The customer\'s card could not be charged yet — your payment is pending while we sort it out.',
+        'ok.goa_recorded_payment_pending' => 'Gone on arrival recorded. The customer\'s card could not be charged yet — your payment is pending while we sort it out.',
         'ok.job_canceled'         => 'Job canceled',
 
         'err.need_location'       => 'We need your location to price the job.',

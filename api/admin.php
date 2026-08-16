@@ -8,6 +8,7 @@ require_once __DIR__ . '/../includes/pricing.php';
 require_once __DIR__ . '/../includes/lifecycle.php';
 require_once __DIR__ . '/../includes/support.php';
 require_once __DIR__ . '/../includes/withdrawals.php';
+require_once __DIR__ . '/../includes/settlement.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -946,6 +947,100 @@ if ($method === 'GET' && $action === 'live') {
         'last_hour'      => $seen('1 HOUR'),
         'last_24h'       => $seen('24 HOUR'),
     ]);
+}
+
+// ═══ SETTLEMENT ISSUES ═══════════════════════════════════════════════════════
+// Jobs that are finished but whose money did not land. There is no admin
+// notification table — admins live in admin_users, not accounts — so this
+// worklist IS the alert, and it is derived from state rather than from a
+// message that could have been missed.
+//
+// Two shapes end up here:
+//   payment_status = 'failed'  the customer's card was declined at capture
+//   escrow still 'held'        the job closed but settlement never ran to the
+//                              end (a process that died between the two)
+// Both are fixed the same way: retry.
+if ($action === 'settlement-issues') {
+    requireAdmin(['superadmin', 'finance']);
+
+    $rows = getDB()->query(
+        "SELECT c.id, c.call_number, c.status, c.payment_status, c.source,
+                c.offer_amount, c.awarded_amount, c.goa_amount, c.completed_at,
+                c.stripe_payment_intent_id,
+                a.name AS tower_name, e.status AS escrow_status
+           FROM calls c
+           LEFT JOIN accounts a     ON c.awarded_tower_account_id = a.id
+           LEFT JOIN escrow_holds e ON e.call_id = c.id
+          WHERE c.status IN ('completed', 'goa')
+            AND (c.payment_status = 'failed' OR e.status = 'held')
+          ORDER BY c.completed_at DESC
+          LIMIT 200"
+    )->fetchAll();
+
+    $out = [];
+    foreach ($rows as $r) {
+        $out[] = [
+            'call_id'        => (int)$r['id'],
+            'call_number'    => $r['call_number'],
+            'status'         => $r['status'],
+            'payment_status' => $r['payment_status'],
+            'escrow_status'  => $r['escrow_status'],
+            'source'         => $r['source'],
+            'tower'          => $r['tower_name'],
+            'completed_at'   => $r['completed_at'],
+            'has_intent'     => !empty($r['stripe_payment_intent_id']),
+            // What a retry would try to take.
+            'amount_due'     => (float)($r['status'] === 'goa'
+                                        ? $r['goa_amount']
+                                        : ($r['awarded_amount'] ?? $r['offer_amount'])),
+        ];
+    }
+    successResponse(['issues' => $out, 'count' => count($out)]);
+}
+
+// ═══ RETRY A SETTLEMENT ══════════════════════════════════════════════════════
+// Idempotent by construction: Stripe replays a capture that already went
+// through, and settleCall() refuses to release an escrow hold twice.
+if ($method === 'POST' && $action === 'retry-settlement') {
+    $admin = requireAdmin(['superadmin', 'finance']);
+    $in = jsonInput();
+    $callId = (int)($in['call_id'] ?? 0);
+    if (!$callId) errorResponse('call_id is required');
+
+    $stmt = getDB()->prepare("SELECT * FROM calls WHERE id = :id");
+    $stmt->execute([':id' => $callId]);
+    $call = $stmt->fetch();
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
+
+    // Only a job that is actually finished. Retrying settlement on a live job
+    // would charge a customer for work still in progress.
+    if (!in_array($call['status'], ['completed', 'goa'], true)) {
+        errorResponse('That job is not finished, so there is nothing to settle', 409);
+    }
+
+    $mode   = $call['status'] === 'goa' ? 'goa' : 'complete';
+    $amount = (float)($mode === 'goa'
+                ? $call['goa_amount']
+                : ($call['awarded_amount'] ?? $call['offer_amount']));
+
+    $settle = settleCall($callId, $mode, $amount);
+
+    adminLog((int)$admin['id'], 'retry_settlement',
+        "call $callId — " . ($settle['ok']
+            ? 'settled $' . money($settle['gross'] ?? 0)
+            : 'failed at ' . ($settle['stage'] ?? '?') . ': ' . ($settle['error'] ?? '')));
+
+    if (!$settle['ok']) errorResponse($settle['error'] ?? 'Settlement failed', 402);
+
+    getDB()->prepare("UPDATE calls SET platform_fee = :fee, tower_net = :net WHERE id = :id")
+        ->execute([':fee' => money($settle['fee']), ':net' => money($settle['net']), ':id' => $callId]);
+
+    successResponse([
+        'settled'    => (bool)$settle['settled'],
+        'gross'      => money($settle['gross']),
+        'net_to_tower' => money($settle['net']),
+        'payout_id'  => $settle['payout_id'],
+    ], 'Settled');
 }
 
 errorResponse('Unknown action', 404);

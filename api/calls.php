@@ -5,6 +5,7 @@ require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/matching.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
 require_once __DIR__ . '/../includes/sweep.php';
+require_once __DIR__ . '/../includes/settlement.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -495,42 +496,22 @@ if ($method === 'POST' && $action === 'complete') {
         }
 
         $amount = (float)$call['awarded_amount'];
-        $result = escrowRelease($callId, $amount);
 
+        // Close the job and NOTHING else. No Stripe call inside this
+        // transaction: a capture that succeeded on a transaction that then
+        // rolled back would charge a customer for a job the database still
+        // believed was open, with nothing anywhere to refund it. Committing
+        // first also means this row stops being completable by anybody else,
+        // so the capture below cannot be raced into happening twice.
         $pdo->prepare(
-            "UPDATE calls
-                SET status = 'completed', completed_at = NOW(),
-                    platform_fee = :fee, tower_net = :net
-              WHERE id = :id"
-        )->execute([':fee' => money($result['fee']), ':net' => money($result['net']), ':id' => $callId]);
+            "UPDATE calls SET status = 'completed', completed_at = NOW() WHERE id = :id"
+        )->execute([':id' => $callId]);
 
         $pdo->prepare("UPDATE accounts SET jobs_completed = jobs_completed + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
 
-        // Consumer jobs are backed by a card authorisation rather than a
-        // balance, so this is the moment the customer is actually charged.
-        // Nothing before this point takes their money.
-        if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
-            $cap = stripeCapturePayment($call['stripe_payment_intent_id'], $result['gross']);
-            $pdo->prepare("UPDATE calls SET payment_status = :ps WHERE id = :id")
-                ->execute([':ps' => $cap['ok'] ? 'captured' : 'failed', ':id' => $callId]);
-            if (!$cap['ok']) {
-                // Don't fail the driver's completion over a card problem — the
-                // work is done. Flag it and chase the payment separately.
-                logCallEvent($callId, 'payment_failed', $cap['error'] ?? 'Card capture failed');
-            }
-        }
-
-        logCallEvent($callId, 'completed',
-            'Completed — $' . money($result['gross']) . ' released, $' . money($result['net']) . ' net to tower',
+        logCallEvent($callId, 'completed', 'Job completed by the driver',
             (int)$user['account_id'], (int)$user['id']);
-
-        rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'completed');
-
-        notify((int)$call['provider_account_id'], 'call_completed',
-            $call['call_number'] . ' completed',
-            $user['account_name'] . ' completed the call. $' . money($result['gross']) . ' released from your balance.',
-            $callId);
 
         $pdo->commit();
     } catch (RuntimeException $e) {
@@ -541,11 +522,44 @@ if ($method === 'POST' && $action === 'complete') {
         errorResponse('Could not complete call: ' . $e->getMessage(), 500);
     }
 
+    // ─── Now the money ──────────────────────────────────────────────────────
+    // Outside the transaction, and after the job is safely closed. If this
+    // fails the work still counts as done — the driver did it — and the job
+    // sits completed-but-unsettled for an admin to retry, rather than the
+    // tower being queued for a payout against a charge that never landed.
+    $settle = settleCall($callId, 'complete', $amount);
+
+    if (!$settle['ok']) {
+        rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'completed');
+        successResponse([
+            'settled'        => false,
+            'payment_issue'  => true,
+        ], t('ok.job_done_payment_pending'));
+    }
+
+    $pdo->prepare("UPDATE calls SET platform_fee = :fee, tower_net = :net WHERE id = :id")
+        ->execute([':fee' => money($settle['fee']), ':net' => money($settle['net']), ':id' => $callId]);
+
+    logCallEvent($callId, 'settled',
+        'Settled — $' . money($settle['gross']) . ' collected, $' . money($settle['net']) . ' net to tower');
+
+    rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'completed');
+
+    // A consumer job's "provider" IS the stranded motorist, who has no balance
+    // and would be baffled to be told money was released from one.
+    if (($call['source'] ?? 'board') !== 'consumer') {
+        notify((int)$call['provider_account_id'], 'call_completed',
+            $call['call_number'] . ' completed',
+            $user['account_name'] . ' completed the call. $' . money($settle['gross']) . ' released from your balance.',
+            $callId);
+    }
+
     successResponse([
-        'gross' => money($result['gross']),
-        'platform_fee' => money($result['fee']),
-        'net_to_you' => money($result['net']),
-        'payout_id' => $result['payout_id'],
+        'settled'      => true,
+        'gross'        => money($settle['gross']),
+        'platform_fee' => money($settle['fee']),
+        'net_to_you'   => money($settle['net']),
+        'payout_id'    => $settle['payout_id'],
     ], t('ok.job_completed'));
 }
 
@@ -585,31 +599,22 @@ if ($method === 'POST' && $action === 'goa') {
         $goa = (float)$call['goa_amount'];
         if ($goa <= 0) throw new RuntimeException(t('err.goa_no_amount'));
 
-        $result = escrowPartialRelease($callId, $goa, 'GOA');
-
+        // Close it first, settle after — same reasoning as completion. A GOA
+        // charges the call-out fee only, and a partial capture is exactly how
+        // that is expressed: Stripe takes the $55 and releases the rest of the
+        // authorisation back to the customer by itself. There is no separate
+        // refund to make, and making one would return money twice.
         $pdo->prepare(
-            "UPDATE calls SET status = 'goa', completed_at = NOW(), platform_fee = :fee, tower_net = :net
-              WHERE id = :id"
-        )->execute([':fee' => money($result['fee']), ':net' => money($result['tower_net']), ':id' => $callId]);
+            "UPDATE calls SET status = 'goa', completed_at = NOW() WHERE id = :id"
+        )->execute([':id' => $callId]);
 
         $pdo->prepare("UPDATE accounts SET jobs_goa = jobs_goa + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
-
-        if ($call['source'] === 'consumer' && $call['stripe_payment_intent_id']) {
-            $cap = stripeCapturePayment($call['stripe_payment_intent_id'], $result['tower_gross']);
-            $pdo->prepare("UPDATE calls SET payment_status = :ps WHERE id = :id")
-                ->execute([':ps' => $cap['ok'] ? 'captured' : 'failed', ':id' => $callId]);
-        }
 
         logCallEvent($callId, 'goa', $in['note'] ?? 'Vehicle not on scene',
             (int)$user['account_id'], (int)$user['id'],
             isset($in['lat']) ? (float)$in['lat'] : null,
             isset($in['lng']) ? (float)$in['lng'] : null);
-
-        notify((int)$call['provider_account_id'], 'call_goa',
-            $call['call_number'] . ' — GOA claimed',
-            $user['account_name'] . ' reported the vehicle was gone. $' . money($result['tower_gross']) .
-            ' GOA fee applied, $' . money($result['provider_refund']) . ' returned to your balance.', $callId);
 
         $pdo->commit();
     } catch (RuntimeException $e) {
@@ -620,10 +625,37 @@ if ($method === 'POST' && $action === 'goa') {
         errorResponse('Could not process GOA: ' . $e->getMessage(), 500);
     }
 
+    // ─── Now the money ──────────────────────────────────────────────────────
+    $settle = settleCall($callId, 'goa', $goa);
+
+    if (!$settle['ok']) {
+        rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'goa');
+        successResponse([
+            'settled'       => false,
+            'payment_issue' => true,
+        ], t('ok.goa_recorded_payment_pending'));
+    }
+
+    getDB()->prepare("UPDATE calls SET platform_fee = :fee, tower_net = :net WHERE id = :id")
+        ->execute([':fee' => money($settle['fee']), ':net' => money($settle['net']), ':id' => $callId]);
+
+    logCallEvent($callId, 'settled',
+        'GOA settled — $' . money($settle['gross']) . ' collected, $' . money($settle['net']) . ' net to tower');
+
+    rtJobChanged($callId, $call['tracking_token'] ?? null, (int)$user['account_id'], 'goa');
+
+    if (($call['source'] ?? 'board') !== 'consumer') {
+        notify((int)$call['provider_account_id'], 'call_goa',
+            $call['call_number'] . ' — GOA claimed',
+            $user['account_name'] . ' reported the vehicle was gone. $' . money($settle['gross']) .
+            ' GOA fee applied, $' . money($settle['refund']) . ' returned to your balance.', $callId);
+    }
+
     successResponse([
-        'goa_amount' => money($result['tower_gross']),
-        'net_to_you' => money($result['tower_net']),
-        'returned_to_provider' => money($result['provider_refund']),
+        'settled'    => true,
+        'goa_amount' => money($settle['gross']),
+        'net_to_you' => money($settle['net']),
+        'returned_to_provider' => money($settle['refund']),
     ], t('ok.goa_recorded'));
 }
 
