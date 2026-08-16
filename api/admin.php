@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/adminauth.php';
+require_once __DIR__ . '/../includes/market_rates.php';
 require_once __DIR__ . '/../includes/zones.php';
 require_once __DIR__ . '/../includes/surge.php';
 require_once __DIR__ . '/../includes/pricing.php';
@@ -227,7 +228,29 @@ if ($method === 'POST' && $action === 'review-account') {
     adminLog((int)$admin['id'], 'review_account',
         "account $accountId ({$account['name']}) -> $decision " . ($in['reason'] ?? ''));
 
-    successResponse(['verification_status' => $decision], t('ok.account_reviewed'));
+    // Approving a company opens the market around it if nothing covers them
+    // yet, and folds their rates into that market's average either way.
+    //
+    // Outside the transaction on purpose. A zone that fails to open is a
+    // company waiting a little longer for work; a rolled-back approval is a
+    // company told it was approved and then finding it was not.
+    $market = null;
+    if ($decision === 'approved') {
+        try {
+            $zoneId = ensureZoneForTower($accountId);
+            if ($zoneId) {
+                $market = ['zone_id' => $zoneId, 'zone' => zoneName(zoneById($zoneId))];
+                adminLog((int)$admin['id'], 'market_open',
+                    "account $accountId approved -> zone $zoneId");
+            }
+        } catch (Throwable $e) {
+            adminLog((int)$admin['id'], 'market_open_failed',
+                "account $accountId: " . $e->getMessage());
+        }
+    }
+
+    successResponse(['verification_status' => $decision, 'market' => $market],
+                    t('ok.account_reviewed'));
 }
 
 // ═══ ZONES / MARKETS ═════════════════════════════════════════════════════════

@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816c">
+<link rel="manifest" href="manifest.json?v=20260816f">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -402,6 +402,20 @@ legend{
 
   .pane-b .f2{grid-template-columns:1fr}
 }
+
+/* rate sheet */
+.rates{margin:14px 0 6px}
+.rate-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;
+  padding:11px 0;border-bottom:1px solid var(--line)}
+.rate-row:last-child{border-bottom:none}
+.rate-name{flex:1 1 130px;font-weight:650;font-size:14.5px;padding-bottom:9px}
+.rate-fields{display:flex;gap:9px;flex-wrap:wrap}
+.rate-fields label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;
+  font-weight:650;color:var(--ink-3);text-transform:uppercase;letter-spacing:.3px}
+.rate-fields input{width:86px;padding:9px 10px;border-radius:9px;text-align:right;
+  background:var(--panel-2);color:var(--ink);border:1px solid var(--line);outline:none}
+.rate-fields input:focus{border-color:var(--accent)}
+.rate-fields input::placeholder{color:var(--ink-faint)}
 </style>
 </head>
 <body>
@@ -463,6 +477,7 @@ legend{
   </div>
   <div class="cards" id="list"></div>
   <div id="alertsPane" class="hide"></div>
+  <div id="ratesPane" class="hide"></div>
 </main>
 </div>
 
@@ -572,11 +587,21 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816c"></script>
+<script src="i18n.js?v=20260816f"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
 let ME = null, VIEW = 'board', DATA = [], FEE_PCT = 10, FEE_MIN = 5;
+
+// Escapes anything that came from outside this file before it goes into
+// innerHTML. Most strings on this page are from the server's own catalogue and
+// are safe, but an API error message is not a fixed set, and a company name is
+// typed by whoever signed up.
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
 
 /* ── api ───────────────────────────────────────────────────────── */
 async function api(path, opts={}){
@@ -635,7 +660,7 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button>`
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button>`
     : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
@@ -742,6 +767,71 @@ async function refreshWallet(){
     (Number(w.held) > 0 ? ` &middot; Held <span class="held">${money(w.held)}</span>` : '') + `</span>`;
 }
 
+
+/* ── rate sheet ────────────────────────────────────────────────────
+   What this company charges, in its own words. It is never shown to another
+   company and there is no endpoint that would let one ask; it exists so a
+   market can be priced from what the people working in it actually charge.
+
+   The figure asked for is what they want to RECEIVE. Our cut comes out of the
+   customer's total, so the customer price is grossed up on the server — ask
+   for "what you charge" and pay them less than that and every job gets
+   declined by people who think they were misled.
+   ──────────────────────────────────────────────────────────────── */
+async function renderRatesPane(){
+  const pane = document.getElementById('ratesPane');
+  if(!pane) return;
+  pane.innerHTML = `<div class="empty">${t('o.loading')}</div>`;
+
+  const r = await api('/rates');
+  if(!r.success){ pane.innerHTML = `<div class="empty"><p>${esc(r.error||'')}</p></div>`; return; }
+
+  const row = x => `
+    <div class="rate-row" data-s="${x.service_type}" data-c="${x.vehicle_class}">
+      <div class="rate-name">${esc(x.label)}</div>
+      <div class="rate-fields">
+        <label>${t('rt.price')}
+          <input type="number" min="0" step="1" class="r-base"
+                 value="${x.base_fee ?? ''}" placeholder="—"></label>
+        ${x.asks_miles ? `
+        <label>${t('rt.included')}
+          <input type="number" min="0" step="1" class="r-miles"
+                 value="${x.included_miles ?? ''}" placeholder="—"></label>
+        <label>${t('rt.permile')}
+          <input type="number" min="0" step="0.5" class="r-per"
+                 value="${x.per_mile ?? ''}" placeholder="—"></label>` : ''}
+      </div>
+    </div>`;
+
+  pane.innerHTML = `
+    <div class="pane">
+      <div class="pane-h"><h3>${t('o.rates')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${esc(r.note || '')}</p>
+        <div class="rates">${(r.rows||[]).map(row).join('')}</div>
+        <p class="push-fine">${t('rt.blank_note')}</p>
+        <button class="btn go" onclick="saveRates(this)">${t('rt.save')}</button>
+        <div id="rateMsg" class="push-fine"></div>
+      </div>
+    </div>`;
+}
+
+async function saveRates(btn){
+  btn.disabled = true;
+  const rows = [...document.querySelectorAll('.rate-row')].map(el => ({
+    service_type:   el.dataset.s,
+    vehicle_class:  el.dataset.c,
+    base_fee:       el.querySelector('.r-base')?.value  ?? '',
+    included_miles: el.querySelector('.r-miles')?.value ?? '',
+    per_mile:       el.querySelector('.r-per')?.value   ?? '',
+  }));
+  const r = await api('/rates/save', {method:'POST', body:JSON.stringify({rows})});
+  btn.disabled = false;
+  const msg = document.getElementById('rateMsg');
+  msg.textContent = r.success ? (r.message || t('rt.saved')) : (r.error || '');
+  msg.style.color = r.success ? 'var(--green)' : 'var(--red)';
+}
+
 /* ── views ─────────────────────────────────────────────────────── */
 function switchView(v){
   VIEW = v;
@@ -752,7 +842,22 @@ function switchView(v){
   // Alerts is a settings screen, not a list of jobs, so it swaps the card list
   // out rather than filtering it.
   const pane = document.getElementById('alertsPane');
+  const rpane = document.getElementById('ratesPane');
   const list = document.getElementById('list');
+
+  // Rates is a form, not a list of jobs — same treatment as Alerts.
+  if(v === 'rates'){
+    document.getElementById('viewTitle').textContent = t('o.rates');
+    document.getElementById('viewSub').textContent = '';
+    f.innerHTML = '';
+    list.classList.add('hide');
+    pane.classList.add('hide');
+    rpane.classList.remove('hide');
+    renderRatesPane();
+    return;
+  }
+  rpane.classList.add('hide');
+
   if(v === 'alerts'){
     // The banner exists to send an operator here. Once he has arrived it is
     // the same button twice, so it stands down.
@@ -1094,9 +1199,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816c"></script>
-<script src="realtime.js?v=20260816c"></script>
-<script src="driver.js?v=20260816c"></script>
+<script src="push.js?v=20260816f"></script>
+<script src="realtime.js?v=20260816f"></script>
+<script src="driver.js?v=20260816f"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

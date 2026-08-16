@@ -40,8 +40,19 @@ function nationalZone(): array {
  * Circles are compared by real distance, not by the bounding box, so a zone
  * defined around downtown Miami does not accidentally claim Naples.
  */
+/**
+ * Bump this to make the next resolveZone() re-read the table. A zone created
+ * mid-request — which is exactly what approving a company now does — would
+ * otherwise be invisible to the rest of that request, so the newly opened
+ * market would look uncovered to the very call that opened it.
+ */
+function bustZoneCache(): void { $GLOBALS['TL_ZONE_EPOCH'] = ($GLOBALS['TL_ZONE_EPOCH'] ?? 0) + 1; }
+
 function resolveZone(?float $lat, ?float $lng, ?string $state = null): array {
     static $zones = null;
+    static $epoch = -1;
+    $now = $GLOBALS['TL_ZONE_EPOCH'] ?? 0;
+    if ($epoch !== $now) { $zones = null; $epoch = $now; }
     if ($zones === null) {
         $zones = getDB()->query(
             "SELECT * FROM pricing_zones WHERE is_active = 1 ORDER BY radius_miles ASC"
