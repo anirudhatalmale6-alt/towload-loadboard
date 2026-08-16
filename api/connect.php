@@ -28,7 +28,14 @@ if ($method === 'POST' && ($action === 'onboard' || $action === '')) {
 
     if (!$stripeAccountId) {
         $res = stripeCreateConnectAccount($account);
-        if (!$res['ok']) errorResponse('Could not create payout account: ' . $res['error'], 502);
+        if (!$res['ok']) {
+            // The raw Stripe error goes to the log, never to the screen. It is
+            // written for a developer — API paths, docs URLs, version advice —
+            // and the person reading it here drives a tow truck.
+            error_log('[connect] account create failed for account '
+                      . $account['id'] . ': ' . $res['error']);
+            errorResponse(t('err.connect_setup'), 502);
+        }
         $stripeAccountId = $res['data']['id'];
         $pdo->prepare("UPDATE tower_profiles SET stripe_account_id = :s WHERE account_id = :a")
             ->execute([':s' => $stripeAccountId, ':a' => $user['account_id']]);
@@ -36,7 +43,10 @@ if ($method === 'POST' && ($action === 'onboard' || $action === '')) {
 
     // Account links are single-use and short-lived — always mint a fresh one.
     $link = stripeCreateAccountLink($stripeAccountId);
-    if (!$link['ok']) errorResponse('Could not create onboarding link: ' . $link['error'], 502);
+    if (!$link['ok']) {
+        error_log('[connect] account link failed for ' . $stripeAccountId . ': ' . $link['error']);
+        errorResponse(t('err.connect_link'), 502);
+    }
 
     successResponse([
         'onboarding_url' => $link['data']['url'],
@@ -101,7 +111,10 @@ if ($method === 'POST' && $action === 'dashboard') {
     if (!$stripeAccountId) errorResponse('Set up payouts first', 400);
 
     $res = stripeCreateLoginLink($stripeAccountId);
-    if (!$res['ok']) errorResponse('Could not open dashboard: ' . $res['error'], 502);
+    if (!$res['ok']) {
+        error_log('[connect] login link failed for ' . $stripeAccountId . ': ' . $res['error']);
+        errorResponse(t('err.connect_dashboard'), 502);
+    }
 
     successResponse(['dashboard_url' => $res['data']['url']]);
 }

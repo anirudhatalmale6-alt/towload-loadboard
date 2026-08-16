@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816m">
+<link rel="manifest" href="manifest.json?v=20260816n">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -755,7 +755,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816m"></script>
+<script src="i18n.js?v=20260816n"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -1134,9 +1134,31 @@ async function doWithdraw(){
 }
 
 async function connectBank(){
+  const msg = document.getElementById('wdMsg');
+  if(msg){ msg.textContent = t('m.opening_bank'); msg.style.color = ''; }
+
   const r = await api('/connect/onboard', {method:'POST', body:'{}'});
-  if(!r.success) return alert(r.error || '');
-  if(r.url) location.href = r.url;
+
+  if(!r.success){
+    // Never alert() a server error here. This one concatenated Stripe's raw
+    // API text, so pressing "Connect my bank" put six lines of developer
+    // documentation and three docs.stripe.com URLs in front of a tow truck
+    // operator. The server now sends something a person can act on; anything
+    // technical stays in the log where it is useful.
+    toast(r.error || t('m.bank_failed'), true);
+    if(msg){ msg.textContent = r.error || t('m.bank_failed'); msg.style.color = 'var(--red)'; }
+    return;
+  }
+
+  // The endpoint returns `onboarding_url`. This read `r.url`, which is never
+  // set — so the call succeeded, the operator was sent nowhere, and the button
+  // looked broken in the one place where looking broken costs us a supplier.
+  const url = r.onboarding_url;
+  if(!url){
+    toast(t('m.bank_failed'), true);
+    return;
+  }
+  location.href = url;
 }
 
 /* ── company ─────────────────────────────────────────────────────
@@ -2130,9 +2152,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816m"></script>
-<script src="realtime.js?v=20260816m"></script>
-<script src="driver.js?v=20260816m"></script>
+<script src="push.js?v=20260816n"></script>
+<script src="realtime.js?v=20260816n"></script>
+<script src="driver.js?v=20260816n"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -143,6 +143,9 @@ function i18nCatalogue(): array {
         'ok.reply_saved_not_sent' => 'Respuesta guardada, pero el correo no salió. Reviselo.',
 
 /* ── Withdrawals ───────────────────────────────────────────────── */
+        'err.connect_setup'       => 'No pudimos abrir la conexión con el banco en este momento. Ya avisamos al equipo — intente de nuevo en unos minutos.',
+        'err.connect_link'        => 'No pudimos generar el enlace del banco. Intente de nuevo en unos minutos.',
+        'err.connect_dashboard'   => 'No pudimos abrir su panel de pagos. Intente de nuevo en unos minutos.',
         'err.wd_no_bank'        => 'Primero conecte su cuenta bancaria para poder cobrar.',
         'err.wd_payouts_disabled'=> 'Stripe todavía no habilitó los pagos a su cuenta. Revise si le falta algún dato.',
         'err.wd_below_min'      => 'El mínimo para retirar es ${min}.',
@@ -433,6 +436,9 @@ function i18nCatalogue(): array {
         'ok.reply_saved_not_sent' => 'Reply saved, but the email did not go out. Check it.',
 
 /* ── Withdrawals ───────────────────────────────────────────────── */
+        'err.connect_setup'       => "We couldn't open the bank connection just now. The team has been notified — try again in a few minutes.",
+        'err.connect_link'        => "We couldn't generate the bank link. Please try again in a few minutes.",
+        'err.connect_dashboard'   => "We couldn't open your payouts dashboard. Please try again in a few minutes.",
         'err.wd_no_bank'        => 'Connect your bank account first so we can pay you.',
         'err.wd_payouts_disabled'=> 'Stripe has not enabled payouts on your account yet. Check whether they still need something from you.',
         'err.wd_below_min'      => 'The minimum withdrawal is ${min}.',
