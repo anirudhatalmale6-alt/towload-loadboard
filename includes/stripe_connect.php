@@ -85,8 +85,26 @@ function stripeCreateConnectAccount(array $account): array {
     if (!empty($account['phone'])) {
         $params['business_profile[support_phone]'] = $account['phone'];
     }
+    // The idempotency key is bucketed by time, NOT a bare account id.
+    //
+    // `acct_create_16` looked safe and quietly bricked one company's payouts.
+    // Stripe stores the response for an idempotency key for 24 hours and
+    // replays it — INCLUDING a failure. Kauffs Towing pressed the button while
+    // Accounts v1 was still switched off, got a refusal, and from then on every
+    // retry replayed that same refusal even after the setting was fixed. Worse,
+    // these parameters are read live from the company's own row, so the moment
+    // they edited their phone or website the key came back
+    // "Keys for idempotent requests can only be used with the same parameters",
+    // which is unrecoverable for that key. One bad minute locked that company
+    // out of ever connecting a bank account.
+    //
+    // Five-minute buckets keep the thing this is actually for — a double-tap or
+    // a network retry creating two accounts — while letting a genuine retry
+    // after a fix start clean. Contrast stripeTransferToTower(), where the key
+    // is permanently the payout row id and MUST be: replaying a transfer would
+    // pay somebody twice.
     return stripeRequest('POST', '/accounts', $params, [
-        'idempotency_key' => 'acct_create_' . $account['id'],
+        'idempotency_key' => 'acct_create_' . $account['id'] . '_' . floor(time() / 300),
     ]);
 }
 
@@ -178,7 +196,10 @@ function stripeCreateCustomer(array $account): array {
         'email' => $account['email'],
         'phone' => $account['phone'] ?: '',
         'metadata[towload_account_id]' => (string)$account['id'],
-    ], ['idempotency_key' => 'cust_create_' . $account['id']]);
+        // Same trap as the Connect account above, and for the same reason:
+        // these fields are read live from a row the account can edit, so a
+        // fixed key breaks permanently the first time they change their phone.
+    ], ['idempotency_key' => 'cust_create_' . $account['id'] . '_' . floor(time() / 300)]);
 }
 
 // ─── PAYOUT (platform -> tower) ──────────────────────────────────────────────
