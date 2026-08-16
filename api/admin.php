@@ -615,4 +615,68 @@ if ($method === 'GET' && $action === 'jobs') {
     successResponse(['jobs' => $stmt->fetchAll()]);
 }
 
+// ═══ MY LOGIN ════════════════════════════════════════════════════════════════
+//
+//  The admin password was seeded by hand at build time and there was no way to
+//  change it from inside the panel, so "you should change this" was advice that
+//  could not be acted on. Both the password and the login name are editable
+//  here now. The login name is not an email address and nothing is ever sent to
+//  it — it is a username that happens to be shaped like one.
+if ($method === 'GET' && $action === 'me') {
+    $me = requireAdmin();
+    $stmt = getDB()->prepare("SELECT id, email, name, role, last_login_at FROM admin_users WHERE id = :id");
+    $stmt->execute([':id' => (int)$me['id']]);
+    successResponse(['admin' => $stmt->fetch()]);
+}
+
+if ($method === 'POST' && $action === 'change-login') {
+    $me = requireAdmin();
+    $in = jsonInput();
+
+    $stmt = getDB()->prepare("SELECT * FROM admin_users WHERE id = :id");
+    $stmt->execute([':id' => (int)$me['id']]);
+    $admin = $stmt->fetch();
+    if (!$admin) errorResponse(t('err.bad_login'), 401);
+
+    // Proving you know the current one is the whole point: a stolen token
+    // otherwise lets someone lock the real owner out of their own platform.
+    if (empty($in['current_password']) || !password_verify($in['current_password'], $admin['password_hash'])) {
+        errorResponse(t('err.current_password_wrong'), 401);
+    }
+
+    $sets   = [];
+    $params = [':id' => (int)$admin['id']];
+    $changed = [];
+
+    if (!empty($in['new_password'])) {
+        if (strlen((string)$in['new_password']) < 10) {
+            errorResponse(t('err.admin_password_short'));
+        }
+        $sets[] = 'password_hash = :p';
+        $params[':p'] = password_hash((string)$in['new_password'], PASSWORD_DEFAULT);
+        $changed[] = 'password';
+    }
+
+    if (!empty($in['new_email'])) {
+        $email = trim((string)$in['new_email']);
+        if (strlen($email) < 5 || strpos($email, ' ') !== false) errorResponse(t('err.bad_request'));
+        $dup = getDB()->prepare("SELECT id FROM admin_users WHERE email = :e AND id <> :id");
+        $dup->execute([':e' => $email, ':id' => (int)$admin['id']]);
+        if ($dup->fetch()) errorResponse(t('err.email_exists'));
+        $sets[] = 'email = :e';
+        $params[':e'] = $email;
+        $changed[] = 'login name';
+    }
+
+    if (!$sets) errorResponse(t('err.bad_request'));
+
+    getDB()->prepare("UPDATE admin_users SET " . implode(', ', $sets) . " WHERE id = :id")
+           ->execute($params);
+
+    // The detail is what changed, never the value.
+    adminLog((int)$admin['id'], 'change_login', implode(' + ', $changed));
+
+    successResponse(['changed' => $changed], t('ok.login_updated'));
+}
+
 errorResponse('Unknown action', 404);

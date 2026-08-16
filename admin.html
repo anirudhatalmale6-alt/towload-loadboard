@@ -145,7 +145,10 @@ p{color:var(--ink-2);font-size:13px;line-height:1.6}
   <h1>TowSling Admin</h1>
   <p>Platform control panel.</p>
   <div id="loginMsg"></div>
-  <label class="f"><span>Email</span><input id="aEmail" type="email" autocomplete="username"></label>
+  <!-- Deliberately not type="email". This is a username that happens to be
+       shaped like an address, and the browser would refuse to submit a
+       perfectly valid one the moment it stopped containing an @. -->
+  <label class="f"><span>Login name</span><input id="aEmail" type="text" autocomplete="username"></label>
   <label class="f"><span>Password</span><input id="aPass" type="password" autocomplete="current-password"
          onkeydown="if(event.key==='Enter')doLogin()"></label>
   <button class="btn" style="width:100%" onclick="doLogin()" id="loginBtn">Sign in</button>
@@ -738,8 +741,47 @@ async function vSettings(){
           <input id="s_${esc(s.setting_key)}" value="${esc(s.setting_value)}">
         </label>`).join('')}
       <button class="btn" onclick="saveSettings()">Save settings</button>
+    </div>
+
+    <h2 class="sec" style="margin-top:32px">Your login</h2>
+    <div class="sub">Signed in as <b>${esc(ADMIN ? ADMIN.email : '')}</b>. This is a username,
+      not a mailbox — nothing is ever sent to it, so it does not have to be an address that
+      exists. Change either field, or both. Leave one blank to keep it.</div>
+    <div class="card">
+      <label class="f"><span>Current password</span>
+        <input id="lg_cur" type="password" autocomplete="current-password"></label>
+      <label class="f"><span>New login name — optional</span>
+        <input id="lg_email" placeholder="${esc(ADMIN ? ADMIN.email : '')}" autocomplete="off"></label>
+      <label class="f"><span>New password — optional, 10 characters or more</span>
+        <input id="lg_pw" type="password" autocomplete="new-password"></label>
+      <label class="f"><span>New password again</span>
+        <input id="lg_pw2" type="password" autocomplete="new-password"></label>
+      <button class="btn" onclick="saveLogin()">Update login</button>
     </div>`;
   window._editableKeys = editable.map(s => s.setting_key);
+}
+
+// Changing your own login signs you out — the token was issued to the old
+// details, and a screen that looks like it still works after the credential
+// behind it changed is how you end up unsure which password is live.
+async function saveLogin(){
+  const cur = $('lg_cur').value, pw = $('lg_pw').value, pw2 = $('lg_pw2').value;
+  const email = $('lg_email').value.trim();
+
+  if(!cur) return flash('Enter your current password.', true);
+  if(!pw && !email) return flash('Nothing to change.', true);
+  if(pw && pw !== pw2) return flash('The two new passwords do not match.', true);
+  if(pw && pw.length < 10) return flash('The new password must be at least 10 characters.', true);
+
+  const body = {current_password: cur};
+  if(pw) body.new_password = pw;
+  if(email) body.new_email = email;
+
+  const r = await api('/admin/change-login', {method:'POST', body:JSON.stringify(body)});
+  if(!r.success) return flash(r.error, true);
+
+  flash('Updated — signing you back in with the new details.');
+  setTimeout(signOut, 1200);
 }
 
 async function saveSettings(){

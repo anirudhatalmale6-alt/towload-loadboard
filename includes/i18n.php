@@ -69,6 +69,9 @@ function i18nCatalogue(): array {
                 // ─── Rate sheet ───────────────────────────────────────────────
         'err.bad_request'         => 'Solicitud inválida.',
         'ok.rates_saved'          => 'Tarifas guardadas',
+        'err.current_password_wrong' => 'La contraseña actual es incorrecta.',
+        'err.admin_password_short'   => 'La nueva contraseña debe tener al menos 10 caracteres.',
+        'ok.login_updated'           => 'Datos de acceso actualizados',
         'rate.promise'            => 'Trataremos de igualar sus tarifas. Esto nos ayuda a fijar precios justos en su zona. No se muestran a ninguna otra compañía.',
         'rate.tow_light'          => 'Grúa — auto liviano',
         'rate.tow_medium'         => 'Grúa — mediana',
@@ -258,6 +261,9 @@ function i18nCatalogue(): array {
         // ─── Rate sheet ───────────────────────────────────────────────
         'err.bad_request'         => 'Invalid request.',
         'ok.rates_saved'          => 'Rates saved',
+        'err.current_password_wrong' => 'Current password is incorrect.',
+        'err.admin_password_short'   => 'The new password must be at least 10 characters.',
+        'ok.login_updated'           => 'Login details updated',
         'rate.promise'            => "We'll try to match your rates. This helps us set fair prices in your area. They are never shown to any other company.",
         'rate.tow_light'          => 'Tow - light duty',
         'rate.tow_medium'         => 'Tow - medium duty',
