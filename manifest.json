@@ -1,6 +1,6 @@
 {
-  "name": "TowLoad — Operator",
-  "short_name": "TowLoad",
+  "name": "TowSling — Operator",
+  "short_name": "TowSling",
   "description": "Live tow jobs near you. Get alerted the moment one is posted.",
   "id": "/",
   "start_url": "./?src=pwa",

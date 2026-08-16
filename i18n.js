@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   TowLoad translations — Spanish first.
+   TowSling translations — Spanish first.
 
    Miami-Dade is majority Spanish-speaking, so 'es' is the default and English
    is the opt-in. The choice is remembered per browser and sent to the API on
@@ -202,10 +202,10 @@ es: {
   'p.ios_p':             'En iPhone las alertas solo funcionan si agrega esta página a la pantalla de inicio. Toma 20 segundos y se hace una sola vez.',
   'p.ios_1':             'Toque el botón Compartir, abajo en Safari',
   'p.ios_2':             'Elija “Agregar a inicio”',
-  'p.ios_3':             'Abra TowLoad desde el ícono nuevo y active las alertas',
+  'p.ios_3':             'Abra TowSling desde el ícono nuevo y active las alertas',
   'p.ios_fine':          'Es una regla de Apple, no de nosotros. Safari no permite pedir permiso de alertas hasta que la app esté en la pantalla de inicio.',
   'p.blocked_h':         'Las alertas están bloqueadas en este dispositivo',
-  'p.blocked_p':         'Usted rechazó el permiso antes. Vaya a Ajustes → TowLoad → Notificaciones y actívelas; el navegador ya no vuelve a preguntar.',
+  'p.blocked_p':         'Usted rechazó el permiso antes. Vaya a Ajustes → TowSling → Notificaciones y actívelas; el navegador ya no vuelve a preguntar.',
   'p.unsupported_h':     'Este navegador no soporta alertas',
   'p.unsupported_p':     'Abra el tablero en Safari (iPhone) o Chrome (Android) para recibir los trabajos en el teléfono.',
   'p.err_unsupported':   'Este navegador no soporta alertas.',
@@ -547,10 +547,10 @@ en: {
   'p.ios_p':             'On iPhone, alerts only work once you add this page to your Home Screen. Takes 20 seconds, once.',
   'p.ios_1':             'Tap the Share button at the bottom of Safari',
   'p.ios_2':             'Choose “Add to Home Screen”',
-  'p.ios_3':             'Open TowLoad from the new icon, then turn on alerts',
+  'p.ios_3':             'Open TowSling from the new icon, then turn on alerts',
   'p.ios_fine':          'This is Apple’s rule, not ours. Safari will not let a website even ask for alert permission until it has been added to the Home Screen.',
   'p.blocked_h':         'Alerts are blocked on this device',
-  'p.blocked_p':         'Permission was denied earlier. Go to Settings → TowLoad → Notifications and switch them on — the browser will not ask again on its own.',
+  'p.blocked_p':         'Permission was denied earlier. Go to Settings → TowSling → Notifications and switch them on — the browser will not ask again on its own.',
   'p.unsupported_h':     'This browser cannot do alerts',
   'p.unsupported_p':     'Open the board in Safari (iPhone) or Chrome (Android) to get jobs on your phone.',
   'p.err_unsupported':   'This browser cannot do alerts.',

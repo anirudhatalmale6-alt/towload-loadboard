@@ -19,6 +19,29 @@ RewriteEngine On
 # bot24.io's parent rules would otherwise hijack this subfolder.
 RewriteOptions IgnoreInherit
 
+# ─── Realtime ───────────────────────────────────────────────────────────────
+# The socket server listens on 127.0.0.1 only and is reached through here.
+#
+# This has to be the FIRST rule. A WebSocket handshake is an ordinary GET until
+# the moment it is upgraded, so any earlier rule that matches /socket.io/ would
+# swallow it and the connection would fail in a way that looks like the server
+# being down.
+#
+# Two lines, and both are needed. socket.io opens on long-polling and upgrades
+# to a real socket a moment later; the first line carries the upgraded socket,
+# the second carries the polling that precedes it and the fallback for any
+# network that blocks WebSockets — hotel wifi, some corporate proxies, a few
+# mobile carriers. Losing the second line means it works everywhere except the
+# places where it matters.
+#
+# mod_proxy in .htaccess is enabled on this box — bot24.io has done exactly
+# this since July. That is why no panel setting and no separate subdomain are
+# needed: same origin, so no cross-origin handling and nothing extra to renew.
+RewriteCond %{HTTP:Upgrade} =websocket [NC]
+RewriteCond %{HTTP:Connection} upgrade [NC]
+RewriteRule ^socket\.io/(.*)  "ws://127.0.0.1:3003/socket.io/$1"   [P,L]
+RewriteRule ^socket\.io/(.*)  "http://127.0.0.1:3003/socket.io/$1" [P,L,QSA]
+
 # PHP runs as CGI/FPM here, which silently drops the Authorization header —
 # every authenticated API call comes back "Authorization required" without this.
 # Both forms are set because which one survives depends on the SAPI.
@@ -30,8 +53,11 @@ RewriteRule ^ - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
 # Anyone hitting a .php URL directly gets bounced to the clean one, so the
 # extension can never leak into a link, a bookmark or a search index.
-RewriteCond %{THE_REQUEST} "\s/+(.*?)/(api|webhooks)/([a-z-]+)\.php(?:\?action=([a-z-]+))?" [NC]
-RewriteRule ^ /%1/%2/%3/%4? [R=301,L]
+# The folder group is optional for the same reason as the deny rules below:
+# this reads the full request line, and the app now sits at a domain root where
+# there is no folder in front of `api/`.
+RewriteCond %{THE_REQUEST} "\s/+(.*?/)?(api|webhooks)/([a-z-]+)\.php(?:\?action=([a-z-]+))?" [NC]
+RewriteRule ^ /%1%2/%3/%4? [R=301,L]
 
 # Real files and directories win (assets, uploads).
 RewriteCond %{REQUEST_FILENAME} -f [OR]

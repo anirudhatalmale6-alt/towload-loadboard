@@ -5,18 +5,18 @@
 <!-- viewport-fit=cover + the safe-area padding below keeps the header clear of
      the notch once this is running full screen from the Home Screen. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TowLoad — Trabajos para operadores de grúa</title>
+<title>TowSling — Trabajos para operadores de grúa</title>
 
 <!-- ─── Installable app ──────────────────────────────────────────────────
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816a">
+<link rel="manifest" href="manifest.json?v=20260816b">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="TowLoad">
+<meta name="apple-mobile-web-app-title" content="TowSling">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="apple-touch-icon" sizes="152x152" href="icons/icon-152.png">
 <link rel="apple-touch-icon" sizes="120x120" href="icons/icon-120.png">
@@ -410,8 +410,8 @@ legend{
 <div class="login-wrap" id="loginView">
   <div class="login">
     <div class="brand">
-      <div class="mark">TL</div>
-      <h1>TowLoad</h1>
+      <div class="mark">TS</div>
+      <h1>TowSling</h1>
       <p data-i18n="brand.tagline">La grúa que necesita, cuando la necesita</p>
     </div>
     <div class="panel">
@@ -438,7 +438,7 @@ legend{
 <!-- ═══ APP ═══ -->
 <div id="appView" class="hide">
 <header>
-  <div class="logo"><div class="mark">TL</div>TowLoad</div>
+  <div class="logo"><div class="mark">TS</div>TowSling</div>
   <div class="tabs" id="tabs"></div>
   <div class="spacer"></div>
   <div class="whoami">
@@ -572,7 +572,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816a"></script>
+<script src="i18n.js?v=20260816b"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -1094,9 +1094,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816a"></script>
-<script src="realtime.js?v=20260816a"></script>
-<script src="driver.js?v=20260816a"></script>
+<script src="push.js?v=20260816b"></script>
+<script src="realtime.js?v=20260816b"></script>
+<script src="driver.js?v=20260816b"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -6,7 +6,7 @@ if (is_file(__DIR__ . '/env.php')) require_once __DIR__ . '/env.php';
 
 // ─── APP CONFIGURATION ──────────────────────────────────────────────────────
 // Working name only — change APP_NAME/APP_URL once the brand is decided.
-define('APP_NAME', getenv('TL_APP_NAME') ?: 'TowLoad');
+define('APP_NAME', getenv('TL_APP_NAME') ?: 'TowSling');
 define('APP_URL',  getenv('TL_APP_URL')  ?: 'https://board.towmasterscorp.com');
 
 define('JWT_SECRET', getenv('TL_JWT_SECRET') ?: 'CHANGE_ME_IN_PRODUCTION');

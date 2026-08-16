@@ -145,10 +145,21 @@ const server = http.createServer((req, res) => {
 
 const io = new Server(server, {
   cors: { origin: ORIGINS, credentials: false },
-  // WebSocket only. Long-polling would need every request from one browser to
-  // land on the same process, which is exactly the constraint that makes this
-  // kind of server fragile behind a proxy.
-  transports: ['websocket'],
+  // Both transports, deliberately.
+  //
+  // This was WebSocket-only while the plan was to run behind Passenger, which
+  // may spawn several copies of an app: long-polling needs every request from
+  // one browser to reach the same process, and there was no way to guarantee
+  // that. Passenger turned out to be unnecessary — a proxy rule in .htaccess
+  // reaches this server directly — so there is exactly one process, held open
+  // by pm2 and guarded by the port itself. The constraint is gone.
+  //
+  // Polling earns its place as the fallback. socket.io opens on it and
+  // upgrades a moment later, and on the networks that block WebSockets
+  // outright — hotel wifi, some corporate proxies, the odd mobile carrier — it
+  // is the only thing that connects at all. A tow operator sitting in a truck
+  // stop is precisely the person this is for.
+  transports: ['websocket', 'polling'],
   pingInterval: 25000,
   pingTimeout: 20000,
 });
