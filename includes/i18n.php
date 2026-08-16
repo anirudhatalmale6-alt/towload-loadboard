@@ -69,6 +69,10 @@ function i18nCatalogue(): array {
                 // ─── Rate sheet ───────────────────────────────────────────────
         'err.bad_request'         => 'Solicitud inválida.',
         'ok.rates_saved'          => 'Tarifas guardadas',
+        'err.zone_not_found'         => 'Ese mercado no existe.',
+        'err.zone_national'          => 'La tarifa nacional no se puede eliminar.',
+        'ok.zone_archived'           => 'Mercado apagado (tiene historial de trabajos)',
+        'ok.zone_removed'            => 'Mercado eliminado',
         'err.current_password_wrong' => 'La contraseña actual es incorrecta.',
         'err.admin_password_short'   => 'La nueva contraseña debe tener al menos 10 caracteres.',
         'ok.login_updated'           => 'Datos de acceso actualizados',
@@ -261,6 +265,10 @@ function i18nCatalogue(): array {
         // ─── Rate sheet ───────────────────────────────────────────────
         'err.bad_request'         => 'Invalid request.',
         'ok.rates_saved'          => 'Rates saved',
+        'err.zone_not_found'         => 'That market does not exist.',
+        'err.zone_national'          => 'The national rate table cannot be removed.',
+        'ok.zone_archived'           => 'Market switched off (it has job history)',
+        'ok.zone_removed'            => 'Market removed',
         'err.current_password_wrong' => 'Current password is incorrect.',
         'err.admin_password_short'   => 'The new password must be at least 10 characters.',
         'ok.login_updated'           => 'Login details updated',

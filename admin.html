@@ -101,6 +101,14 @@ input:focus,select:focus{outline:0;border-color:var(--accent)}
 .msg.ok{background:#0f2e1c;color:#4ade80}
 .msg.bad{background:#3b1515;color:#f87171}
 
+/* Toasts live here and NOT inside #view. They used to be inserted into #view,
+   which every screen replaces wholesale when it reloads — so any action that
+   saved and then refreshed the list destroyed its own confirmation a few
+   hundred milliseconds later. A failed save looked identical to nothing
+   happening at all. */
+.toasts{position:fixed;top:16px;right:16px;z-index:90;width:min(420px,calc(100vw - 32px))}
+.toasts .msg{box-shadow:0 10px 30px rgba(0,0,0,.45);border:1px solid var(--line)}
+
 /* emergency brake — deliberately loud */
 .brake{
   border:1px solid #7f1d1d;background:linear-gradient(180deg,#1a1113,#141a24);
@@ -167,6 +175,7 @@ p{color:var(--ink-2);font-size:13px;line-height:1.6}
 </div>
 
 <div id="modalHost"></div>
+<div id="toastHost" class="toasts"></div>
 
 <script>
 const API = 'api';
@@ -198,10 +207,10 @@ async function api(path, opts = {}){
 function flash(msg, bad){
   const el = document.createElement('div');
   el.className = 'msg ' + (bad ? 'bad' : 'ok');
-  el.textContent = msg;
-  const v = $('view');
-  v.insertBefore(el, v.firstChild);
-  setTimeout(() => el.remove(), 4200);
+  el.textContent = msg || 'Something went wrong.';
+  // Deliberately NOT $('view') — see .toasts in the stylesheet.
+  $('toastHost').appendChild(el);
+  setTimeout(() => el.remove(), bad ? 9000 : 4200);
 }
 
 // ── auth ─────────────────────────────────────────────────
@@ -506,7 +515,8 @@ async function vMarkets(){
           <td><b>${esc(z.name)}</b>${z.name_es ? `<br><small style="color:var(--ink-3)">${esc(z.name_es)}</small>` : ''}</td>
           <td>${z.radius_miles > 0 ? `${z.radius_miles} mi circle` : (z.state ? 'State ' + z.state : 'National')}</td>
           <td>${Number(z.rate_multiplier).toFixed(2)}x</td>
-          <td>${z.is_live ? '<span class="pill approved">live</span>' : '<span class="pill unverified">off</span>'}</td>
+          <td>${!Number(z.is_active) ? '<span class="pill rejected">archived</span>'
+                : (z.is_live ? '<span class="pill approved">live</span>' : '<span class="pill unverified">off</span>')}</td>
           <td>${z.surge_enabled ? 'on' : '<span style="color:var(--ink-3)">off</span>'}</td>
           <td>${z.manual_surge && new Date(z.manual_surge_until) > new Date()
                 ? `<span class="pill pending">${Number(z.manual_surge).toFixed(2)}x → ${z.manual_surge_until.slice(0,16).replace('T',' ')}</span>`
@@ -514,6 +524,7 @@ async function vMarkets(){
           <td style="text-align:right;white-space:nowrap">
             <button class="btn sec sm" onclick='editZone(${JSON.stringify(z)})'>Edit</button>
             <button class="btn sec sm" onclick='overrideZone(${z.id},"${esc(z.name)}")'>Price override</button>
+            <button class="btn sec sm" onclick='removeZone(${z.id},${JSON.stringify(z.name)})'>Remove</button>
           </td>
         </tr>`).join('')}
       </tbody></table>
@@ -521,17 +532,65 @@ async function vMarkets(){
     <button class="btn" onclick="editZone(null)">Add a market</button>`;
 }
 
+// Code → [English, Spanish]. Adding a state used to mean typing the two-letter
+// code AND typing the name twice, and the name was the required field — so the
+// natural way to do it (pick the state, hit Save) failed. Picking a state now
+// fills the names in for you.
+const US_STATES = {
+  AL:['Alabama','Alabama'], AK:['Alaska','Alaska'], AZ:['Arizona','Arizona'],
+  AR:['Arkansas','Arkansas'], CA:['California','California'], CO:['Colorado','Colorado'],
+  CT:['Connecticut','Connecticut'], DE:['Delaware','Delaware'],
+  DC:['District of Columbia','Distrito de Columbia'], FL:['Florida','Florida'],
+  GA:['Georgia','Georgia'], HI:['Hawaii','Hawái'], ID:['Idaho','Idaho'],
+  IL:['Illinois','Illinois'], IN:['Indiana','Indiana'], IA:['Iowa','Iowa'],
+  KS:['Kansas','Kansas'], KY:['Kentucky','Kentucky'], LA:['Louisiana','Luisiana'],
+  ME:['Maine','Maine'], MD:['Maryland','Maryland'], MA:['Massachusetts','Massachusetts'],
+  MI:['Michigan','Míchigan'], MN:['Minnesota','Minnesota'], MS:['Mississippi','Misisipi'],
+  MO:['Missouri','Misuri'], MT:['Montana','Montana'], NE:['Nebraska','Nebraska'],
+  NV:['Nevada','Nevada'], NH:['New Hampshire','Nuevo Hampshire'],
+  NJ:['New Jersey','Nueva Jersey'], NM:['New Mexico','Nuevo México'],
+  NY:['New York','Nueva York'], NC:['North Carolina','Carolina del Norte'],
+  ND:['North Dakota','Dakota del Norte'], OH:['Ohio','Ohio'], OK:['Oklahoma','Oklahoma'],
+  OR:['Oregon','Oregón'], PA:['Pennsylvania','Pensilvania'], RI:['Rhode Island','Rhode Island'],
+  SC:['South Carolina','Carolina del Sur'], SD:['South Dakota','Dakota del Sur'],
+  TN:['Tennessee','Tennessee'], TX:['Texas','Texas'], UT:['Utah','Utah'],
+  VT:['Vermont','Vermont'], VA:['Virginia','Virginia'], WA:['Washington','Washington'],
+  WV:['West Virginia','Virginia Occidental'], WI:['Wisconsin','Wisconsin'],
+  WY:['Wyoming','Wyoming'],
+};
+
+// Only fills a blank box. Typing your own name for a market and then changing
+// the state code must not silently overwrite what you typed.
+function zoneStatePicked(){
+  const code = $('zState').value;
+  if(!code || !US_STATES[code]) return;
+  const rad = +$('zRad').value || 0;
+  if(rad > 0) return;                       // a city circle, not the whole state
+  if(!$('zName').value.trim())   $('zName').value   = US_STATES[code][0];
+  if(!$('zNameEs').value.trim()) $('zNameEs').value = US_STATES[code][1];
+}
+
 function editZone(z){
   z = z || {rate_multiplier:1, radius_miles:0, is_live:0, surge_enabled:1, is_active:1};
+  const opts = ['<option value="">— none (city circle) —</option>']
+    .concat(Object.keys(US_STATES).sort().map(c =>
+      `<option value="${c}"${z.state===c?' selected':''}>${c} — ${esc(US_STATES[c][0])}</option>`))
+    .join('');
   showModal(`
     <h3>${z.id ? 'Edit market' : 'New market'}</h3>
-    <div class="m-sub">Leave radius at 0 and set a state code to cover a whole state.</div>
+    <div class="m-sub">Pick a state and leave the radius at 0 to cover the whole state. For a
+      single city, set a centre point and a radius instead.</div>
+    <div id="zoneMsg"></div>
+    ${z.id && !Number(z.is_active) ? `<div class="msg bad" style="margin-bottom:16px">This market is
+      switched off. It was removed while it still had job history, so the record was kept rather
+      than deleted. Saving here turns it back on.</div>` : ''}
     <div class="row">
       <label class="f"><span>Name (English)</span><input id="zName" value="${esc(z.name||'')}"></label>
       <label class="f"><span>Name (Spanish)</span><input id="zNameEs" value="${esc(z.name_es||'')}"></label>
     </div>
     <div class="row">
-      <label class="f"><span>State code</span><input id="zState" maxlength="2" value="${esc(z.state||'')}"></label>
+      <label class="f"><span>State</span>
+        <select id="zState" onchange="zoneStatePicked()">${opts}</select></label>
       <label class="f"><span>Centre latitude</span><input id="zLat" value="${z.center_lat||''}"></label>
       <label class="f"><span>Centre longitude</span><input id="zLng" value="${z.center_lng||''}"></label>
       <label class="f"><span>Radius (miles)</span><input id="zRad" type="number" value="${z.radius_miles||0}"></label>
@@ -551,17 +610,46 @@ function editZone(z){
 }
 
 async function saveZone(id){
+  // Last chance to fill the name from the state, for anyone who picked a state
+  // and went straight for Save without leaving the field.
+  zoneStatePicked();
+
+  const state = $('zState').value.trim() || null;
+  const rad   = +$('zRad').value || 0;
+  const lat   = $('zLat').value.trim(), lng = $('zLng').value.trim();
+
+  const bad = m => { $('zoneMsg').innerHTML = `<div class="msg bad">${esc(m)}</div>`; return null; };
+  $('zoneMsg').innerHTML = '';
+
+  if(!$('zName').value.trim()) return bad('Give the market a name — pick a state and it fills in for you.');
+  if(!state && rad <= 0) return bad('A market needs either a state, or a centre point and a radius.');
+  if(rad > 0 && (!lat || !lng)) return bad('A circle needs a centre latitude and longitude.');
+
   const body = {
     id: id || undefined,
     name:$('zName').value.trim(), name_es:$('zNameEs').value.trim() || null,
-    state:$('zState').value.trim() || null,
-    center_lat:$('zLat').value.trim() || null, center_lng:$('zLng').value.trim() || null,
-    radius_miles:+$('zRad').value || 0, rate_multiplier:+$('zMult').value || 1,
+    state, center_lat:lat || null, center_lng:lng || null,
+    radius_miles:rad, rate_multiplier:+$('zMult').value || 1,
     is_live:+$('zLive').value, surge_enabled:+$('zSurge').value,
+    // Opening a market's settings and pressing Save means you want this market.
+    // Without this an archived zone could never be brought back from the UI,
+    // which would make Remove a one-way door for any market that had traded.
+    is_active: 1,
   };
   const r = await api('/admin/zone-save', {method:'POST', body:JSON.stringify(body)});
+
+  // Only tear the form down once it has actually saved. Closing on failure
+  // threw away everything typed and left no trace of why.
+  if(!r.success) return bad(r.error || 'Could not save.');
   closeModal(); render();
-  setTimeout(() => flash(r.success ? 'Saved' : r.error, !r.success), 60);
+  flash('Saved');
+}
+
+async function removeZone(id, name){
+  if(!confirm('Remove the market "' + name + '"?\n\nJobs already priced there are not affected.')) return;
+  const r = await api('/admin/zone-delete', {method:'POST', body:JSON.stringify({id})});
+  if(r.success) render();
+  flash(r.success ? (r.archived ? 'Market switched off' : 'Market removed') : r.error, !r.success);
 }
 
 function overrideZone(id, name){

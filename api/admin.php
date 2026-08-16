@@ -311,6 +311,52 @@ if ($method === 'POST' && $action === 'zone-save') {
     successResponse(['id' => $id], t('ok.saved'));
 }
 
+// ═══ REMOVE A MARKET ═════════════════════════════════════════════════════════
+//
+//  There was no way to undo "Add a market", so a typo was permanent. It is not
+//  always a delete, though: `calls` and `surge_snapshots` carry the zone id of
+//  the market a job was priced in, with no foreign key to stop the row going
+//  away underneath them. Deleting a zone that has traded would leave completed
+//  jobs pointing at a market that no longer exists and quietly corrupt the
+//  history they are evidence for.
+//
+//  So: a market that never traded is deleted outright. One that has is switched
+//  off and kept. Both stop it being used; only one is destructive, and it is
+//  the one where there is nothing to destroy.
+if ($method === 'POST' && $action === 'zone-delete') {
+    $admin = requireAdmin(['superadmin']);
+    $in = jsonInput();
+    $id = (int)($in['id'] ?? 0);
+    if (!$id) errorResponse('id is required');
+    if ($id === NATIONAL_ZONE_ID) errorResponse(t('err.zone_national'));
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM pricing_zones WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    $zone = $stmt->fetch();
+    if (!$zone) errorResponse(t('err.zone_not_found'), 404);
+
+    $used = function (string $table) use ($pdo, $id): int {
+        $s = $pdo->prepare("SELECT COUNT(*) n FROM $table WHERE zone_id = :z");
+        $s->execute([':z' => $id]);
+        return (int)$s->fetch()['n'];
+    };
+    $jobs = $used('calls') + $used('surge_snapshots');
+
+    if ($jobs > 0) {
+        $pdo->prepare("UPDATE pricing_zones SET is_active = 0, is_live = 0 WHERE id = :id")
+            ->execute([':id' => $id]);
+        adminLog((int)$admin['id'], 'zone_archive', "zone $id ({$zone['name']}) — $jobs rows reference it");
+        successResponse(['archived' => true, 'referenced_by' => $jobs], t('ok.zone_archived'));
+    }
+
+    // Its price rules are derived configuration, not history — they go with it.
+    $pdo->prepare("DELETE FROM pricing_rules WHERE zone_id = :z")->execute([':z' => $id]);
+    $pdo->prepare("DELETE FROM pricing_zones WHERE id = :id")->execute([':id' => $id]);
+    adminLog((int)$admin['id'], 'zone_delete', "zone $id ({$zone['name']})");
+    successResponse(['archived' => false], t('ok.zone_removed'));
+}
+
 // ═══ MANUAL PRICE OVERRIDE FOR A MARKET ══════════════════════════════════════
 // Always with an expiry. An override set during a storm and forgotten will
 // quietly wreck conversion for months, and nobody will connect the two.
