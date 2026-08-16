@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816h">
+<link rel="manifest" href="manifest.json?v=20260816i">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -417,6 +417,41 @@ legend{
 
 /* rate sheet */
 .rates{margin:14px 0 6px}
+/* ── Company documents ─────────────────────────────────────────────────────
+   The join page has its own copy of this on a light background. This is the
+   dark-dashboard version; the mobile wrap is the same lesson learned there —
+   the date box has a large intrinsic width and will crush the label unless it
+   is given its own line. */
+.docs{margin:14px 0 4px}
+.docrow{display:flex;flex-wrap:wrap;align-items:center;gap:11px;
+  padding:13px 0;border-top:1px solid var(--line)}
+.docrow:first-child{border-top:none}
+.docrow .dmark{width:22px;height:22px;border-radius:50%;flex:none;
+  border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:800;color:var(--ink-faint)}
+.docrow.have .dmark{background:var(--green-dim);border-color:var(--green);color:#fff}
+.docrow.bad .dmark{background:#3b1515;border-color:var(--red);color:#fff}
+.docrow .dinfo{flex:1 1 140px;min-width:140px}
+.docrow .dinfo b{display:block;font-size:14px;font-weight:700}
+.docrow .dinfo small{font-size:12.5px;display:block;margin-top:2px;line-height:1.45}
+.d-ok{color:var(--green)} .d-bad{color:var(--red)}
+.d-pend{color:var(--amber)} .d-miss{color:var(--ink-faint)}
+.docrow .dexp{order:3;flex:1 1 100%;margin-left:33px;box-sizing:border-box;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:8px 10px;color:var(--ink);font-size:13px}
+.dbtn{display:inline-block;background:var(--panel-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:8px;padding:9px 14px;font-size:13px;
+  font-weight:700;cursor:pointer;flex:none}
+.dbtn:hover{border-color:var(--accent)}
+.dstatus{margin-top:16px;padding:12px 14px;border-radius:8px;
+  background:#241d0d;border:1px solid #7c5a10;color:#f0c674;font-size:13px;line-height:1.55}
+.dstatus.go{background:#0f2417;border-color:var(--green-dim);color:#7ee2a0}
+.notice-fix{display:inline-block;margin-left:8px;font-weight:700;color:var(--accent);
+  text-decoration:underline;white-space:nowrap}
+@media (min-width:560px){
+  .docrow .dexp{order:0;flex:0 0 auto;margin-left:0;width:auto}
+}
+
 .rate-row{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px;
   padding:11px 0;border-bottom:1px solid var(--line)}
 .rate-row:last-child{border-bottom:none}
@@ -490,6 +525,7 @@ legend{
   <div class="cards" id="list"></div>
   <div id="alertsPane" class="hide"></div>
   <div id="ratesPane" class="hide"></div>
+  <div id="docsPane" class="hide"></div>
 </main>
 </div>
 
@@ -599,7 +635,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816h"></script>
+<script src="i18n.js?v=20260816i"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -672,7 +708,7 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button>`
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button><button class="tab" data-v="docs">${t('o.docs')}</button>`
     : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
@@ -790,6 +826,113 @@ async function refreshWallet(){
    for "what you charge" and pay them less than that and every job gets
    declined by people who think they were misled.
    ──────────────────────────────────────────────────────────────── */
+// ═══ DOCUMENTS ═══════════════════════════════════════════════════════════════
+// The same checklist as signup, but this one also has to answer the questions
+// an operator asks LATER: has it been looked at, was it rejected and why, and
+// when does my insurance run out. Signup only ever had to say "missing".
+async function renderDocsPane(){
+  const pane = document.getElementById('docsPane');
+  if(!pane) return;
+  pane.innerHTML = `<div class="empty">${t('o.loading')}</div>`;
+
+  const r = await api('/docs/mine');
+  if(!r.success){ pane.innerHTML = `<div class="empty"><p>${esc(r.error||'')}</p></div>`; return; }
+
+  const today = new Date().toISOString().slice(0,10);
+  const list  = r.checklist || [];
+  const allIn = list.length > 0 && list.every(c => c.uploaded);
+
+  const statusLine = c => {
+    if(!c.uploaded) return `<small class="d-miss">${t('d.missing')}</small>`;
+    if(c.status === 'rejected')
+      return `<small class="d-bad">${t('d.rejected')}${c.notes ? ' — ' + esc(c.notes) : ''}</small>`;
+    // An expiry in the past is why a working company suddenly cannot accept a
+    // job, and it is invisible unless the date is on the screen.
+    if(c.expires_at && c.expires_at < today)
+      return `<small class="d-bad">${t('d.expired', {date: fmtDate(c.expires_at)})}</small>`;
+    if(c.status === 'approved')
+      return `<small class="d-ok">${t('d.approved')}${c.expires_at ? ' · ' + t('d.expires', {date: fmtDate(c.expires_at)}) : ''}</small>`;
+    return `<small class="d-pend">${t('d.pending')}</small>`;
+  };
+
+  const mark = c => {
+    if(!c.uploaded) return '';
+    if(c.status === 'rejected' || (c.expires_at && c.expires_at < today)) return '!';
+    if(c.status === 'approved') return '✓';
+    return '·';
+  };
+
+  pane.innerHTML = `
+    <div class="pane">
+      <div class="pane-h"><h3>${t('d.h')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('d.sub')}</p>
+        ${r.rejection_reason ? `<div class="notice warn"><b>${t('d.acct_rejected')}</b> ${esc(r.rejection_reason)}</div>` : ''}
+        <div class="docs">
+          ${list.map(c => `
+            <div class="docrow ${c.uploaded ? 'have' : ''} ${c.status === 'rejected' ? 'bad' : ''}">
+              <div class="dmark">${mark(c)}</div>
+              <div class="dinfo"><b>${esc(c.label)}</b>${statusLine(c)}</div>
+              ${c.doc_type.startsWith('coi')
+                ? `<input type="date" class="dexp" id="dexp_${esc(c.doc_type)}"
+                          value="${esc(c.expires_at || '')}" title="${t('d.expiry_hint')}">` : ''}
+              <label class="dbtn">
+                ${c.uploaded ? t('d.replace') : t('d.upload')}
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" style="display:none"
+                       onchange="uploadMyDoc('${esc(c.doc_type)}', this)">
+              </label>
+            </div>`).join('')}
+        </div>
+        <div id="docsMsg" class="push-fine"></div>
+        <div class="dstatus ${allIn ? 'go' : ''}">${allIn ? t('d.all_in') : t('d.waiting')}</div>
+      </div>
+    </div>`;
+}
+
+function fmtDate(d){
+  try { return new Date(d + 'T00:00:00').toLocaleDateString(tlLang() === 'es' ? 'es-US' : 'en-US',
+        {year:'numeric', month:'short', day:'numeric'}); }
+  catch(e){ return d; }
+}
+
+async function uploadMyDoc(docType, input){
+  const file = input.files[0];
+  if(!file) return;
+  const msg = document.getElementById('docsMsg');
+  msg.textContent = '';
+
+  const expEl = document.getElementById('dexp_' + docType);
+  if(docType.startsWith('coi') && expEl && !expEl.value){
+    input.value = '';
+    msg.innerHTML = `<span class="d-bad">${t('d.err_expiry')}</span>`;
+    return;
+  }
+
+  const fd = new FormData();
+  fd.append('doc_type', docType);
+  fd.append('file', file);
+  if(expEl && expEl.value) fd.append('expires_at', expEl.value);
+
+  msg.textContent = t('d.uploading');
+  // No Content-Type header on purpose — the browser must set the multipart
+  // boundary itself, and setting it by hand silently breaks the upload.
+  const r = await fetch(API + '/docs/upload?lang=' + tlLang(), {
+    method:'POST',
+    headers:{'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN},
+    body:fd
+  }).then(x => x.json()).catch(() => ({success:false, error:t('d.err_upload')}));
+
+  input.value = '';
+  if(!r.success){ msg.innerHTML = `<span class="d-bad">${esc(r.error||'')}</span>`; return; }
+
+  // Re-read rather than patch the row: the server decides the new status, and
+  // uploading a replacement can reset an approved document to pending.
+  renderDocsPane();
+  // The blocker banner is computed from these documents, so it has to be
+  // recomputed too or it keeps saying "cannot accept jobs" after the fix.
+  load();
+}
+
 async function renderRatesPane(){
   const pane = document.getElementById('ratesPane');
   if(!pane) return;
@@ -863,6 +1006,25 @@ function switchView(v){
   const pane = document.getElementById('alertsPane');
   const rpane = document.getElementById('ratesPane');
   const list = document.getElementById('list');
+
+  const dpane = document.getElementById('docsPane');
+
+  // Documents. This screen did not exist: the only place a company could ever
+  // upload its paperwork was the signup page, immediately after registering.
+  // Anyone who skipped it, or whose insurance later expired, was told "cannot
+  // accept jobs" with nowhere to go and fix it.
+  if(v === 'docs'){
+    document.getElementById('viewTitle').textContent = t('o.docs');
+    document.getElementById('viewSub').textContent = '';
+    f.innerHTML = '';
+    list.classList.add('hide');
+    pane.classList.add('hide');
+    rpane.classList.add('hide');
+    dpane.classList.remove('hide');
+    renderDocsPane();
+    return;
+  }
+  dpane.classList.add('hide');
 
   // Rates is a form, not a list of jobs — same treatment as Alerts.
   if(v === 'rates'){
@@ -946,7 +1108,11 @@ async function load(){
 function renderNotices(res){
   const n = document.getElementById('notices');
   n.innerHTML = (res.can_accept === false && res.blocked_reason)
-    ? `<div class="notice warn"><b>${t('o.cannot_accept')}</b> ${res.blocked_reason}</div>` : '';
+    // A blocker that names a problem with no route to the fix is a dead end.
+    // Every reason this fires is a document, so it links to the documents tab.
+    ? `<div class="notice warn"><b>${t('o.cannot_accept')}</b> ${res.blocked_reason}
+         <a href="#" class="notice-fix" onclick="switchView('docs');return false">${t('o.fix_docs')}</a>
+       </div>` : '';
 }
 
 // Which price breakdowns the operator has open. Survives a redraw, because
@@ -1218,9 +1384,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816h"></script>
-<script src="realtime.js?v=20260816h"></script>
-<script src="driver.js?v=20260816h"></script>
+<script src="push.js?v=20260816i"></script>
+<script src="realtime.js?v=20260816i"></script>
+<script src="driver.js?v=20260816i"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

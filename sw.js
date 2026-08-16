@@ -16,7 +16,7 @@
 // Bumped whenever a shell file changes. The activate handler deletes every
 // cache that is not this one, so a bump is how a stale copy inside the service
 // worker gets thrown away — the browser cache is only half the problem.
-const CACHE_VERSION = 'towsling-v20260816c';
+const CACHE_VERSION = 'towsling-v20260816d';
 // Deliberately short. Everything here risks being served from a previous
 // deploy, and the translations in particular caused a page to print a raw key
 // on screen when they fell behind the HTML that referenced it.
