@@ -286,6 +286,20 @@ input::placeholder{color:#aab4c4}
    handed to the Maps API rather than HTML, which is why .truck-dot/.pin-dot
    above are no longer used by the tracking map. */
 
+/* Confirmation after a cancelled request. Green rather than the error red the
+   rest of this page uses for banners: nothing went wrong, the customer got
+   what they asked for. */
+.okbar{
+  background:#e9f9ee;border:1px solid #a8e0bb;color:#14532d;
+  border-radius:12px;padding:14px 16px;margin-bottom:18px;
+  font-size:14.5px;font-weight:600;line-height:1.5;
+  display:flex;align-items:flex-start;gap:10px;
+}
+.okbar .tick{
+  flex:none;width:20px;height:20px;border-radius:50%;background:#16a34a;color:#fff;
+  display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px;
+}
+
 /* ── tracking ──────────────────────────────────────────── */
 .track-status{text-align:center;padding:26px 10px}
 .track-status .big{font-size:23px;font-weight:750;letter-spacing:-.5px;margin-bottom:7px}
@@ -424,6 +438,9 @@ input::placeholder{color:#aab4c4}
 
 <div class="wrap">
 
+  <!-- Shown after a cancellation, on a fresh load of the booking page. -->
+  <div class="okbar hide" id="okBar"></div>
+
   <!-- ═══ HERO ═══ -->
   <div class="hero" id="hero">
     <h1><span data-i18n="c.hero_1">Need a tow?</span><br><span data-i18n="c.hero_2">We'll sling one your way.</span></h1>
@@ -515,6 +532,7 @@ input::placeholder{color:#aab4c4}
           <option value="flat_tire"    data-i18n="c.pr_flat">Flat tire</option>
           <option value="transmission" data-i18n="c.pr_transmission">Will not go into gear</option>
           <option value="wont_move"    data-i18n="c.pr_wont_move">Runs but will not move</option>
+          <option value="junk"         data-i18n="c.pr_junk">Junk / scrap vehicle</option>
           <option value="other"        data-i18n="c.pr_other">Something else</option>
         </select>
       </div>
@@ -1473,8 +1491,29 @@ function paintEta(etaMinutes, stale){
 async function cancelJob(){
   if(!confirm(t('c.cancel_confirm'))) return;
   const r = await api('/consumer/cancel', {method:'POST', body:JSON.stringify({token:S.token})});
-  alert(r.success ? r.message : r.error);
-  poll();
+  if(!r.success){ alert(r.error); return poll(); }
+
+  // The SERVER's sentence, carried across the reload — not a fixed one.
+  //
+  // Cancelling is free right up until a driver is rolling; after that the
+  // call-out fee applies, because he has burned fuel getting there. A hardcoded
+  // "you have not been charged" would be a lie in exactly the case where the
+  // customer's card really was charged, and money is the last thing to be
+  // casual about. r.message already says whichever of the two happened.
+  try { sessionStorage.setItem('tl_canceled', r.message || ''); } catch(e){}
+
+  // Back to the start with a plain reload rather than by hiding cards.
+  //
+  // Cancelling used to leave them sat on the tracking screen: a dead progress
+  // list where nothing would ever tick again, under the word "Canceled", with
+  // the full price still printed at the bottom — which reads like a bill for a
+  // truck that never came. It also kept polling and kept the ?job= link in the
+  // address bar, so reopening the page put them straight back on it.
+  //
+  // The reload is deliberate. It clears the timers, the socket and every bit of
+  // state in one go; unpicking those by hand is how a cancelled job ends up
+  // still quietly polling in the background.
+  location.replace('./?canceled=1');
 }
 
 /* Returning to a link whose job never got past the card screen. Showing the
@@ -1501,7 +1540,28 @@ async function resumeJob(){
 // address the browser holds — so location.search was empty and the page showed a
 // fresh booking form to a customer whose tow was already on its way. That is the
 // link texted to them as their receipt. Read the path too.
-const existing = new URLSearchParams(location.search).get('job')
+const params = new URLSearchParams(location.search);
+
+if(params.get('canceled') === '1'){
+  let msg = '';
+  try {
+    msg = sessionStorage.getItem('tl_canceled') || '';
+    // Read once. Otherwise every later visit in this tab re-announces a
+    // cancellation from hours ago.
+    sessionStorage.removeItem('tl_canceled');
+  } catch(e){}
+
+  const bar = $('okBar');
+  bar.innerHTML = '<span class="tick">&#10003;</span><span></span>';
+  // textContent, not innerHTML: this string came back over the network, and
+  // the banner sits at the top of the page every customer lands on.
+  bar.querySelector('span:last-child').textContent = msg || t('c.cancel_done');
+  bar.classList.remove('hide');
+  // Drop the flag so a refresh, or a bookmark, does not keep announcing it.
+  history.replaceState({}, '', './');
+}
+
+const existing = params.get('job')
               || (location.pathname.match(/\/track\/([a-f0-9]{32})/) || [])[1];
 if(existing && /^[a-f0-9]{32}$/.test(existing)){
   S.token = existing;

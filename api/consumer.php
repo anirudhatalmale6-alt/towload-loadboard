@@ -69,7 +69,7 @@ function readQuoteToken(?string $token): ?array {
  */
 const VEHICLE_PROBLEMS = [
     'wont_start', 'overheated', 'accident', 'flat_tire',
-    'transmission', 'wont_move', 'other',
+    'transmission', 'wont_move', 'junk', 'other',
 ];
 
 function cleanProblem($raw): ?string {
