@@ -1,17 +1,36 @@
 <!DOCTYPE html>
-<html lang="es" data-i18n-title="title.operator">
+<html lang="en" data-i18n-title="title.operator" data-i18n-desc="desc.operator">
 <head>
 <meta charset="utf-8">
 <!-- viewport-fit=cover + the safe-area padding below keeps the header clear of
      the notch once this is running full screen from the Home Screen. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>TowSling — Trabajos para operadores de grúa</title>
+<title>TowSling — Jobs for towing operators</title>
+<meta name="description" content="Sign in to your TowSling dashboard: available jobs near you, your rates, your documents and your payouts.">
+<!-- Link previews: Facebook, WhatsApp, LinkedIn and X read these and never
+     run the language switcher, so they are static English. -->
+<meta property="og:site_name" content="TowSling">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://towsling.com/tow">
+<meta property="og:title" content="TowSling — Jobs for towing operators">
+<meta property="og:description" content="Sign in to your TowSling dashboard: available jobs near you, your rates, your documents and your payouts.">
+<meta property="og:image" content="https://towsling.com/icons/share-operator.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="es_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TowSling — Jobs for towing operators">
+<meta name="twitter:description" content="Sign in to your TowSling dashboard: available jobs near you, your rates, your documents and your payouts.">
+<meta name="twitter:image" content="https://towsling.com/icons/share-operator.png">
+<link rel="canonical" href="https://towsling.com/tow">
+
 
 <!-- ─── Installable app ──────────────────────────────────────────────────
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816r">
+<link rel="manifest" href="manifest.json?v=20260816s">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -790,9 +809,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816r"></script>
-<script src="presence.js?v=20260816r" defer></script>
-<script src="places.js?v=20260816r"></script>
+<script src="i18n.js?v=20260816s"></script>
+<script src="presence.js?v=20260816s" defer></script>
+<script src="places.js?v=20260816s"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2304,9 +2323,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816r"></script>
-<script src="realtime.js?v=20260816r"></script>
-<script src="driver.js?v=20260816r"></script>
+<script src="push.js?v=20260816s"></script>
+<script src="realtime.js?v=20260816s"></script>
+<script src="driver.js?v=20260816s"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

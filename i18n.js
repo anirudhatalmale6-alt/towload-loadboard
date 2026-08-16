@@ -20,7 +20,7 @@ es: {
   /* Page titles + meta descriptions. Applied from data-i18n-title /
      data-i18n-desc on <html>. */
   'title.support':       'Soporte — TowSling',
-  'desc.support':        'Ayuda con su servicio de grúa. Escríbanos y le respondemos por correo.',
+  'desc.support':        'Ayuda con su servicio de grúa. Escríbanos y le respondemos por correo — sin necesidad de cuenta.',
   'title.connect':       'Conectando su banco — TowSling',
 
   'sup.h':               'Soporte',
@@ -78,6 +78,8 @@ es: {
   'title.join':          'Trabajos de grúa pagados — TowSling para operadores',
   'desc.join':           'Trabajos de grúa reales directo a su teléfono. Cada trabajo está pagado antes de que usted lo vea. Quédese con el 90% — sin mensualidad, sin cargos por contacto, sin subastas.',
   'title.terms':         'Términos de Servicio — TowSling',
+  'desc.operator':       'Entre a su panel de TowSling: trabajos disponibles cerca, sus tarifas, sus documentos y sus pagos.',
+  'desc.terms':          'Los términos que aplican cuando pide una grúa por TowSling, o cuando trabaja como compañía de grúas en la plataforma.',
 
   'brand.tagline':       'La grúa que necesita, cuando la necesita',
   'nav.operator_login':  'Entrar operadores →',
@@ -671,7 +673,7 @@ en: {
   'lang.other':          'Español',
 
   'title.support':       'Support — TowSling',
-  'desc.support':        'Help with your tow. Write to us and we will reply by email.',
+  'desc.support':        'Help with your tow. Write to us and we will reply by email — no account needed.',
   'title.connect':       'Connecting your bank — TowSling',
 
   'sup.h':               'Support',
@@ -729,6 +731,8 @@ en: {
   'title.join':          'Paid towing jobs — TowSling for operators',
   'desc.join':           'Real towing jobs straight to your phone. Every job is paid for before you see it. Keep 90% — no monthly fee, no lead charges, no auctions.',
   'title.terms':         'Terms of Service — TowSling',
+  'desc.operator':       'Sign in to your TowSling dashboard: available jobs near you, your rates, your documents and your payouts.',
+  'desc.terms':          'The terms that apply when you request a tow through TowSling, or work as a towing company on the platform.',
   'brand.tagline':       'The tow you need, when you need it',
   'nav.operator_login':  'Operator login →',
   'nav.signout':         'Sign out',
