@@ -449,7 +449,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816b';
+  var v = '?v=20260816c';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
 })();
@@ -501,7 +501,6 @@ document.querySelectorAll('.yn').forEach(g => g.addEventListener('click', e => {
 // ── location ────────────────────────────────────────────
 // Real geocoding gets wired to the address box; until then the typed address is
 // carried through and the coordinates come from GPS or the market centre.
-const MIAMI = {lat:25.7617, lng:-80.1918};
 function useGPS(){
   if(!navigator.geolocation) return err(t('c.err_gps_none'));
   $('gpsBtn').textContent = t('c.gps_finding');
@@ -516,17 +515,38 @@ function useGPS(){
 async function getQuote(){
   clearErr();
   if(!$('pickup').value.trim()) { go(2); return err(t('c.err_where')); }
-  const pk = S.pickup || MIAMI;
+
+  // No position, no quote. This used to fall back to downtown Miami when GPS
+  // was denied or unavailable, which is the worst kind of bug: it succeeds.
+  // A customer in Orlando who declines the location prompt got a Miami price,
+  // and the job went on the board at Miami coordinates — so the distance, the
+  // ETA and which operators were even alerted were all about a city they are
+  // not in, while the address they typed sat in the description looking right.
+  //
+  // Once the typed address is geocoded this branch stops being reachable for
+  // anyone who can type where they are. Until then, refusing is the only
+  // honest answer, and it routes to the callback form rather than a dead end.
+  if(!S.pickup){
+    go(2);
+    return err(t('c.err_need_position'));
+  }
+  const pk = S.pickup;
   const body = {
     service_type:S.svc, vehicle_class:S.cls,
     pickup_lat:pk.lat, pickup_lng:pk.lng,
     is_accident:!!S.accident, wheels_lock:!!S.wheels, has_keys:true
   };
-  if(S.svc === 'tow' && $('dropoff').value.trim()){
-    // Destination distance comes from geocoding in the live build; a typical
-    // in-county drop is used until that is wired.
-    body.dropoff_lat = 25.8576; body.dropoff_lng = -80.2781;
-  }
+  // The destination is deliberately NOT sent until the typed address can be
+  // geocoded. It used to send one fixed point in Miami as a stand-in for "a
+  // typical in-county drop". That was survivable only while every pickup also
+  // defaulted to Miami. With pickups now required to be real, the same fixed
+  // point would price a tow from Orlando as a 200-mile haul — a stand-in that
+  // was quietly wrong became loudly wrong the moment the other bug was fixed.
+  //
+  // Sending nothing prices the standard tow, which already includes the first
+  // few miles, so the effect is that long tows are under-charged rather than
+  // invented. Wrong in the direction that costs us rather than the customer,
+  // and only until the maps key is in.
   $('quoteBtn').textContent = t('c.getting_price'); $('quoteBtn').disabled = true;
   const r = await api('/consumer/quote', {method:'POST', body:JSON.stringify(body)});
   $('quoteBtn').textContent = t('c.see_price'); $('quoteBtn').disabled = false;
@@ -558,12 +578,14 @@ function showNoCoverage(r){
 async function saveLead(){
   const phone = $('lPhone').value.trim();
   if(phone.replace(/\D/g,'').length < 10) return alert(t('c.err_phone'));
-  const pk = S.pickup || MIAMI;
+  // A lead with no position is still a lead worth having; a lead filed at a
+  // pretend position is a recruiting decision made on a bad map.
+  const pk = S.pickup;
   $('leadBtn').disabled = true;
   const r = await api('/consumer/lead', {method:'POST', body:JSON.stringify({
     kind:'customer', name:$('cName').value.trim() || null, phone,
     service_type:S.svc, pickup_address:$('pickup').value.trim(),
-    pickup_lat:pk.lat, pickup_lng:pk.lng,
+    pickup_lat:pk ? pk.lat : null, pickup_lng:pk ? pk.lng : null,
     utm_source:new URLSearchParams(location.search).get('utm_source') || 'direct'
   })});
   $('leadBtn').disabled = false;
@@ -580,10 +602,16 @@ async function submitRequest(){
   if(phone.replace(/\D/g,'').length < 10) return err(t('c.err_phone'));
   if(!$('cTerms').checked) return err(t('c.err_terms'));
 
-  const pk = S.pickup || MIAMI;
+  if(!S.pickup) { go(2); return err(t('c.err_need_position')); }
+  const pk = S.pickup;
   const body = {
     service_type:S.svc, vehicle_class:S.cls,
-    pickup_address:$('pickup').value.trim(), pickup_city:'Miami', pickup_state:'FL',
+    // City and state are left out rather than asserted. Every booking used
+    // to be filed as Miami, FL whoever made it — and the state is what a
+    // statewide zone matches on, so a wrong one grants coverage in a market
+    // the customer is not in. The server fills it from the network when it
+    // can, and null is fine: the city zones resolve on coordinates.
+    pickup_address:$('pickup').value.trim(),
     pickup_lat:pk.lat, pickup_lng:pk.lng,
     customer_name:name, customer_phone:phone, customer_email:$('cEmail').value.trim(),
     is_accident:!!S.accident, wheels_lock:!!S.wheels, has_keys:true,

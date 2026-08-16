@@ -82,21 +82,4 @@ function getLegalDoc(string $docKey, ?string $locale = null): ?array {
     return $stmt->fetch() ?: null;
 }
 
-/**
- * The real client address, taking the proxy header only when it is present —
- * DreamHost sits behind a load balancer and REMOTE_ADDR alone would record the
- * same internal address for every acceptance, which is exactly as useless as
- * recording nothing.
- */
-function clientIp(): string {
-    $candidates = [
-        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null,
-        isset($_SERVER['HTTP_X_FORWARDED_FOR'])
-            ? trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]) : null,
-        $_SERVER['REMOTE_ADDR'] ?? null,
-    ];
-    foreach ($candidates as $ip) {
-        if ($ip && filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
-    }
-    return '0.0.0.0';
-}
+// clientIp() now lives in helpers.php — see the note there.

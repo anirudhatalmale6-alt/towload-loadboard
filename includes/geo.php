@@ -100,17 +100,7 @@ function geoFromProvider(string $ip): ?array {
     return $geo;
 }
 
-function clientIp(): string {
-    foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_REAL_IP'] as $h) {
-        if (!empty($_SERVER[$h])) return (string)$_SERVER[$h];
-    }
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        // First entry is the client; the rest are proxies, and anything after
-        // the first is not ours to trust.
-        return trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
-    }
-    return (string)($_SERVER['REMOTE_ADDR'] ?? '');
-}
+// clientIp() now lives in helpers.php — see the note there.
 
 function geoIsSpanishArea(?array $geo): bool {
     if (!$geo) return false;
@@ -127,6 +117,32 @@ function geoIsSpanishArea(?array $geo): bool {
         if (str_contains($rArea, (string)($geo['city'] ?? '~')) && !empty($geo['city'])) return true;
     }
     return false;
+}
+
+/**
+ * The state a pickup is in.
+ *
+ * The booking page used to assert 'FL' and 'Miami' on every single request,
+ * whoever was asking and wherever they were. That is worse than not knowing:
+ * a statewide zone is matched on this string, so a wrong one hands somebody
+ * coverage and a price for a market they are not in.
+ *
+ * Order matters. What the caller states wins, because on the pages where it is
+ * sent it came from the customer. Otherwise fall back to the network's idea of
+ * where they are — coarse, but a stranded motorist is on a phone within the
+ * same region as their carrier's exit, and being roughly right beats being
+ * confidently wrong. Null is a perfectly good answer: circle zones resolve on
+ * coordinates alone and do not need this at all.
+ *
+ * Becomes redundant once the typed address is geocoded, which yields the real
+ * state along with the coordinates.
+ */
+function pickupState(array $in, string $key = 'pickup_state'): ?string {
+    if (!empty($in[$key])) return strtoupper(substr((string)$in[$key], 0, 2));
+
+    $geo = geoFromHeaders() ?: geoFromProvider(clientIp());
+    $s = $geo['state'] ?? null;
+    return $s ? strtoupper(substr((string)$s, 0, 2)) : null;
 }
 
 /**

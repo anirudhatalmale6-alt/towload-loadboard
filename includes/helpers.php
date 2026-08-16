@@ -339,3 +339,36 @@ function maskName(?string $name): string {
     if (count($parts) > 1) $out .= ' ' . strtoupper(substr(end($parts), 0, 1)) . '.';
     return $out;
 }
+
+/**
+ * The real client address.
+ *
+ * Lived in BOTH geo.php and legal.php, in two different versions, and neither
+ * knew about the other because no single request had ever loaded both files.
+ * The first one that did died on "Cannot redeclare function clientIp()" — a
+ * fatal that had been sitting there since both were written, waiting for an
+ * include to be added anywhere.
+ *
+ * The merged version keeps what each got right: geo.php also read X-Real-IP,
+ * and legal.php validated the result. Validation matters most where it is used
+ * as evidence — the address recorded against a terms acceptance is only worth
+ * having if it is an address.
+ *
+ * DreamHost sits behind a load balancer, so REMOTE_ADDR alone records the same
+ * internal address for every visitor: as useless as recording nothing.
+ */
+function clientIp(): string {
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? null,
+        $_SERVER['HTTP_X_REAL_IP'] ?? null,
+        // First entry is the client; everything after it is a proxy and is not
+        // ours to trust.
+        isset($_SERVER['HTTP_X_FORWARDED_FOR'])
+            ? trim(explode(',', (string)$_SERVER['HTTP_X_FORWARDED_FOR'])[0]) : null,
+        $_SERVER['REMOTE_ADDR'] ?? null,
+    ];
+    foreach ($candidates as $ip) {
+        if ($ip && filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+    }
+    return '0.0.0.0';
+}

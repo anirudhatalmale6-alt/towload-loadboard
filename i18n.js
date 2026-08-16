@@ -109,8 +109,12 @@ es: {
   'c.err_name':          'Ponga su nombre para que el operador sepa a quién buscar.',
   'c.err_phone':         'Ponga un celular válido — el operador lo va a llamar.',
   'c.err_where':         'Necesitamos saber dónde está.',
-  'c.err_gps':           'No pudimos obtener su ubicación. Escriba la dirección.',
-  'c.err_gps_none':      'Su navegador no comparte la ubicación. Escriba la dirección.',
+  // Estos textos decían "escriba la dirección", que era falso: la dirección
+  // escrita todavía no se convierte en coordenadas, así que seguir ese consejo
+  // no lograba nada. Dicen lo que de verdad resuelve el problema.
+  'c.err_gps':           'No pudimos obtener su ubicación. Actívela en los ajustes de su navegador e inténtelo otra vez.',
+  'c.err_gps_none':      'Su navegador no comparte la ubicación. Ábralo en Safari o Chrome, o llámenos.',
+  'c.err_need_position': 'Necesitamos su ubicación para mandar la grúa al lugar exacto. Toque "Usar mi ubicación" y acepte el permiso.',
 
   /* consumer — tracking */
   'c.finding':           'Buscando una grúa',
@@ -458,8 +462,9 @@ en: {
   'c.err_name':          'Please enter your name so the driver knows who to look for.',
   'c.err_phone':         'Please enter a valid mobile number — the driver will call you.',
   'c.err_where':         'We need to know where you are.',
-  'c.err_gps':           'Could not get your location. Type the address instead.',
-  'c.err_gps_none':      'Your browser will not share location. Type the address instead.',
+  'c.err_gps':           'Could not get your location. Turn it on in your browser settings and try again.',
+  'c.err_gps_none':      'Your browser will not share your location. Open this in Safari or Chrome, or call us.',
+  'c.err_need_position': 'We need your location to send the truck to the right spot. Tap "Use my location" and allow it.',
 
   'c.finding':           'Finding you a truck',
   'c.finding_sub':       'Sending your job to nearby drivers…',

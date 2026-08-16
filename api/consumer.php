@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/pricing.php';
 require_once __DIR__ . '/../includes/zones.php';
+require_once __DIR__ . '/../includes/geo.php';   // pickupState()
 require_once __DIR__ . '/../includes/surge.php';
 require_once __DIR__ . '/../includes/legal.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
@@ -100,7 +101,7 @@ function normaliseJobOpts(array $in, float $lat, float $lng): array {
         'is_underground' => !empty($in['is_underground']),
         'lat'            => $lat,
         'lng'            => $lng,
-        'state'          => !empty($in['pickup_state']) ? strtoupper(substr($in['pickup_state'], 0, 2)) : null,
+        'state'          => pickupState($in),
     ];
 }
 
@@ -112,7 +113,7 @@ if ($action === 'quote') {
     $lng = isset($in['pickup_lng']) ? (float)$in['pickup_lng'] : null;
     if ($lat === null || $lng === null) errorResponse(t('err.need_location'));
 
-    $coverage = coverageAt($lat, $lng, $in['pickup_state'] ?? null);
+    $coverage = coverageAt($lat, $lng, pickupState($in));
 
     // No truck in range. Say so plainly and do not quote a price we cannot
     // honour — a price followed by silence is what produces a chargeback and a
@@ -170,7 +171,7 @@ if ($method === 'POST' && $action === 'request') {
     $lat = (float)$in['pickup_lat'];
     $lng = (float)$in['pickup_lng'];
 
-    $coverage = coverageAt($lat, $lng, $in['pickup_state'] ?? null);
+    $coverage = coverageAt($lat, $lng, pickupState($in));
     if (!$coverage['covered']) {
         // Capture the lead rather than dropping the click on the floor.
         saveCoverageLead($in, $lat, $lng, $coverage['trucks']);
@@ -227,7 +228,7 @@ if ($method === 'POST' && $action === 'request') {
                 ':s' => uniqueSlug('cust-' . substr($phone, -4) . '-' . bin2hex(random_bytes(3))),
                 ':e' => $in['customer_email'] ?? null, ':p' => $phone,
                 ':c' => $in['pickup_city'] ?? null,
-                ':st' => !empty($in['pickup_state']) ? strtoupper(substr($in['pickup_state'], 0, 2)) : null,
+                ':st' => pickupState($in),
                 ':lat' => $lat, ':lng' => $lng,
             ]);
             $consumerId = (int)$pdo->lastInsertId();
@@ -374,8 +375,10 @@ function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks): voi
             ':s'   => $in['service_type'] ?? null,
             ':addr'=> $in['pickup_address'] ?? null,
             ':c'   => $in['pickup_city'] ?? $in['city'] ?? null,
-            ':st'  => !empty($in['pickup_state']) ? strtoupper(substr($in['pickup_state'], 0, 2))
-                        : (!empty($in['state']) ? strtoupper(substr($in['state'], 0, 2)) : null),
+            // Worth getting right even here. Leads are the list that decides
+            // which market gets switched on next, and a lead filed under the
+            // wrong state is an argument for opening the wrong city.
+            ':st'  => pickupState($in) ?? pickupState($in, 'state'),
             ':z'   => $in['pickup_zip'] ?? $in['zip'] ?? null,
             ':lat' => $lat, ':lng' => $lng, ':tn' => $trucks,
             ':utm' => $in['utm_source'] ?? null, ':lang' => currentLang(),
