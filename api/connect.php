@@ -111,11 +111,22 @@ if ($method === 'POST' && $action === 'dashboard') {
 // separate sweep so a Stripe outage never blocks a driver closing a job.
 if ($action === 'process-payouts') {
     $pdo = getDB();
+
+    // In manual mode the balance belongs to the towing company until they ask
+    // for it. If this sweep still ran, it would pay every job out within the
+    // hour and the "available balance" they are being shown would be
+    // permanently zero — the withdraw button would never have anything to do.
+    if ((string)setting('payout_mode', 'manual') !== 'auto') {
+        successResponse(['skipped' => true, 'mode' => 'manual'],
+                        'Manual payout mode — companies withdraw their own balance.');
+    }
+
     $stmt = $pdo->query(
         "SELECT p.*, tp.stripe_account_id
            FROM payouts p
            JOIN tower_profiles tp ON tp.account_id = p.tower_account_id
           WHERE p.status = 'pending'
+            AND p.withdrawal_id IS NULL
             AND tp.stripe_payouts_enabled = 1
             AND tp.stripe_account_id IS NOT NULL
           ORDER BY p.id ASC LIMIT 100"

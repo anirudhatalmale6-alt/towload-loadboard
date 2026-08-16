@@ -162,7 +162,8 @@ if ($method === 'POST' && $action === 'login') {
     }
 
     $stmt = getDB()->prepare(
-        "SELECT u.*, a.account_type, a.name AS account_name, a.verification_status, a.is_active AS account_active
+        "SELECT u.*, a.account_type, a.name AS account_name, a.verification_status,
+                a.is_active AS account_active, a.disabled_reason, a.anonymized_at
            FROM users u JOIN accounts a ON u.account_id = a.id
           WHERE u.email = :e AND u.is_active = 1"
     );
@@ -172,7 +173,17 @@ if ($method === 'POST' && $action === 'login') {
     if (!$user || !password_verify($in['password'], $user['password_hash'])) {
         errorResponse(t('err.bad_login'), 401);
     }
-    if (!$user['account_active']) errorResponse(t('err.account_disabled'), 403);
+    // Being locked out with no reason given is how a suspended operator ends up
+    // ringing Ricardo to ask whether the site is broken. If a reason was
+    // recorded when the account was disabled, it is the message.
+    if (!$user['account_active']) {
+        errorResponse(
+            !empty($user['disabled_reason'])
+                ? t('err.account_disabled_reason', ['reason' => $user['disabled_reason']])
+                : t('err.account_disabled'),
+            403
+        );
+    }
 
     getDB()->prepare("UPDATE users SET last_login_at = NOW() WHERE id = :id")
            ->execute([':id' => $user['id']]);

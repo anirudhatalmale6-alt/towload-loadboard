@@ -5,6 +5,9 @@ require_once __DIR__ . '/../includes/market_rates.php';
 require_once __DIR__ . '/../includes/zones.php';
 require_once __DIR__ . '/../includes/surge.php';
 require_once __DIR__ . '/../includes/pricing.php';
+require_once __DIR__ . '/../includes/lifecycle.php';
+require_once __DIR__ . '/../includes/support.php';
+require_once __DIR__ . '/../includes/withdrawals.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -724,6 +727,177 @@ if ($method === 'POST' && $action === 'change-login') {
     adminLog((int)$admin['id'], 'change_login', implode(' + ', $changed));
 
     successResponse(['changed' => $changed], t('ok.login_updated'));
+}
+
+// ═══ WHAT WOULD BE DESTROYED ═════════════════════════════════════════════════
+// Always call this before offering the button. It is the only place that knows
+// a company is still owed money, or still has a truck out on a job.
+if ($method === 'GET' && $action === 'account-impact') {
+    $admin = requireAdmin();
+    $id = (int)($_GET['id'] ?? 0);
+    $impact = deletionImpact($id);
+    if (empty($impact['found'])) errorResponse(t('err.account_not_found'), 404);
+    successResponse($impact);
+}
+
+// ═══ DELETE A COMPANY ════════════════════════════════════════════════════════
+if ($method === 'POST' && $action === 'account-delete') {
+    $admin = requireAdmin();
+    $in = jsonInput();
+    $id = (int)($in['id'] ?? 0);
+
+    $impact = deletionImpact($id);
+    if (empty($impact['found'])) errorResponse(t('err.account_not_found'), 404);
+
+    // The name has to be typed. This screen can destroy a company's entire
+    // history in one request, and an id in a JSON body is far too easy to get
+    // wrong — the difference between account 13 and 16 is one keystroke, and
+    // both are called "R&M Towing & Recovery".
+    if (trim((string)($in['confirm_name'] ?? '')) !== $impact['account']['name']) {
+        errorResponse(t('err.confirm_name_mismatch', ['name' => $impact['account']['name']]), 422);
+    }
+
+    if (!$impact['can_proceed']) errorResponse(implode(' ', $impact['blockers']), 409);
+
+    $mode   = ($in['mode'] ?? '') === 'deleted' ? 'deleted' : 'anonymized';
+    $reason = !empty($in['reason']) ? (string)$in['reason'] : null;
+
+    // Erasing the money rows is possible but never the default, and it takes a
+    // second, separate acknowledgement. `has_financial_history` is true when
+    // there are completed jobs, ledger entries or payouts behind this account —
+    // deleting those does not tidy the books, it shrinks them.
+    if ($mode === 'deleted' && $impact['has_financial_history'] && empty($in['understand_records_lost'])) {
+        errorResponse(t('err.financial_history_ack', [
+            'jobs'   => $impact['counts']['completed_jobs'],
+            'ledger' => $impact['counts']['ledger_entries'],
+        ]), 422);
+    }
+
+    $res = $mode === 'deleted'
+        ? deleteAccountCompletely($id, (int)$admin['id'], $reason)
+        : anonymizeAccount($id, 'admin', (int)$admin['id'], $reason);
+
+    if (empty($res['ok'])) errorResponse($res['error'] ?? t('err.delete_failed'), 500);
+
+    adminLog((int)$admin['id'], 'account_' . $mode,
+             "#$id {$impact['account']['name']}" . ($reason ? " — $reason" : ''));
+
+    successResponse($res, $mode === 'deleted' ? t('ok.account_deleted') : t('ok.account_anonymized'));
+}
+
+// ═══ DISABLE / RE-ENABLE ═════════════════════════════════════════════════════
+if ($method === 'POST' && $action === 'account-disable') {
+    $admin = requireAdmin();
+    $in = jsonInput();
+    $id       = (int)($in['id'] ?? 0);
+    $disabled = !empty($in['disabled']);
+
+    $res = setAccountDisabled($id, $disabled, $in['reason'] ?? null, (int)$admin['id']);
+    if (empty($res['ok'])) errorResponse($res['error'], 422);
+
+    adminLog((int)$admin['id'], $disabled ? 'account_disable' : 'account_enable',
+             "#$id" . ($disabled ? ' — ' . trim((string)$in['reason']) : ''));
+
+    successResponse($res, $disabled ? t('ok.account_disabled') : t('ok.account_enabled'));
+}
+
+// ═══ WHAT HAS BEEN REMOVED ═══════════════════════════════════════════════════
+if ($method === 'GET' && $action === 'deletions') {
+    requireAdmin();
+    $rows = getDB()->query(
+        "SELECT id, account_id, account_type, account_name, account_email, mode,
+                requested_by, reason, removed_counts, created_at
+           FROM account_deletions ORDER BY id DESC LIMIT 200"
+    )->fetchAll();
+    foreach ($rows as &$r) $r['removed_counts'] = json_decode((string)$r['removed_counts'], true);
+    unset($r);
+    successResponse(['deletions' => $rows]);
+}
+
+// ═══ SUPPORT ═════════════════════════════════════════════════════════════════
+if ($method === 'GET' && $action === 'tickets') {
+    requireAdmin();
+    $status = $_GET['status'] ?? '';
+    $sql = "SELECT t.*, a.name AS account_name
+              FROM support_tickets t
+         LEFT JOIN accounts a ON a.id = t.account_id";
+    $params = [];
+    if (in_array($status, ['open','answered','closed'], true)) {
+        $sql .= " WHERE t.status = :s";
+        $params[':s'] = $status;
+    }
+    $sql .= " ORDER BY t.id DESC LIMIT 200";
+    $stmt = getDB()->prepare($sql);
+    $stmt->execute($params);
+
+    $counts = getDB()->query(
+        "SELECT status, COUNT(*) n FROM support_tickets GROUP BY status"
+    )->fetchAll();
+
+    successResponse(['tickets' => $stmt->fetchAll(), 'counts' => $counts]);
+}
+
+if ($method === 'POST' && $action === 'ticket-reply') {
+    $admin = requireAdmin();
+    $in = jsonInput();
+    $res = replyToTicket((int)($in['id'] ?? 0), (string)($in['reply'] ?? ''), (int)$admin['id']);
+    if (empty($res['ok'])) errorResponse($res['error'], 422);
+
+    adminLog((int)$admin['id'], 'ticket_reply', '#' . (int)$in['id']);
+    // Whether the email actually left is reported, not assumed — a reply that
+    // silently failed to send looks identical to one that worked.
+    successResponse($res, $res['emailed'] ? t('ok.reply_sent') : t('ok.reply_saved_not_sent'));
+}
+
+if ($method === 'POST' && $action === 'ticket-status') {
+    $admin = requireAdmin();
+    $in = jsonInput();
+    $st = in_array($in['status'] ?? '', ['open','answered','closed'], true) ? $in['status'] : 'closed';
+    getDB()->prepare("UPDATE support_tickets SET status = :s WHERE id = :id")
+           ->execute([':s' => $st, ':id' => (int)($in['id'] ?? 0)]);
+    successResponse(['status' => $st], t('ok.saved'));
+}
+
+// ═══ MONEY ═══════════════════════════════════════════════════════════════════
+if ($method === 'GET' && $action === 'finance') {
+    requireAdmin();
+    $fin = platformFinance();
+
+    $pdo = getDB();
+    // Recent movement, both directions, in one list.
+    $recent = $pdo->query(
+        "SELECT 'payout' AS kind, w.id, w.amount, w.status, w.requested_at AS at,
+                a.name AS who
+           FROM withdrawals w JOIN accounts a ON a.id = w.account_id
+          ORDER BY w.id DESC LIMIT 25"
+    )->fetchAll();
+
+    $byTower = $pdo->query(
+        "SELECT a.id, a.name,
+                COALESCE(SUM(CASE WHEN p.status='pending' AND p.withdrawal_id IS NULL
+                                  THEN p.net_amount END),0) AS owed,
+                COALESCE(SUM(CASE WHEN p.status='paid' THEN p.net_amount END),0) AS paid,
+                COALESCE(SUM(p.platform_fee),0) AS fees
+           FROM accounts a
+           JOIN payouts p ON p.tower_account_id = a.id
+          WHERE a.account_type = 'tower'
+          GROUP BY a.id, a.name
+          ORDER BY owed DESC, paid DESC LIMIT 100"
+    )->fetchAll();
+
+    successResponse(array_merge($fin, ['recent' => $recent, 'by_tower' => $byTower]));
+}
+
+if ($method === 'POST' && $action === 'platform-payout') {
+    $admin = requireAdmin();
+    $in = jsonInput();
+    $amount = round((float)($in['amount'] ?? 0), 2);
+
+    $res = platformPayout($amount, $in['note'] ?? null);
+    if (empty($res['ok'])) errorResponse($res['error'], 409);
+
+    adminLog((int)$admin['id'], 'platform_payout', '$' . number_format($amount, 2));
+    successResponse($res, t('ok.payout_queued', ['amount' => number_format($amount, 2)]));
 }
 
 errorResponse('Unknown action', 404);

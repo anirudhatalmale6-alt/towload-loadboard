@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816j">
+<link rel="manifest" href="manifest.json?v=20260816k">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -521,6 +521,62 @@ legend{
   color:var(--ink);border:1px solid var(--line);outline:none;text-align:center;
   letter-spacing:2px;font-weight:700}
 .vc-code:focus{border-color:var(--accent)}
+
+/* ── money ─────────────────────────────────────────────────────── */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
+  margin-bottom:16px}
+.mcard{background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:14px}
+.mcard span{display:block;font-size:11.5px;color:var(--ink-dim);text-transform:uppercase;
+  letter-spacing:.4px;font-weight:650}
+.mcard b{display:block;font-size:22px;font-weight:800;letter-spacing:-.6px;margin:5px 0 3px}
+.mcard small{display:block;font-size:11.5px;color:var(--ink-faint);line-height:1.45}
+/* The one number they came to see. */
+.mcard.big{border-color:var(--green-dim);background:#0f2417}
+.mcard.big b{color:#7ee2a0;font-size:29px}
+
+.mrows{display:grid}
+.mrow{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+.mrow:first-child{border-top:none}
+.mr-main{flex:1 1 auto;min-width:0}
+.mr-main b{display:block;font-size:13.5px;font-weight:700}
+.mr-main small{display:block;font-size:12px;color:var(--ink-dim);margin-top:2px}
+.mr-amt{text-align:right;flex:none}
+.mr-amt b{display:block;font-size:14.5px;font-weight:750}
+.mr-amt small{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:2px}
+.wstat{font-size:11.5px;font-weight:750;padding:3px 8px;border-radius:20px;
+  background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim)}
+.wstat.paid{background:#0f2417;border-color:var(--green-dim);color:#7ee2a0}
+.wstat.pending{background:#241d0d;border-color:#7c5a10;color:#f0c674}
+.wstat.failed{background:#3b1515;border-color:var(--red);color:#ff9b95}
+
+/* ── support ───────────────────────────────────────────────────── */
+.cf textarea{width:100%;padding:9px 11px;border-radius:7px;background:var(--panel-2);
+  color:var(--ink);border:1px solid var(--line);outline:none;resize:vertical;font:inherit}
+.cf textarea:focus{border-color:var(--accent)}
+.tickets{margin-top:16px;display:grid;gap:10px}
+.ticket{border:1px solid var(--line);border-radius:9px;padding:12px;background:var(--panel-2)}
+.tk-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:6px}
+.tk-h b{font-size:13.5px;font-weight:700;flex:1 1 auto;min-width:0}
+.tk-ref{font-size:11.5px;color:var(--ink-faint);font-family:ui-monospace,Menlo,monospace}
+.tk-st{font-size:11px;font-weight:750;padding:2px 8px;border-radius:20px;
+  background:var(--panel);border:1px solid var(--line);color:var(--ink-dim)}
+.tk-st.answered{background:#0f2417;border-color:var(--green-dim);color:#7ee2a0}
+.tk-st.open{background:#241d0d;border-color:#7c5a10;color:#f0c674}
+.tk-msg{font-size:12.5px;color:var(--ink-dim);line-height:1.55;white-space:pre-wrap}
+.tk-reply{margin-top:9px;padding:10px;border-radius:7px;background:var(--panel);
+  border-left:3px solid var(--green);font-size:12.5px;line-height:1.55;white-space:pre-wrap}
+.tk-reply b{display:block;font-size:11.5px;color:var(--green);margin-bottom:4px;
+  text-transform:uppercase;letter-spacing:.4px}
+
+/* ── closing an account ────────────────────────────────────────── */
+.danger-pane{border-color:#4a2320}
+.danger-pane .pane-h h3{color:#ff9b95}
+.cl-list{margin:8px 0 0 18px;font-size:12.5px;line-height:1.6}
+.cl-list li{margin-bottom:3px}
+.close-form{margin-top:14px;padding:14px;border:1px solid #4a2320;border-radius:9px;
+  background:#1a1112}
+.danger-btn{background:var(--red)}
+.danger-btn:hover{background:#c4443c}
 </style>
 </head>
 <body>
@@ -576,6 +632,7 @@ legend{
   <div id="ratesPane" class="hide"></div>
   <div id="docsPane" class="hide"></div>
   <div id="companyPane" class="hide"></div>
+  <div id="moneyPane" class="hide"></div>
 </main>
 </div>
 
@@ -685,7 +742,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816j"></script>
+<script src="i18n.js?v=20260816k"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -754,7 +811,7 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button><button class="tab" data-v="docs">${t('o.docs')}</button><button class="tab" data-v="company">${t('o.company')}</button>`
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button><button class="tab" data-v="docs">${t('o.docs')}</button><button class="tab" data-v="money">${t('o.money')}</button><button class="tab" data-v="company">${t('o.company')}</button>`
     : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
@@ -953,6 +1010,121 @@ function fmtDate(d){
   catch(e){ return d; }
 }
 
+/* ── money ───────────────────────────────────────────────────────
+   Earned, in escrow, on its way to the bank. */
+async function renderMoneyPane(){
+  const pane = document.getElementById('moneyPane');
+  if(!pane) return;
+  pane.innerHTML = `<div class="empty">${t('o.loading')}</div>`;
+
+  const [b, h] = await Promise.all([api('/payouts/balance'), api('/payouts/history')]);
+  if(!b.success){ pane.innerHTML = `<div class="empty"><p>${esc(b.error||'')}</p></div>`; return; }
+
+  const jobs = b.jobs || [];
+  const hist = (h.success ? h.withdrawals : []) || [];
+
+  pane.innerHTML = `
+    <div class="pane">
+      <div class="pane-h"><h3>${t('m.balance_h')}</h3></div>
+      <div class="pane-b">
+        <div class="mgrid">
+          <div class="mcard big">
+            <span>${t('m.available')}</span>
+            <b>${money(b.available)}</b>
+            <small>${t('m.available_note')}</small>
+          </div>
+          <div class="mcard">
+            <span>${t('m.in_escrow')}</span><b>${money(b.in_escrow)}</b>
+            <small>${t('m.in_escrow_note')}</small>
+          </div>
+          <div class="mcard">
+            <span>${t('m.in_transit')}</span><b>${money(b.in_transit)}</b>
+            <small>${t('m.in_transit_note')}</small>
+          </div>
+          <div class="mcard">
+            <span>${t('m.lifetime')}</span><b>${money(b.lifetime)}</b>
+            <small>${t('m.fees_paid', {amount: money(b.fees_paid)})}</small>
+          </div>
+        </div>
+
+        ${b.can_withdraw
+          ? `<button class="btn go" id="wdBtn" onclick="doWithdraw()">
+               ${t('m.withdraw', {amount: money(b.available)})}</button>`
+          : `<div class="notice warn">${(b.blockers||[]).map(esc).join(' ')}
+               ${!b.bank_ready
+                 ? `<a href="#" class="notice-fix" onclick="connectBank();return false">${t('m.connect_bank')}</a>`
+                 : ''}</div>`}
+        <div id="wdMsg" class="push-fine"></div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('m.jobs_h')} <span class="cnt">${jobs.length}</span></h3></div>
+      <div class="pane-b">
+        ${jobs.length ? `<div class="mrows">${jobs.map(j => `
+          <div class="mrow">
+            <div class="mr-main">
+              <b>${esc(j.call_number || '—')}</b>
+              <small>${esc([j.pickup_city, j.pickup_state].filter(Boolean).join(', '))}
+                ${j.completed_at ? ' · ' + fmtDate(String(j.completed_at).slice(0,10)) : ''}</small>
+            </div>
+            <div class="mr-amt">
+              <b>${money(j.net_amount)}</b>
+              <small>${t('m.after_fee', {fee: money(j.platform_fee)})}</small>
+            </div>
+          </div>`).join('')}</div>`
+        : `<div class="empty"><p>${t('m.no_jobs')}</p></div>`}
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('m.history_h')}</h3></div>
+      <div class="pane-b">
+        ${hist.length ? `<div class="mrows">${hist.map(w => `
+          <div class="mrow">
+            <div class="mr-main">
+              <b>${money(w.amount)}</b>
+              <small>${t('m.from_jobs', {n: w.job_count})} · ${fmtDate(String(w.requested_at).slice(0,10))}</small>
+            </div>
+            <div class="mr-amt">
+              <span class="wstat ${esc(w.status)}">${t('m.st_' + w.status)}</span>
+              ${w.failure_reason ? `<small class="d-bad">${esc(w.failure_reason)}</small>` : ''}
+            </div>
+          </div>`).join('')}</div>`
+        : `<div class="empty"><p>${t('m.no_withdrawals')}</p></div>`}
+      </div>
+    </div>`;
+}
+
+async function doWithdraw(){
+  const btn = document.getElementById('wdBtn');
+  const msg = document.getElementById('wdMsg');
+  if(!confirm(t('m.withdraw_confirm'))) return;
+
+  // Disabled immediately: this moves real money, and a second click while the
+  // first request is still in flight is the one thing that must not happen.
+  btn.disabled = true;
+  msg.textContent = t('m.sending');
+  msg.style.color = '';
+
+  const r = await api('/payouts/withdraw', {method:'POST', body:'{}'});
+  if(!r.success){
+    msg.textContent = r.error || '';
+    msg.style.color = 'var(--red)';
+    btn.disabled = false;
+    return;
+  }
+  await renderMoneyPane();
+  const m2 = document.getElementById('wdMsg');
+  if(m2){ m2.textContent = r.message || ''; m2.style.color = 'var(--green)'; }
+}
+
+async function connectBank(){
+  const r = await api('/connect/onboard', {method:'POST', body:'{}'});
+  if(!r.success) return alert(r.error || '');
+  if(r.url) location.href = r.url;
+}
+
 /* ── company ─────────────────────────────────────────────────────
    Details, verification, equipment, trucks. */
 let CO = null;   // last loaded overview, so the truck editor can read it back
@@ -1029,7 +1201,144 @@ async function renderCompanyPane(){
         <button class="btn ghost" onclick="editTruck(0)">${t('co.truck_add')}</button>
         <div id="truckForm"></div>
       </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('sp.h')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('sp.sub')}</p>
+        <div class="cf" style="margin-bottom:10px">
+          <span>${t('sp.subject')}</span>
+          <input id="sp_subject" placeholder="${t('sp.subject_ph')}">
+        </div>
+        <div class="cf" style="margin-bottom:10px">
+          <span>${t('sp.message')}</span>
+          <textarea id="sp_message" rows="4" placeholder="${t('sp.message_ph')}"></textarea>
+        </div>
+        <button class="btn go" onclick="sendSupport()">${t('sp.send')}</button>
+        <div id="spMsg" class="push-fine"></div>
+        <div id="spList"></div>
+      </div>
+    </div>
+
+    <!-- Last on the page on purpose. Nothing irreversible belongs above the
+         things people came here to do. -->
+    <div class="pane danger-pane">
+      <div class="pane-h"><h3>${t('cl.h')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('cl.sub')}</p>
+        <button class="btn ghost danger" onclick="openCloseAccount()">${t('cl.open')}</button>
+        <div id="closeBox"></div>
+      </div>
     </div>`;
+
+  loadMyTickets();
+}
+
+/* ── support ─────────────────────────────────────────────────── */
+async function loadMyTickets(){
+  const box = document.getElementById('spList');
+  if(!box) return;
+  const r = await api('/support/mine');
+  const list = (r.success ? r.tickets : []) || [];
+  if(!list.length){ box.innerHTML = ''; return; }
+
+  box.innerHTML = `<div class="tickets">${list.map(tk => `
+    <div class="ticket">
+      <div class="tk-h">
+        <b>${esc(tk.subject)}</b>
+        <span class="tk-ref">${esc(tk.ticket_ref)}</span>
+        <span class="tk-st ${esc(tk.status)}">${t('sp.st_' + tk.status)}</span>
+      </div>
+      <div class="tk-msg">${esc(tk.message)}</div>
+      ${tk.admin_reply
+        ? `<div class="tk-reply"><b>${t('sp.reply')}</b>${esc(tk.admin_reply)}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+async function sendSupport(){
+  const msg = document.getElementById('spMsg');
+  const subject = document.getElementById('sp_subject').value.trim();
+  const message = document.getElementById('sp_message').value.trim();
+  if(!subject || !message){
+    msg.textContent = t('sp.need_both'); msg.style.color = 'var(--red)'; return;
+  }
+  msg.textContent = t('sp.sending'); msg.style.color = '';
+
+  // The email address is filled in server-side from the signed-in account, so
+  // a company never has to retype the address we already have for them.
+  const r = await api('/support/create', {method:'POST', body: JSON.stringify({subject, message})});
+  if(!r.success){ msg.textContent = r.error || ''; msg.style.color = 'var(--red)'; return; }
+
+  document.getElementById('sp_subject').value = '';
+  document.getElementById('sp_message').value = '';
+  msg.textContent = r.message || '';
+  msg.style.color = 'var(--green)';
+  loadMyTickets();
+}
+
+/* ── closing the account ─────────────────────────────────────── */
+async function openCloseAccount(){
+  const box = document.getElementById('closeBox');
+  box.innerHTML = `<div class="empty">${t('o.loading')}</div>`;
+
+  // Ask the server what closing would actually mean BEFORE showing the form.
+  // Money still owed, or a truck still out on a job, has to be said now rather
+  // than after they have typed DELETE and pressed the button.
+  const r = await api('/account/close-check');
+  if(!r.success){ box.innerHTML = `<div class="notice err">${esc(r.error||'')}</div>`; return; }
+
+  if(!r.can_close){
+    box.innerHTML = `<div class="notice warn"><b>${t('cl.cannot')}</b>
+      <ul class="cl-list">${(r.blockers||[]).map(b => `<li>${esc(b)}</li>`).join('')}</ul></div>`;
+    return;
+  }
+
+  const c = r.counts || {};
+  box.innerHTML = `
+    <div class="close-form">
+      <div class="notice warn">
+        <b>${t('cl.warn_h')}</b>
+        <ul class="cl-list">
+          <li>${t('cl.w_login')}</li>
+          <li>${t('cl.w_data')}</li>
+          <li>${t('cl.w_docs', {n: c.documents || 0})}</li>
+          ${r.keeps_job_records
+            ? `<li>${t('cl.w_keep', {n: c.completed_jobs || 0})}</li>` : ''}
+        </ul>
+      </div>
+      <div class="cf" style="margin-bottom:10px">
+        <span>${t('cl.why')}</span>
+        <input id="cl_reason" placeholder="${t('cl.why_ph')}">
+      </div>
+      <div class="cf" style="margin-bottom:10px">
+        <span>${t('cl.password')}</span>
+        <input id="cl_pass" type="password" autocomplete="current-password">
+      </div>
+      <div class="cf" style="margin-bottom:12px">
+        <span>${t('cl.type_delete')}</span>
+        <input id="cl_confirm" placeholder="DELETE" autocapitalize="characters">
+      </div>
+      <button class="btn go danger-btn" onclick="confirmCloseAccount()">${t('cl.confirm')}</button>
+      <div id="clMsg" class="push-fine"></div>
+    </div>`;
+}
+
+async function confirmCloseAccount(){
+  const msg = document.getElementById('clMsg');
+  const body = {
+    password: document.getElementById('cl_pass').value,
+    confirm:  document.getElementById('cl_confirm').value,
+    reason:   document.getElementById('cl_reason').value.trim() || null
+  };
+  msg.textContent = ''; msg.style.color = '';
+
+  const r = await api('/account/close', {method:'POST', body: JSON.stringify(body)});
+  if(!r.success){ msg.textContent = r.error || ''; msg.style.color = 'var(--red)'; return; }
+
+  alert(t('cl.done'));
+  TOKEN = ''; localStorage.removeItem('tl_token');
+  location.href = 'tow';
 }
 
 function trucksHTML(trucks){
@@ -1325,6 +1634,24 @@ function switchView(v){
 
   const dpane = document.getElementById('docsPane');
   const cpane = document.getElementById('companyPane');
+  const mpane = document.getElementById('moneyPane');
+
+  // Money. What they have earned, what is still in escrow, and the button that
+  // moves it to their bank.
+  if(v === 'money'){
+    document.getElementById('viewTitle').textContent = t('o.money');
+    document.getElementById('viewSub').textContent = '';
+    f.innerHTML = '';
+    list.classList.add('hide');
+    pane.classList.add('hide');
+    rpane.classList.add('hide');
+    dpane.classList.add('hide');
+    cpane.classList.add('hide');
+    mpane.classList.remove('hide');
+    renderMoneyPane();
+    return;
+  }
+  mpane.classList.add('hide');
 
   // The company's own record: contact details, the equipment it runs, its
   // trucks, and the two verification steps. None of this was reachable — the
@@ -1748,9 +2075,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816j"></script>
-<script src="realtime.js?v=20260816j"></script>
-<script src="driver.js?v=20260816j"></script>
+<script src="push.js?v=20260816k"></script>
+<script src="realtime.js?v=20260816k"></script>
+<script src="driver.js?v=20260816k"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -146,6 +146,40 @@ input:focus,select:focus{outline:0;border-color:var(--accent)}
 .empty{color:var(--ink-3);text-align:center;padding:44px 0;font-size:13.5px}
 .dim{color:var(--ink-3)}
 p{color:var(--ink-2);font-size:13px;line-height:1.6}
+/* Inline notices inside a modal. .msg above is for the toast host and carries
+   a bottom margin that is wrong in this context. */
+.notice{padding:12px 14px;border-radius:9px;font-size:13px;line-height:1.6}
+.notice.warn{background:#241d0d;border:1px solid #7c5a10;color:#f0c674}
+.notice.bad{background:#3b1515;border:1px solid #7f1d1d;color:#fca5a5}
+.notice b{font-weight:750}
+
+/* ── suspend / remove ──────────────────────────────────────────── */
+.danger-zone{margin-top:22px;padding:14px;border:1px solid #4a2320;border-radius:10px;
+  background:#1a1112}
+.danger-zone h4{font-size:13px;font-weight:750;color:#ff9b95;margin-bottom:5px}
+.danger-zone p{font-size:12.5px;color:var(--ink-3);line-height:1.6;margin-bottom:11px}
+
+/* ── support ───────────────────────────────────────────────────── */
+.ticket-row{border-top:1px solid var(--line);padding:14px 0}
+.ticket-row:first-of-type{border-top:none}
+.ticket-row.open{border-left:3px solid var(--amber);padding-left:12px}
+.tr-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}
+.tr-h b{font-size:14px;font-weight:700}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:var(--ink-3)}
+.tr-who{font-size:12.5px;color:var(--ink-3);margin-bottom:8px}
+.tr-msg{font-size:13px;line-height:1.6;white-space:pre-wrap;
+  background:var(--panel-2);border-radius:8px;padding:11px 13px}
+.tr-reply{margin-top:9px;padding:11px 13px;border-radius:8px;background:var(--panel-2);
+  border-left:3px solid var(--green);font-size:13px;line-height:1.6;white-space:pre-wrap}
+.tr-reply b{display:block;font-size:11px;color:var(--green);margin-bottom:4px;
+  text-transform:uppercase;letter-spacing:.4px}
+.tr-act{margin-top:10px}
+.tr-act textarea{width:100%;background:var(--panel-2);border:1px solid var(--line);
+  color:var(--ink);border-radius:8px;padding:9px 11px;font:inherit;resize:vertical;
+  outline:none;margin-bottom:8px}
+.tr-act textarea:focus{border-color:var(--accent)}
+.btn.sm{padding:7px 12px;font-size:12.5px}
+
 </style>
 
 <!-- ═══ LOGIN ═══ -->
@@ -242,6 +276,7 @@ function signOut(){
 const TABS = [
   ['dashboard','Overview'], ['review','Review queue'], ['markets','Markets & pricing'],
   ['rates','Rate table'], ['leads','Coverage leads'], ['jobs','Jobs'],
+  ['money','Money'], ['support','Support'],
   ['push','Phone alerts'], ['settings','Settings'],
 ];
 
@@ -259,7 +294,164 @@ function setTab(k){ TAB = k; boot(); }
 function render(){
   $('view').innerHTML = '<div class="empty">Loading…</div>';
   ({dashboard:vDashboard, review:vReview, markets:vMarkets,
-    rates:vRates, leads:vLeads, jobs:vJobs, push:vPush, settings:vSettings}[TAB] || vDashboard)();
+    rates:vRates, leads:vLeads, jobs:vJobs, money:vMoney, support:vSupport,
+    push:vPush, settings:vSettings}[TAB] || vDashboard)();
+}
+
+// ═══ MONEY ═══════════════════════════════════════════════════
+// The number that matters is "safe to withdraw", not the Stripe balance.
+// Money owed to towing companies and money held against running jobs is
+// sitting in the same Stripe pot; paying it to yourself is a hole you then
+// have to fill out of your own pocket.
+async function vMoney(){
+  const r = await api('/admin/finance');
+  if(!r.success) return flash(r.error, true);
+
+  const m = n => '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const st = r.stripe || {};
+
+  $('view').innerHTML = `
+    ${st.error ? `<div class="brake on">
+      <div class="state">● Stripe is not connected yet</div>
+      <h3>${esc(st.error)}</h3>
+      <p>The figures below come from TowSling's own records and are correct, but the
+         real bank balance and the withdraw button need Stripe keys before they can work.</p>
+    </div>` : ''}
+
+    <div class="tiles">
+      <div class="tile"><div class="n">${m(r.in.customer_payments)}</div><div class="l">Taken from customers</div></div>
+      <div class="tile"><div class="n">${m(r.out.paid_to_towers)}</div><div class="l">Paid to towing companies</div></div>
+      <div class="tile"><div class="n">${m(r.fees_earned)}</div><div class="l">Your commission, all time</div></div>
+      <div class="tile ${Number(r.owed_to_towers) > 0 ? 'alert' : ''}">
+        <div class="n">${m(r.owed_to_towers)}</div><div class="l">Owed to companies now</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>Withdraw to your bank</h3>
+      <div class="kv" style="margin-top:12px">
+        <div class="k">In your Stripe balance</div>
+        <div>${st.available === null || st.available === undefined ? '—' : m(st.available)}
+          ${st.pending ? ` <span class="dim">(+${m(st.pending)} still clearing)</span>` : ''}</div>
+        <div class="k">Owed to towing companies</div><div>${m(r.owed_to_towers)}</div>
+        <div class="k">Held against running jobs</div><div>${m(r.held_in_escrow)}</div>
+        <div class="k"><b>Safe to withdraw</b></div>
+        <div><b>${r.safe_to_withdraw === null || r.safe_to_withdraw === undefined ? '—' : m(r.safe_to_withdraw)}</b></div>
+      </div>
+      <p class="dim" style="margin-top:10px;font-size:12.5px;line-height:1.6">
+        "Safe to withdraw" is your Stripe balance minus everything that is not yours —
+        money owed to towing companies and money held against jobs still running.
+        Taking more than this leaves you unable to pay somebody.</p>
+
+      ${r.safe_to_withdraw > 0 ? `
+        <label class="f" style="margin-top:14px;max-width:240px">
+          <span>Amount</span>
+          <input id="pfAmount" type="number" step="0.01" min="0"
+                 max="${r.safe_to_withdraw}" value="${r.safe_to_withdraw}">
+        </label>
+        <button class="btn ok" onclick="platformPayout()">Send to my bank</button>
+      ` : `<p class="dim" style="margin-top:12px">Nothing available to withdraw right now.</p>`}
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>By towing company</h3>
+      <table style="margin-top:12px">
+        <tr><th>Company</th><th>Owed now</th><th>Paid to date</th><th>Your commission</th></tr>
+        ${(r.by_tower||[]).map(t => `<tr>
+          <td><b>${esc(t.name)}</b></td>
+          <td${Number(t.owed) > 0 ? ' style="color:var(--amber);font-weight:700"' : ''}>${m(t.owed)}</td>
+          <td>${m(t.paid)}</td>
+          <td class="dim">${m(t.fees)}</td></tr>`).join('')
+          || '<tr><td colspan="4" class="dim">No payouts yet.</td></tr>'}
+      </table>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>Recent withdrawals by companies</h3>
+      <table style="margin-top:12px">
+        <tr><th>Company</th><th>Amount</th><th>Status</th><th>When</th></tr>
+        ${(r.recent||[]).map(w => `<tr>
+          <td>${esc(w.who)}</td><td>${m(w.amount)}</td>
+          <td><span class="pill ${esc(w.status)}">${esc(w.status)}</span></td>
+          <td class="dim">${(w.at||'').slice(0,16)}</td></tr>`).join('')
+          || '<tr><td colspan="4" class="dim">None yet.</td></tr>'}
+      </table>
+    </div>`;
+}
+
+async function platformPayout(){
+  const amount = Number($('pfAmount').value);
+  if(!(amount > 0)) return alert('Enter an amount.');
+  if(!confirm('Send $' + amount.toFixed(2) + ' to your bank account?')) return;
+  const r = await api('/admin/platform-payout', {method:'POST', body:JSON.stringify({amount})});
+  if(!r.success) return flash(r.error, true);
+  render();
+  setTimeout(() => flash(r.message, false), 60);
+}
+
+// ═══ SUPPORT ═════════════════════════════════════════════════
+async function vSupport(){
+  const r = await api('/admin/tickets');
+  if(!r.success) return flash(r.error, true);
+
+  const counts = {};
+  (r.counts||[]).forEach(c => counts[c.status] = c.n);
+  const list = r.tickets || [];
+
+  $('view').innerHTML = `
+    <div class="tiles">
+      <div class="tile ${counts.open ? 'alert' : ''}">
+        <div class="n">${counts.open||0}</div><div class="l">Open</div></div>
+      <div class="tile"><div class="n">${counts.answered||0}</div><div class="l">Answered</div></div>
+      <div class="tile"><div class="n">${counts.closed||0}</div><div class="l">Closed</div></div>
+    </div>
+
+    <div class="card" style="margin-top:18px">
+      <h3>Support requests</h3>
+      ${list.length ? list.map(tk => `
+        <div class="ticket-row ${tk.status}">
+          <div class="tr-h">
+            <b>${esc(tk.subject)}</b>
+            <span class="mono">${esc(tk.ticket_ref)}</span>
+            <span class="pill ${esc(tk.status)}">${esc(tk.status)}</span>
+            ${!Number(tk.emailed) ? '<span class="pill rejected" title="The copy to support@ did not send">not emailed</span>' : ''}
+          </div>
+          <div class="tr-who">
+            ${esc(tk.name || '—')} · ${esc(tk.email||'')}${tk.phone ? ' · ' + esc(tk.phone) : ''}
+            · ${tk.kind === 'tower' ? 'Towing company' : 'Customer'}
+            ${tk.account_name ? ' · ' + esc(tk.account_name) : ''}
+            <span class="dim"> · ${(tk.created_at||'').slice(0,16)}</span>
+          </div>
+          <div class="tr-msg">${esc(tk.message)}</div>
+          ${tk.admin_reply ? `<div class="tr-reply"><b>Your reply</b>${esc(tk.admin_reply)}</div>` : ''}
+          <div class="tr-act">
+            <textarea id="rep_${tk.id}" rows="2" placeholder="Write a reply — it is emailed to them"></textarea>
+            <div class="row">
+              <button class="btn ok sm" onclick="replyTicket(${tk.id})">Send reply</button>
+              ${tk.status !== 'closed'
+                ? `<button class="btn sec sm" onclick="ticketStatus(${tk.id},'closed')">Close</button>`
+                : `<button class="btn sec sm" onclick="ticketStatus(${tk.id},'open')">Re-open</button>`}
+            </div>
+          </div>
+        </div>`).join('')
+      : '<div class="empty">No support requests yet.</div>'}
+    </div>`;
+}
+
+async function replyTicket(id){
+  const reply = ($('rep_' + id)||{}).value || '';
+  if(!reply.trim()) return alert('Write something first.');
+  const r = await api('/admin/ticket-reply', {method:'POST', body:JSON.stringify({id, reply})});
+  if(!r.success) return flash(r.error, true);
+  render();
+  // The message distinguishes "sent" from "saved but the email failed" — those
+  // are very different outcomes and both come back as success.
+  setTimeout(() => flash(r.message, !r.emailed), 60);
+}
+
+async function ticketStatus(id, status){
+  const r = await api('/admin/ticket-status', {method:'POST', body:JSON.stringify({id, status})});
+  if(!r.success) return flash(r.error, true);
+  render();
 }
 
 // ═══ PHONE ALERTS ════════════════════════════════════════
@@ -466,7 +658,124 @@ async function openAccount(id){
       <button class="btn bad" onclick="reviewAccount(${id},'rejected')">Reject</button>
       <button class="btn sec" onclick="closeModal()">Close</button>
     </div>
+
+    ${a.disabled_reason ? `<div class="notice warn" style="margin-top:16px">
+      <b>Suspended.</b> ${esc(a.disabled_reason)}</div>` : ''}
+
+    <div class="danger-zone">
+      <h4>Suspend or remove</h4>
+      <p>Suspending blocks the company immediately and shows it the reason when it
+         tries to sign in. Removing is permanent.</p>
+      <div class="row">
+        ${Number(a.is_active)
+          ? `<button class="btn bad sm" onclick="disableAccount(${id}, true)">Suspend this company</button>`
+          : `<button class="btn ok sm" onclick="disableAccount(${id}, false)">Lift the suspension</button>`}
+        <button class="btn bad sm" onclick="openDelete(${id})">Remove permanently…</button>
+      </div>
+    </div>
   `);
+}
+
+async function disableAccount(id, disabled){
+  let reason = null;
+  if(disabled){
+    reason = prompt('Why is this company being suspended? They will be shown this when they try to sign in.');
+    if(reason === null) return;
+    if(!reason.trim()) return alert('A reason is required.');
+  } else if(!confirm('Lift the suspension? The company goes back to Pending, not straight to Approved — its documents should be looked at again.')){
+    return;
+  }
+  const r = await api('/admin/account-disable', {method:'POST', body:JSON.stringify({id, disabled, reason})});
+  closeModal(); render();
+  setTimeout(() => flash(r.success ? r.message : r.error, !r.success), 60);
+}
+
+/* Never a bare confirm(). This asks the server what is about to be destroyed
+   and shows it, because the person clicking cannot otherwise know whether this
+   company has forty completed jobs behind it or none. */
+async function openDelete(id){
+  const r = await api('/admin/account-impact?id=' + id);
+  if(!r.success) return flash(r.error, true);
+
+  const c = r.counts || {};
+  const rec = r.recommended;
+
+  showModal(`
+    <h3>Remove ${esc(r.account.name)}</h3>
+    <div class="m-sub">Account #${r.account.id} · ${esc(r.account.type)}</div>
+
+    ${!r.can_proceed ? `
+      <div class="notice bad" style="margin-top:14px">
+        <b>This cannot be removed yet.</b>
+        <ul style="margin:8px 0 0 18px;line-height:1.6">
+          ${r.blockers.map(b => `<li>${esc(b)}</li>`).join('')}
+        </ul>
+      </div>
+      <div class="row"><button class="btn sec" onclick="closeModal()">Close</button></div>
+    ` : `
+      <div class="kv" style="margin-top:14px">
+        <div class="k">Jobs worked</div><div>${c.jobs_as_tower||0}</div>
+        <div class="k">Completed jobs</div><div>${c.completed_jobs||0}</div>
+        <div class="k">Accounting entries</div><div>${c.ledger_entries||0}</div>
+        <div class="k">Payouts</div><div>${c.payouts||0}</div>
+        <div class="k">Documents</div><div>${c.documents||0}</div>
+        <div class="k">Ratings received</div><div>${c.ratings_received||0}</div>
+      </div>
+
+      ${r.has_financial_history ? `
+        <div class="notice warn" style="margin-top:14px">
+          <b>This company has real financial history.</b>
+          Deleting it removes ${c.completed_jobs||0} completed job(s) and
+          ${c.ledger_entries||0} accounting entr(ies) from your books permanently —
+          including the record of money you took and paid out. If you are asked about
+          a chargeback or a tax figure later, it will not be there.
+          <br><br>Unless you specifically need it gone, choose the first option.
+        </div>` : ''}
+
+      <label class="f" style="margin-top:16px">
+        <span>What should happen</span>
+        <select id="delMode">
+          <option value="anonymized" ${rec==='anonymized'?'selected':''}>
+            Close and erase personal data — keep the job and money records
+          </option>
+          <option value="deleted" ${rec==='deleted'?'selected':''}>
+            Delete everything, including jobs and accounting records
+          </option>
+        </select>
+      </label>
+
+      <label class="f">
+        <span>Reason (kept in the deletion log)</span>
+        <input id="delReason" placeholder="Duplicate account / test company / requested by owner">
+      </label>
+
+      <label class="f">
+        <span>Type the company name exactly to confirm: <b>${esc(r.account.name)}</b></span>
+        <input id="delConfirm" placeholder="${esc(r.account.name)}">
+      </label>
+
+      <div class="row">
+        <button class="btn bad" onclick="doDelete(${id})">Remove</button>
+        <button class="btn sec" onclick="closeModal()">Cancel</button>
+      </div>
+    `}
+  `);
+}
+
+async function doDelete(id){
+  const mode = $('delMode').value;
+  const body = {
+    id,
+    mode,
+    reason: $('delReason').value.trim() || null,
+    confirm_name: $('delConfirm').value.trim(),
+    // Second acknowledgement, only asked for when the books are really at stake.
+    understand_records_lost: mode === 'deleted'
+  };
+  const r = await api('/admin/account-delete', {method:'POST', body:JSON.stringify(body)});
+  if(!r.success) return flash(r.error, true);
+  closeModal(); render();
+  setTimeout(() => flash(r.message, false), 60);
 }
 
 async function reviewAccount(id, decision){

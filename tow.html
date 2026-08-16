@@ -289,6 +289,23 @@ input::placeholder{color:#aab4c4}
 .rd-stars{font-size:23px;color:#f5a524;letter-spacing:2px;line-height:1.2}
 .rd-txt{font-size:13.5px;color:#14532d;margin-top:5px;font-weight:600}
 
+/* ── customer support / erase ──────────────────────────── */
+.csupport{margin-top:16px;text-align:center;font-size:13.5px;color:var(--ink-3)}
+.csupport a{color:var(--ink-2);font-weight:650;text-decoration:underline}
+.csupport span{margin:0 8px;color:var(--line)}
+.cs-form{margin-top:14px;background:var(--bg);border:1px solid var(--line);
+  border-radius:13px;padding:16px}
+.cs-form.danger{border-color:#fecdca;background:#fffbfa}
+.cs-form h4{font-size:15px;font-weight:750;margin-bottom:5px}
+.cs-sub{font-size:13.5px;color:var(--ink-3);line-height:1.55;margin-bottom:14px}
+.cs-list{margin:0 0 14px 18px;font-size:13px;color:var(--ink-2);line-height:1.6}
+.cs-form .btn{margin-bottom:2px}
+.cs-form .btn.danger{background:var(--red)}
+.cs-out{font-size:13px;margin-top:10px;color:var(--ink-2)}
+.cs-out.bad{color:var(--red)}
+.cs-done{margin-top:14px;background:#f0fdf4;border:1px solid #bbf7d0;color:#14532d;
+  border-radius:13px;padding:15px;font-size:14px;line-height:1.55;text-align:center}
+
 .timeline{margin-top:22px}
 .tl{display:flex;gap:13px;padding-bottom:20px;position:relative}
 .tl:last-child{padding-bottom:0}
@@ -478,6 +495,16 @@ input::placeholder{color:#aab4c4}
     <div class="timeline" id="trkTimeline"></div>
     <div class="lines" id="trkLines" style="margin-top:20px"></div>
     <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn" data-i18n="c.cancel_req">Cancelar esta solicitud</button>
+
+    <!-- A customer has no login and no settings page. This tracking link is the
+         only place they can ever reach us or ask to be forgotten, so both live
+         here rather than behind an account they do not have. -->
+    <div class="csupport">
+      <a href="#" onclick="openCSupport();return false" data-i18n="cs.need_help">¿Necesita ayuda?</a>
+      <span>·</span>
+      <a href="#" onclick="openCErase();return false" data-i18n="cs.erase">Borrar mis datos</a>
+    </div>
+    <div id="cSupportBox"></div>
   </div>
 
   <div class="foot">
@@ -501,7 +528,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816j';
+  var v = '?v=20260816k';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
 })();
@@ -732,6 +759,72 @@ function startTracking(){
       'job.changed': () => { poll(); pollMap(); },
     }, cfg);
   }).catch(() => {});
+}
+
+// ── support + erase, for a customer with no account ─────
+// This page had no escaper — nothing here used to render server text as HTML.
+// It does now, and a server message is still text that must not be parsed as
+// markup on its way onto the screen.
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+
+function openCSupport(){
+  $('cSupportBox').innerHTML = `
+    <div class="cs-form">
+      <h4>${t('cs.h')}</h4>
+      <p class="cs-sub">${t('cs.sub')}</p>
+      <div class="f"><label>${t('cs.email')}</label>
+        <input id="cs_email" type="email" placeholder="usted@correo.com"></div>
+      <div class="f"><label>${t('cs.message')}</label>
+        <textarea id="cs_msg" rows="3" placeholder="${t('cs.message_ph')}"></textarea></div>
+      <button class="btn" onclick="sendCSupport()">${t('cs.send')}</button>
+      <button class="back" onclick="$('cSupportBox').innerHTML=''">${t('cs.cancel')}</button>
+      <div id="cs_msgout" class="cs-out"></div>
+    </div>`;
+}
+
+async function sendCSupport(){
+  const out = $('cs_msgout');
+  const email = $('cs_email').value.trim();
+  const message = $('cs_msg').value.trim();
+  if(!email || !message){ out.textContent = t('cs.need_both'); out.className = 'cs-out bad'; return; }
+  out.textContent = t('cs.sending'); out.className = 'cs-out';
+
+  const r = await api('/support/create', {method:'POST', body: JSON.stringify({
+    token: S.token, email, message, subject: t('cs.subject_default')
+  })});
+  if(!r.success){ out.textContent = r.error || ''; out.className = 'cs-out bad'; return; }
+
+  $('cSupportBox').innerHTML = `<div class="cs-done">${esc(r.message||'')}</div>`;
+}
+
+function openCErase(){
+  $('cSupportBox').innerHTML = `
+    <div class="cs-form danger">
+      <h4>${t('cs.erase_h')}</h4>
+      <p class="cs-sub">${t('cs.erase_sub')}</p>
+      <ul class="cs-list">
+        <li>${t('cs.e_removed')}</li>
+        <li>${t('cs.e_kept')}</li>
+      </ul>
+      <div class="f"><label>${t('cs.type_delete')}</label>
+        <input id="cs_confirm" placeholder="DELETE" autocapitalize="characters"></div>
+      <button class="btn danger" onclick="doCErase()">${t('cs.erase_confirm')}</button>
+      <button class="back" onclick="$('cSupportBox').innerHTML=''">${t('cs.cancel')}</button>
+      <div id="cs_msgout" class="cs-out"></div>
+    </div>`;
+}
+
+async function doCErase(){
+  const out = $('cs_msgout');
+  const r = await api('/account/close-request', {method:'POST', body: JSON.stringify({
+    token: S.token, confirm: $('cs_confirm').value.trim()
+  })});
+  if(!r.success){ out.textContent = r.error || ''; out.className = 'cs-out bad'; return; }
+  $('cSupportBox').innerHTML = `<div class="cs-done">${esc(r.message||'')}</div>`;
 }
 
 // ── rating ──────────────────────────────────────────────
