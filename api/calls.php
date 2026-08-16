@@ -783,10 +783,47 @@ if ($method === 'GET' && $action === 'my-calls') {
 
     if ($status === 'active') {
         $sql .= " AND c.status IN ('open','awarded','en_route','on_scene','in_progress')";
+    } elseif ($status === 'closed') {
+        // Everything finished, one way or another. A driver looking back
+        // through his week does not think of "completed" and "gone on arrival"
+        // as different lists — they are both jobs he turned out for.
+        $sql .= " AND c.status IN ('completed','goa','canceled','expired')";
     } elseif ($status !== '') {
         $sql .= " AND c.status = :s";
         $params[':s'] = $status;
     }
+
+    // Free-text search across the things somebody actually remembers about a
+    // job: its number, where it was, the vehicle, the customer's name.
+    //
+    // LIKE with a leading wildcard cannot use an index, which is fine at this
+    // size and honest about why: an operator searching his own history is
+    // scanning at most a few thousand rows, already filtered to his account.
+    $q = trim((string)($_GET['q'] ?? ''));
+    if ($q !== '') {
+        $sql .= " AND (c.call_number LIKE :q OR c.pickup_address LIKE :q
+                       OR c.pickup_city LIKE :q OR c.dropoff_address LIKE :q
+                       OR c.dropoff_city LIKE :q OR c.customer_name LIKE :q
+                       OR c.vehicle_make LIKE :q OR c.vehicle_model LIKE :q
+                       OR c.vehicle_plate LIKE :q)";
+        $params[':q'] = '%' . $q . '%';
+    }
+
+    // Date window, inclusive. `to` is compared against the end of that day so
+    // picking the same date twice returns that day's work rather than nothing.
+    if (!empty($_GET['from'])) {
+        $sql .= " AND c.created_at >= :from";
+        $params[':from'] = substr((string)$_GET['from'], 0, 10) . ' 00:00:00';
+    }
+    if (!empty($_GET['to'])) {
+        $sql .= " AND c.created_at <= :to";
+        $params[':to'] = substr((string)$_GET['to'], 0, 10) . ' 23:59:59';
+    }
+    if (!empty($_GET['service_type'])) {
+        $sql .= " AND c.service_type = :svc";
+        $params[':svc'] = (string)$_GET['service_type'];
+    }
+
     $sql .= " ORDER BY c.created_at DESC LIMIT $limit OFFSET $offset";
 
     $stmt = $pdo->prepare($sql);

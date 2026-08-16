@@ -159,6 +159,11 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
         'pickup_lng'     => (float)$c['pickup_lng'],
         'dropoff_city'   => $c['dropoff_city'],
         'dropoff_state'  => $c['dropoff_state'],
+        // So the drop-off line can link to an exact point rather than a string
+        // Google has to guess at. Null on a job with no destination — a lockout
+        // has nowhere to go.
+        'dropoff_lat'    => $c['dropoff_lat'] !== null ? (float)$c['dropoff_lat'] : null,
+        'dropoff_lng'    => $c['dropoff_lng'] !== null ? (float)$c['dropoff_lng'] : null,
         'tow_miles'      => $c['tow_miles'] !== null ? (float)$c['tow_miles'] : null,
         'vehicle'        => trim(($c['vehicle_year'] ?? '') . ' ' . ($c['vehicle_make'] ?? '') . ' ' . ($c['vehicle_model'] ?? '')),
         'vehicle_color'  => $c['vehicle_color'],

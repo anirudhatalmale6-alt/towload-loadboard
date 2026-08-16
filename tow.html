@@ -675,7 +675,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260818e';
+  var v = '?v=20260818f';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -797,9 +797,16 @@ function useGPS(){
   if(!navigator.geolocation) return err(t('c.err_gps_none'));
   $('gpsBtn').textContent = t('c.gps_finding');
   navigator.geolocation.getCurrentPosition(
-    p => { S.pickup = {lat:p.coords.latitude, lng:p.coords.longitude};
+    p => { S.pickup = {lat:p.coords.latitude, lng:p.coords.longitude, fromGPS:true};
            $('gpsBtn').textContent = t('c.gps_found');
-           $('pickup').value = $('pickup').value || t('c.your_location');
+           // The COORDINATES go in the box, not the words "Your location".
+           //
+           // That label was being submitted as the pickup address and stored as
+           // one, so a towing company opened the job and read "Your location" —
+           // no use to anybody trying to find a car. Coordinates are at least
+           // true, and the operator's card turns them into a maps link.
+           $('pickup').value = $('pickup').value ||
+             (p.coords.latitude.toFixed(5) + ', ' + p.coords.longitude.toFixed(5));
            // So that editing the box afterwards drops this fix too — a GPS
            // position is exactly as stale as a picked one once the address
            // underneath it has been changed.
