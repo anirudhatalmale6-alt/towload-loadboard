@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260817e">
+<link rel="manifest" href="manifest.json?v=20260817i">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -337,6 +337,24 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .dist{
   font-size:12px;color:var(--ink-dim);text-align:center;font-weight:600;
   font-variant-numeric:tabular-nums;
+  /* "miles away" is one phrase and breaks as one.
+     .c-side is a flex row, and without flex:none this cell gets squeezed to
+     the width of its longest word — on a phone that rendered as three stacked
+     lines, "4.3" over "miles" over "away", which reads like three separate
+     labels rather than one distance. */
+  white-space:nowrap;
+  flex:none;
+}
+/* Spanish says "millas de distancia" where English says "miles away", and on
+   one line that is 98px — enough to push the Accept button clean off a 390px
+   screen, which is the same bug that hid Sign out in the header. So Spanish
+   wraps inside a capped width instead. The cap has to sit alongside flex:none:
+   without it the cell collapses to the width of the longest word and stacks
+   every word on its own line. i18n.js keeps <html lang> in step with the
+   chosen language, so this switches with it. */
+html[lang="es"] .dist{
+  white-space:normal;
+  max-width:9ch;
 }
 
 .empty{
@@ -413,7 +431,11 @@ legend{
 
 @media(max-width:820px){
   .call{grid-template-columns:1fr}
-  .c-side{justify-content:space-between}
+  /* 18px between four cells (distance, timer, price, Accept) is 54px of the
+     ~360px a phone actually has. Tightening it to 10px is what keeps the
+     Accept button on screen once the distance label carries a real phrase
+     rather than a single word — and leaves room for a two-digit distance. */
+  .c-side{justify-content:space-between;gap:10px}
   .grid2,.grid3{grid-template-columns:1fr}
 
   /* The tabs used to be hidden at this width, from when a tower had only two
@@ -854,9 +876,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260817e"></script>
-<script src="presence.js?v=20260817e" defer></script>
-<script src="places.js?v=20260817e"></script>
+<script src="i18n.js?v=20260817i"></script>
+<script src="presence.js?v=20260817i" defer></script>
+<script src="places.js?v=20260817i"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2372,9 +2394,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260817e"></script>
-<script src="realtime.js?v=20260817e"></script>
-<script src="driver.js?v=20260817e"></script>
+<script src="push.js?v=20260817i"></script>
+<script src="realtime.js?v=20260817i"></script>
+<script src="driver.js?v=20260817i"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>
