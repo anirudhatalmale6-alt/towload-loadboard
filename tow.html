@@ -413,6 +413,13 @@ input::placeholder{color:#aab4c4}
 .pay-amt{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1.1}
 .pay-sub{color:var(--ink-2);font-size:14.5px;margin:8px 0 18px;line-height:1.55}
 #payEl{margin-bottom:16px;min-height:80px}
+.pay-cancel{
+  display:flex;align-items:flex-start;gap:9px;
+  background:#fff8ed;border:1px solid #f0c68a;border-radius:11px;
+  padding:12px 14px;margin-bottom:16px;
+  font-size:13.5px;color:#7a4a10;line-height:1.5;
+}
+.pay-cancel b{font-weight:800}
 .pay-hold{background:var(--wash);border:1px solid var(--line);border-radius:11px;
   padding:12px 14px;font-size:13.5px;color:var(--ink-2);line-height:1.5;margin-bottom:14px}
 .pay-why{font-size:12.5px;color:var(--ink-3);line-height:1.5;margin-top:14px}
@@ -593,6 +600,14 @@ input::placeholder{color:#aab4c4}
     <div class="pay-lock">🔒 <span data-i18n="c.secure">Secured by Stripe</span></div>
     <div class="pay-amt" id="payAmt">—</div>
     <div class="pay-sub" id="paySub"></div>
+    <!-- The cancellation fee, disclosed BEFORE the card is entered and before
+         the Authorize button. Cancelling is free until a truck is actually
+         rolling; after that the call-out fee applies because the driver has
+         burned fuel getting there. Saying so here, on the screen where they
+         agree to the hold, is what makes that charge defensible if it is ever
+         disputed — a fee a customer first learns about when it appears on
+         their statement is a chargeback waiting to happen. -->
+    <div class="pay-cancel hide" id="payCancelNote"></div>
     <div id="payErr" class="err hide"></div>
     <div id="payEl"></div>
     <div class="pay-hold" data-i18n="pay.hold_note">This is a hold, not a charge. If no one takes the job, the hold releases on its own.</div>
@@ -952,6 +967,20 @@ async function showPayment(r){
   $('payAmt').textContent = money;
   $('paySub').textContent = t('pay.sub', {amount: money});
   $('payBtn').textContent = t('pay.btn', {amount: money});
+
+  // The cancellation fee. Only shown when the server actually told us one —
+  // an invented or stale figure here is worse than silence, because this is
+  // the sentence a chargeback would be argued over.
+  const fee = Number(r.goa_amount ?? (S.quote && S.quote.goa_amount));
+  const note = $('payCancelNote');
+  if(fee > 0){
+    note.innerHTML = '<span aria-hidden="true">&#9888;</span><span></span>';
+    note.querySelector('span:last-child').textContent =
+      t('pay.cancel_fee', {amount: '$' + fee.toFixed(2)});
+    note.classList.remove('hide');
+  } else {
+    note.classList.add('hide');
+  }
 
   // No key or no client secret means the server could not set up the payment.
   // Say so plainly rather than showing an empty box — the customer is stranded
@@ -1525,6 +1554,7 @@ async function resumeJob(){
   if(r.success && r.payment && r.payment.required){
     return showPayment({
       total:           r.payment.total,
+      goa_amount:      r.payment.goa_amount,
       client_secret:   r.payment.client_secret,
       publishable_key: r.payment.publishable_key
     });

@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260817j">
+<link rel="manifest" href="manifest.json?v=20260818a">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,17 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
   transition:.14s;
 }
 .call:hover{border-color:#33404f;background:var(--panel-2)}
+.addr{
+  display:flex;align-items:flex-start;gap:8px;margin-top:6px;
+  font-size:13px;color:var(--ink-2);line-height:1.45;
+}
+.addr .pin{
+  flex:none;width:17px;height:17px;border-radius:50%;margin-top:1px;
+  display:grid;place-items:center;font-size:9.5px;font-weight:800;color:#fff;
+}
+.addr .pin.up{background:#2563eb}
+.addr .pin.down{background:#7c3aed}
+
 .problem{
   font-size:13px;font-weight:650;color:#f0b429;margin-top:6px;
   display:inline-block;background:#241d0d;border:1px solid #6b4f0f;
@@ -876,9 +887,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260817j"></script>
-<script src="presence.js?v=20260817j" defer></script>
-<script src="places.js?v=20260817j"></script>
+<script src="i18n.js?v=20260818a"></script>
+<script src="presence.js?v=20260818a" defer></script>
+<script src="places.js?v=20260818a"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2179,10 +2190,21 @@ function render(){
           ${c.surge_active ? `<span class="surge">${Number(c.surge_multiplier).toFixed(2)}x ${t('o.high_demand')}</span>` : ''}
         </div>
         <div class="route">
-          ${c.pickup_area || (c.pickup_city + ', ' + c.pickup_state)}
-          ${c.dropoff_city ? `<span class="arrow">&rarr;</span> ${c.dropoff_city}, ${c.dropoff_state}` : ''}
+          ${esc(c.pickup_area || (c.pickup_city + ', ' + c.pickup_state))}
+          ${c.dropoff_city ? `<span class="arrow">&rarr;</span> ${esc(c.dropoff_city + ', ' + c.dropoff_state)}` : ''}
           ${c.tow_miles ? `<span class="miles">${t('o.mi_tow', {n: c.tow_miles})}</span>` : ''}
         </div>
+        <!-- The exact addresses, before accepting. A driver cannot judge a job
+             or promise an ETA from a city name: a car on the shoulder of the
+             Palmetto, one in a parking deck and one up a private drive are
+             three different jobs at the same price. Escaped — this is text a
+             stranger typed into the booking form. -->
+        ${c.pickup_address ? `<div class="addr">
+          <span class="pin up">A</span><span>${esc(c.pickup_address)}</span>
+        </div>` : ''}
+        ${c.dropoff_address ? `<div class="addr">
+          <span class="pin down">B</span><span>${esc(c.dropoff_address)}</span>
+        </div>` : ''}
         ${c.problem ? `<div class="problem">${t('pr.' + c.problem)}</div>` : ''}
         <div class="meta">
           <span>${c.vehicle || 'Vehicle n/a'}${c.vehicle_color ? ' &middot; ' + c.vehicle_color : ''}</span>
@@ -2395,9 +2417,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260817j"></script>
-<script src="realtime.js?v=20260817j"></script>
-<script src="driver.js?v=20260817j"></script>
+<script src="push.js?v=20260818a"></script>
+<script src="realtime.js?v=20260818a"></script>
+<script src="driver.js?v=20260818a"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -376,6 +376,13 @@ if ($method === 'POST' && $action === 'request') {
         'tracking_token' => $trackingToken,
         'tracking_url'   => APP_URL . '/track/' . $trackingToken,
         'total'          => money($total),
+        // What they would be charged for cancelling once a truck is rolling.
+        // Sent with the request rather than read from the quote the browser is
+        // holding, so the figure disclosed on the payment screen is the one
+        // stored against THIS job — the quote in memory can be stale, and a
+        // disclosed number that does not match what gets charged is worse than
+        // no disclosure at all.
+        'goa_amount'     => money($goa),
         'expires_in_minutes' => $expiryMin,
         'client_secret'  => $clientSecret,
         'publishable_key'=> STRIPE_PUBLISHABLE_KEY,
@@ -557,6 +564,7 @@ if ($action === 'track') {
         $payment = [
             'required'        => true,
             'total'           => (float)$call['offer_amount'],
+            'goa_amount'      => (float)$call['goa_amount'],
             'publishable_key' => STRIPE_PUBLISHABLE_KEY,
             'client_secret'   => null,
         ];

@@ -139,10 +139,12 @@ function towerCanAccept(int $accountId): array {
 }
 
 /**
- * Board rows hide customer PII. Only the awarded tower — and the provider who
- * posted it — ever see the name, phone, exact address, plate and VIN.
- * Without this, the first thing that happens is both sides go around the
- * platform and the marketplace dies.
+ * Board rows hide the customer's IDENTITY, not the job.
+ *
+ * Name, phone, notes, plate and VIN stay behind the accept — those are what let
+ * a tower ring the customer directly and take the work off the platform. The
+ * addresses are shown, because without them nobody can tell what the job
+ * actually is or commit honestly to an ETA.
  */
 function publicCallRow(array $c, bool $revealCustomer = false): array {
     $row = [
@@ -224,10 +226,27 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
     $row['surge_multiplier'] = $surge;
     $row['surge_active']     = $surge > 1.0;
 
+    // The exact addresses, on the open board, BEFORE anyone accepts.
+    //
+    // These used to be masked to city level with everything else, on the
+    // reasoning that hiding them stops a tower going round the platform. That
+    // was the wrong thing to hide. An operator cannot judge a job from
+    // "Hialeah, FL": a car on the shoulder of the Palmetto, one in a parking
+    // deck with 6'2" clearance and one up a private drive are three different
+    // jobs at the same price, and he is being asked to commit to an ETA
+    // without knowing which. Guessing wrong is how a truck turns up that
+    // cannot do the work.
+    //
+    // What actually enables going around the platform is the customer's NAME
+    // and PHONE, and those stay masked until the job is accepted. An address
+    // with nobody to call is just the information needed to price the drive.
+    $row['pickup_address']  = $c['pickup_address'];
+    $row['dropoff_address'] = $c['dropoff_address'];
+
     if ($revealCustomer) {
-        $row['pickup_address']  = $c['pickup_address'];
+        // Notes can carry anything the customer typed, including their name or
+        // "call me on the other number" — it stays behind the accept.
         $row['pickup_notes']    = $c['pickup_notes'];
-        $row['dropoff_address'] = $c['dropoff_address'];
         $row['customer_name']   = $c['customer_name'];
         $row['customer_phone']  = $c['customer_phone'];
         $row['vehicle_plate']   = $c['vehicle_plate'];
