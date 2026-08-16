@@ -1,22 +1,31 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   GOOGLE ADDRESS SUGGESTIONS — shared helper
+   ADDRESS SUGGESTIONS — one implementation, used by the booking form and by a
+   towing company setting its base location.
 
-   TLPlaces.attach(input, onPick) turns a plain <input> into an address box with
-   Google's suggestions, and calls onPick({lat,lng,address,city,state,zip}) when
-   one is chosen.
+     TLPlaces.attach(inputEl, onPick)
+       -> onPick({lat, lng, address, city, state, zip})
 
-   Uses PlaceAutocompleteElement, not the old Autocomplete widget: the old one
-   is refused for any Google Cloud project created after 1 March 2025, and it
-   refuses by DISABLING the input and writing "Oops! Something went wrong." over
-   the placeholder — leaving somebody unable to type an address at all.
+   Deliberately NOT Google's PlaceAutocompleteElement. That component takes over
+   the ENTIRE screen on a phone: the booking form vanishes, replaced by a white
+   full-page search view. A stranded motorist halfway through asking for a truck
+   suddenly cannot see the form they were filling in, and there is no setting to
+   turn it off — the behaviour lives inside a closed shadow root.
 
-   Everything is written so a missing key, a blocked script or a refused request
-   leaves the original input working exactly as it did.
+   So this drives the same data through AutocompleteSuggestion and renders the
+   list itself, anchored under the input. The customer's own input element stays
+   exactly where it was, which also removes the hidden-mirror hack the component
+   forced on us.
+
+   (The older google.maps.places.Autocomplete is not an option either: it is
+   refused outright for Google Cloud projects created after 1 March 2025, and
+   it refuses by DISABLING the input.)
    ═══════════════════════════════════════════════════════════════════════════ */
 window.TLPlaces = (function () {
   var loading = null;
+  var MIN_CHARS = 3;
+  var DEBOUNCE_MS = 250;
 
-  function loadMaps() {
+  function loadPlaces() {
     if (loading) return loading;
     loading = (async function () {
       var key = '';
@@ -29,8 +38,7 @@ window.TLPlaces = (function () {
       if (!(window.google && window.google.maps)) {
         await new Promise(function (resolve) {
           var s = document.createElement('script');
-          s.src = 'https://maps.googleapis.com/maps/api/js?loading=async&key=' +
-                  encodeURIComponent(key);
+          s.src = 'https://maps.googleapis.com/maps/api/js?loading=async&key=' + encodeURIComponent(key);
           s.async = true;
           s.onload = resolve;
           s.onerror = function () { console.warn('[places] script failed'); resolve(); };
@@ -38,14 +46,14 @@ window.TLPlaces = (function () {
         });
       }
 
-      // onload is NOT the signal that the API is usable — under loading=async
-      // the bootstrap defines google.maps.importLibrary a tick later. Checking
-      // immediately finds nothing and gives up silently.
+      // script.onload does NOT mean the API is usable — under loading=async the
+      // bootstrap defines google.maps.importLibrary a tick later, so an
+      // immediate check finds nothing and gives up silently.
       var ready = await new Promise(function (resolve) {
-        var started = Date.now();
+        var t0 = Date.now();
         (function poll() {
           if (window.google && google.maps && google.maps.importLibrary) return resolve(true);
-          if (Date.now() - started > 6000) return resolve(false);
+          if (Date.now() - t0 > 6000) return resolve(false);
           setTimeout(poll, 60);
         })();
       });
@@ -59,25 +67,84 @@ window.TLPlaces = (function () {
 
   async function attach(input, onPick) {
     if (!input) return false;
-    var places = await loadMaps();
-    if (!places || !places.PlaceAutocompleteElement) return false;
+    var places = await loadPlaces();
+    if (!places || !places.AutocompleteSuggestion) return false;
 
-    var widget;
-    try {
-      widget = new places.PlaceAutocompleteElement({ includedRegionCodes: ['us'] });
-    } catch (e) { console.warn('[places] element failed', e); return false; }
+    // The list is positioned relative to the field, so the field's wrapper has
+    // to be the containing block.
+    var wrap = input.parentElement;
+    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
 
-    widget.className = 'pac-el';
-    widget.setAttribute('placeholder', input.placeholder || '');
-    if (input.value) { try { widget.value = input.value; } catch (e) {} }
-    input.parentNode.insertBefore(widget, input);
-    input.classList.add('hide');
+    var list = document.createElement('div');
+    list.className = 'tl-ac';
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    wrap.appendChild(list);
 
-    var handle = async function (ev) {
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+
+    var token = null, items = [], active = -1, timer = null, seq = 0;
+
+    // One session token per search-then-pick cycle. Google bills a session
+    // rather than every keystroke, so reusing it until a place is chosen is
+    // both correct and considerably cheaper.
+    function newSession() {
+      try { token = new places.AutocompleteSessionToken(); } catch (e) { token = null; }
+    }
+    newSession();
+
+    function close() { list.hidden = true; active = -1; }
+
+    function draw() {
+      if (!items.length) return close();
+      list.innerHTML = items.map(function (s, i) {
+        var p = s.placePrediction;
+        var main = p.mainText ? p.mainText.toString() : p.text.toString();
+        var sec  = p.secondaryText ? p.secondaryText.toString() : '';
+        return '<button type="button" class="tl-ac-item' + (i === active ? ' on' : '') +
+               '" role="option" data-i="' + i + '">' +
+               '<span class="tl-ac-pin" aria-hidden="true">📍</span>' +
+               '<span class="tl-ac-txt"><b></b><small></small></span></button>';
+      }).join('');
+      // Text set as textContent, never interpolated into the HTML above: these
+      // strings come from a third party and land in the page.
+      list.querySelectorAll('.tl-ac-item').forEach(function (el, i) {
+        var p = items[i].placePrediction;
+        el.querySelector('b').textContent = p.mainText ? p.mainText.toString() : p.text.toString();
+        el.querySelector('small').textContent = p.secondaryText ? p.secondaryText.toString() : '';
+        el.addEventListener('mousedown', function (ev) { ev.preventDefault(); choose(i); });
+      });
+      list.hidden = false;
+    }
+
+    async function search(q) {
+      var mine = ++seq;
       try {
-        var pred = ev.placePrediction || (ev.detail && ev.detail.placePrediction);
-        if (!pred) return;
-        var place = pred.toPlace();
+        var res = await places.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: q,
+          includedRegionCodes: ['us'],
+          sessionToken: token,
+        });
+        // A slow earlier request must never overwrite a newer one's results.
+        if (mine !== seq) return;
+        items = (res.suggestions || []).filter(function (s) { return s.placePrediction; }).slice(0, 5);
+        active = -1;
+        draw();
+      } catch (e) {
+        // Blocked key, quota, offline. Silence is right: the box still works as
+        // a plain text field and the form still submits.
+        if (mine === seq) { items = []; close(); }
+      }
+    }
+
+    async function choose(i) {
+      var s = items[i];
+      if (!s) return;
+      close();
+      try {
+        var place = s.placePrediction.toPlace();
         await place.fetchFields({ fields: ['location', 'formattedAddress', 'addressComponents'] });
         var loc = place.location;
         if (!loc) return;
@@ -100,19 +167,34 @@ window.TLPlaces = (function () {
           state: parts.state || null,
           zip: parts.zip || null
         });
-      } catch (e) { console.warn('[places] read failed', e); }
-    };
+      } catch (e) {
+        console.warn('[places] could not read that place', e);
+      }
+      // That session is spent; the next search starts a new one.
+      newSession();
+    }
 
-    widget.addEventListener('gmp-select', handle);
-    widget.addEventListener('gmp-placeselect', handle);
-
-    // Mirror typed text on EVERY keystroke, not only on select. Otherwise, any
-    // time Google returns nothing — key restriction, outage, or someone who
-    // types the address and never touches the dropdown — the visible box has
-    // text while the real input is empty.
-    widget.addEventListener('input', function () {
-      if (typeof widget.value === 'string') input.value = widget.value;
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = input.value.trim();
+      if (q.length < MIN_CHARS) { items = []; return close(); }
+      timer = setTimeout(function () { search(q); }, DEBOUNCE_MS);
     });
+
+    input.addEventListener('keydown', function (e) {
+      if (list.hidden || !items.length) {
+        // Enter inside an address box should never submit the step early.
+        if (e.key === 'Enter') e.preventDefault();
+        return;
+      }
+      if (e.key === 'ArrowDown')      { e.preventDefault(); active = Math.min(active + 1, items.length - 1); draw(); }
+      else if (e.key === 'ArrowUp')   { e.preventDefault(); active = Math.max(active - 1, 0); draw(); }
+      else if (e.key === 'Enter')     { e.preventDefault(); if (active >= 0) choose(active); }
+      else if (e.key === 'Escape')    { close(); }
+    });
+
+    // Delay so a tap on a suggestion is not cancelled by the blur that precedes it.
+    input.addEventListener('blur', function () { setTimeout(close, 150); });
 
     return true;
   }

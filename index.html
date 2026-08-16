@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816t">
+<link rel="manifest" href="manifest.json?v=20260816u">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -541,19 +541,28 @@ legend{
   letter-spacing:2px;font-weight:700}
 .vc-code:focus{border-color:var(--accent)}
 
-/* Google's address widget, dark. It is a web component with its own shadow
-   DOM, so the form's input styles do not reach inside — these are the custom
-   properties it exposes. */
-.pac-el{
-  display:block;width:100%;
-  --gmp-mat-color-surface:var(--panel-2);
-  --gmp-mat-color-on-surface:var(--ink);
-  --gmp-mat-color-on-surface-variant:var(--ink-faint);
-  --gmp-mat-color-outline:var(--line);
-  --gmp-mat-color-primary:var(--accent);
-  --gmp-mat-font-family:inherit;
-  --gmp-mat-font-size-body-medium:14px;
+/* ── address suggestions, dark ─────────────────────────────────────
+   Our own list rather than Google's component: theirs takes over the whole
+   screen on a phone. */
+.tl-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;
+  background:var(--panel-2);border:1px solid var(--line);border-radius:9px;
+  box-shadow:0 14px 34px rgba(0,0,0,.5);overflow:hidden;
 }
+.tl-ac[hidden]{display:none}
+.tl-ac-item{
+  display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;
+  padding:10px 12px;background:none;border:none;border-top:1px solid var(--line);
+  cursor:pointer;color:var(--ink);
+}
+.tl-ac-item:first-child{border-top:none}
+.tl-ac-item:hover,.tl-ac-item.on{background:var(--panel)}
+.tl-ac-pin{font-size:14px;line-height:1.35;flex:none;opacity:.7}
+.tl-ac-txt{min-width:0}
+.tl-ac-txt b{display:block;font-size:13.5px;font-weight:650;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-ac-txt small{display:block;font-size:12px;color:var(--ink-dim);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── duty switch ────────────────────────────────────────────────────
    Green when taking jobs, grey when not. The colour is the STATE, never the
@@ -809,9 +818,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816t"></script>
-<script src="presence.js?v=20260816t" defer></script>
-<script src="places.js?v=20260816t"></script>
+<script src="i18n.js?v=20260816u"></script>
+<script src="presence.js?v=20260816u" defer></script>
+<script src="places.js?v=20260816u"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2323,9 +2332,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816t"></script>
-<script src="realtime.js?v=20260816t"></script>
-<script src="driver.js?v=20260816t"></script>
+<script src="push.js?v=20260816u"></script>
+<script src="realtime.js?v=20260816u"></script>
+<script src="driver.js?v=20260816u"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

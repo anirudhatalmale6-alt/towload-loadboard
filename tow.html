@@ -307,19 +307,29 @@ input::placeholder{color:#aab4c4}
 .rd-stars{font-size:23px;color:#f5a524;letter-spacing:2px;line-height:1.2}
 .rd-txt{font-size:13.5px;color:#14532d;margin-top:5px;font-weight:600}
 
-/* Google's address autocomplete is a web component with its own shadow DOM,
-   so the form's input styles do not reach inside it. These are the documented
-   custom properties it exposes; the rest is sizing the host to match. */
-.pac-el{
-  display:block;width:100%;
-  --gmp-mat-color-surface:var(--bg);
-  --gmp-mat-color-on-surface:var(--ink);
-  --gmp-mat-color-on-surface-variant:#aab4c4;
-  --gmp-mat-color-outline:var(--line);
-  --gmp-mat-color-primary:var(--accent);
-  --gmp-mat-font-family:inherit;
-  --gmp-mat-font-size-body-medium:16px;
+/* ── address suggestions ───────────────────────────────────
+   Our own list, anchored under the field. Google's ready-made component
+   replaced the whole screen on a phone, which meant the booking form vanished
+   under a full-page search view mid-request. */
+.tl-ac{
+  position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:60;
+  background:var(--bg);border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 12px 34px -10px rgba(16,24,40,.28);overflow:hidden;
 }
+.tl-ac[hidden]{display:none}
+.tl-ac-item{
+  display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;
+  padding:12px 13px;background:none;border:none;border-top:1px solid var(--line);
+  cursor:pointer;color:var(--ink);
+}
+.tl-ac-item:first-child{border-top:none}
+.tl-ac-item:hover,.tl-ac-item.on{background:#fff6f0}
+.tl-ac-pin{font-size:15px;line-height:1.35;flex:none;opacity:.75}
+.tl-ac-txt{min-width:0}
+.tl-ac-txt b{display:block;font-size:14.5px;font-weight:650;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-ac-txt small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── customer support / erase ──────────────────────────── */
 .csupport{margin-top:16px;text-align:center;font-size:13.5px;color:var(--ink-3)}
@@ -561,10 +571,11 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816t';
+  var v = '?v=20260816u';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
+  document.write('<scr' + 'ipt src="places.js' + v + '"><\/scr' + 'ipt>');
 })();
 </script>
 <script>
@@ -623,155 +634,23 @@ document.querySelectorAll('.yn').forEach(g => g.addEventListener('click', e => {
 // The script is loaded only if a key is configured, and everything below is
 // written so that a missing key, a blocked script or a refused request leaves
 // the plain text boxes working exactly as they did.
-let MAPS_READY = false;
-
+// Address suggestions on both boxes, via the shared helper in places.js.
+//
+// This used to be a copy of the same logic living here. One implementation now,
+// because two copies is how the booking form and the company page end up
+// behaving differently for no reason anybody can find later.
 async function initPlaces(){
-  let key = '';
-  try {
-    const r = await api('/geo/maps-key');
-    key = (r && r.success && r.enabled) ? r.key : '';
-  } catch (e) { return; }
-  if(!key) return;
-
-  await new Promise((resolve) => {
-    const s = document.createElement('script');
-    s.src = 'https://maps.googleapis.com/maps/api/js?loading=async&key=' +
-            encodeURIComponent(key);
-    s.async = true;
-    s.onload = resolve;
-    // Resolve on failure too — the page must carry on without it.
-    s.onerror = () => { console.warn('[places] script failed to load'); resolve(); };
-    document.head.appendChild(s);
+  if (typeof TLPlaces === 'undefined') return;
+  await TLPlaces.attach($('pickup'),  p => {
+    S.pickup = p;
+    // The GPS button and the address box answer the same question. A real
+    // address is the better answer, so it takes the button's label back.
+    $('gpsBtn').textContent = t('c.use_gps');
+    clearErr();
   });
-
-  // The script's onload is NOT the signal that anything is usable. Under
-  // `loading=async` the tag brings down a bootstrap which then defines
-  // google.maps.importLibrary and fetches the libraries — and it does that a
-  // tick or two AFTER onload fires. Testing for it immediately found nothing
-  // and gave up silently, which is precisely what happened: the script loaded,
-  // Places worked perfectly when called by hand, and the page still had no
-  // suggestions. Wait for the bootstrap rather than assume it.
-  const ready = await new Promise((resolve) => {
-    const started = Date.now();
-    (function poll(){
-      if(window.google && google.maps && google.maps.importLibrary) return resolve(true);
-      if(Date.now() - started > 6000) return resolve(false);
-      setTimeout(poll, 60);
-    })();
-  });
-  if(!ready){ console.warn('[places] maps bootstrap never appeared'); return; }
-
-  let places;
-  try { places = await google.maps.importLibrary('places'); }
-  catch (e) { console.warn('[places] library failed to load', e); return; }
-
-  if(!places || !places.Autocomplete) return;
-  MAPS_READY = true;
-
-  attachPlaces('pickup',  'pickup', places);
-  attachPlaces('dropoff', 'dropoff', places);
+  await TLPlaces.attach($('dropoff'), p => { S.dropoff = p; clearErr(); });
 }
 
-/**
- * Attach Google's address suggestions to one of the two address boxes.
- *
- * Uses PlaceAutocompleteElement, NOT the old Autocomplete widget. The old one
- * refuses to work for any Google Cloud project created after 1 March 2025 —
- * and its way of refusing is to DISABLE the input and overwrite the
- * placeholder with "Oops! Something went wrong.", so a customer could not type
- * an address at all. Being unable to book is far worse than having no
- * suggestions, which is why the fallback below is written the way it is.
- *
- * The element is a web component and replaces the input rather than decorating
- * it. The original <input> stays in the DOM, hidden, and is kept in sync — the
- * rest of the page reads $('pickup').value in a dozen places and none of it
- * needs to know this happened.
- */
-function attachPlaces(inputId, slot, places){
-  const el = $(inputId);
-  if(!el || !places.PlaceAutocompleteElement) return;
-
-  let widget;
-  try {
-    widget = new places.PlaceAutocompleteElement({
-      // A tow goes to a place on a road in the US.
-      includedRegionCodes: ['us'],
-    });
-  } catch (e) {
-    console.warn('[places] could not create the element', e);
-    return;
-  }
-
-  widget.className = 'pac-el';
-  widget.setAttribute('placeholder', el.placeholder || '');
-  el.parentNode.insertBefore(widget, el);
-  el.classList.add('hide');
-
-  const onPick = async (ev) => {
-    try {
-      const pred = ev.placePrediction || (ev.detail && ev.detail.placePrediction);
-      if(!pred) return;
-      const place = pred.toPlace();
-      await place.fetchFields({
-        fields: ['location', 'formattedAddress', 'addressComponents'],
-      });
-
-      const loc = place.location;
-      if(!loc) return;
-
-      const parts = {};
-      (place.addressComponents || []).forEach(c => {
-        const ty = c.types || [];
-        if(ty.includes('locality')) parts.city = c.longText;
-        else if(!parts.city && ty.includes('sublocality')) parts.city = c.longText;
-        if(ty.includes('administrative_area_level_1')) parts.state = c.shortText;
-        if(ty.includes('postal_code')) parts.zip = c.longText;
-      });
-
-      const picked = {
-        lat: typeof loc.lat === 'function' ? loc.lat() : loc.lat,
-        lng: typeof loc.lng === 'function' ? loc.lng() : loc.lng,
-        address: place.formattedAddress || '',
-        city: parts.city || null,
-        state: parts.state || null,
-        zip: parts.zip || null,
-      };
-
-      // Keep the hidden input authoritative — everything else reads it.
-      el.value = picked.address;
-
-      if(slot === 'pickup'){
-        S.pickup = picked;
-        $('gpsBtn').textContent = t('c.use_gps');
-      } else {
-        S.dropoff = picked;
-      }
-      clearErr();
-    } catch (e) {
-      console.warn('[places] could not read the chosen place', e);
-    }
-  };
-
-  // Event name differs across releases of the component; both are harmless to
-  // listen for and only one will ever fire.
-  widget.addEventListener('gmp-select', onPick);
-  widget.addEventListener('gmp-placeselect', onPick);
-
-  // Mirror whatever is typed into the hidden input, on every keystroke — not
-  // only when a suggestion is chosen.
-  //
-  // Without this the form is unusable the moment Google returns nothing:
-  // suggestions blocked by a key restriction, an outage, or simply a customer
-  // who types their address and taps Continue without touching the dropdown.
-  // In all three the visible box has text, the hidden input is empty, and
-  // "Where are you?" comes back at someone who has just answered it.
-  //
-  // Coordinates deliberately do NOT come from here. Typed text is an address,
-  // not a position, and inventing one is the bug this whole change removes.
-  widget.addEventListener('input', () => {
-    if(typeof widget.value === 'string') el.value = widget.value;
-  });
-}
 
 // ── location ────────────────────────────────────────────
 function useGPS(){
