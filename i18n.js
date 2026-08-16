@@ -156,6 +156,7 @@ es: {
   'c.q_accident':        '¿Fue un accidente?',
   'c.yes':               'Sí',
   'c.no':                'No',
+  'c.locating':          'Buscando esa dirección…',
   'c.see_price':         'Ver mi precio',
   'c.getting_price':     'Calculando su precio…',
 
@@ -213,7 +214,7 @@ es: {
   // no lograba nada. Dicen lo que de verdad resuelve el problema.
   'c.err_gps':           'No pudimos obtener su ubicación. Actívela en los ajustes de su navegador e inténtelo otra vez.',
   'c.err_gps_none':      'Su navegador no comparte la ubicación. Ábralo en Safari o Chrome, o llámenos.',
-  'c.err_need_position': 'Necesitamos su ubicación para mandar la grúa al lugar exacto. Toque "Usar mi ubicación" y acepte el permiso.',
+  'c.err_need_position': 'Necesitamos el lugar exacto para mandar la grúa. Elija su dirección de la lista que aparece al escribir, o toque "Usar mi ubicación".',
 
   /* consumer — tracking */
   'c.finding':           'Buscando una grúa',
@@ -312,6 +313,12 @@ es: {
   'pr.junk':             'Chatarra',
   'pr.other':            'Otro problema',
   // ─── Fotos del trabajo ───
+  'o.goa':               'Vehículo no está',
+  'o.ph_goa':            'Espacio vacío (vehículo ausente)',
+  'o.ph_goa_h':          'Necesaria para cobrar la salida en balde. Tómela en el lugar, antes de irse.',
+  'o.goa_need_photo':    'Primero tome una foto del espacio vacío, desde el lugar. Es lo único que respalda el cobro si el cliente dice que sí estaba ahí.\n\nSe abrirá la cámara ahora.',
+  'o.goa_confirm':       '¿Declarar vehículo ausente?\n\nSe le paga la tarifa de salida de {amount} y el resto se le devuelve al cliente. El trabajo se cierra.\n\nQueda registrada su ubicación y su conexión junto con la foto.',
+  'o.goa_done':          'Registrado. Se le acreditan {amount} por la salida.',
   'o.ph_title':          'Fotos del vehículo',
   'o.ph_warn':           'Tome estas fotos ANTES de subir el vehículo. Son la única prueba que tiene si el cliente reclama un daño después. Sin ellas, es su palabra contra la de él.',
   'o.ph_before':         'Antes de subirlo',
@@ -848,6 +855,7 @@ en: {
   'c.q_accident':        'Was it in an accident?',
   'c.yes':               'Yes',
   'c.no':                'No',
+  'c.locating':          'Finding that address…',
   'c.see_price':         'See my price',
   'c.getting_price':     'Getting your price…',
 
@@ -896,7 +904,7 @@ en: {
   'c.err_where':         'We need to know where you are.',
   'c.err_gps':           'Could not get your location. Turn it on in your browser settings and try again.',
   'c.err_gps_none':      'Your browser will not share your location. Open this in Safari or Chrome, or call us.',
-  'c.err_need_position': 'We need your location to send the truck to the right spot. Tap "Use my location" and allow it.',
+  'c.err_need_position': 'We need the exact spot to send the truck to. Choose your address from the list that appears as you type, or tap "Use my location".',
 
   'c.finding':           'Finding you a truck',
   'c.finding_sub':       'Sending your job to nearby drivers…',
@@ -991,6 +999,12 @@ en: {
   'pr.junk':             'Junk / scrap',
   'pr.other':            'Other problem',
   // ─── Job photos ───
+  'o.goa':               'Vehicle not here',
+  'o.ph_goa':            'Empty space (vehicle gone)',
+  'o.ph_goa_h':          'Required to claim the call-out. Take it on scene, before you pull away.',
+  'o.goa_need_photo':    'Take a photo of the empty space first, from where you are standing. It is the only thing backing the charge if the customer says the car was there.\n\nThe camera will open now.',
+  'o.goa_confirm':       'Report the vehicle as gone?\n\nYou are paid the {amount} call-out fee and the rest goes back to the customer. The job closes.\n\nYour position and connection are recorded alongside the photo.',
+  'o.goa_done':          'Recorded. {amount} credited to you for the call-out.',
   'o.ph_title':          'Vehicle photos',
   'o.ph_warn':           'Take these BEFORE the vehicle goes on the truck. They are the only proof you have if the customer claims damage afterwards. Without them it is your word against theirs.',
   'o.ph_before':         'Before loading',

@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/photos.php';
 // fataled with an empty 500 without them — photos.php pulls in uploads.php but
 // nothing was pulling in adminauth.
 require_once __DIR__ . '/../includes/adminauth.php';
+require_once __DIR__ . '/../includes/geocode.php';   // requestIp()
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -599,9 +600,13 @@ if ($method === 'POST' && $action === 'goa') {
 
     $pdo = getDB();
 
+    // A photograph of the empty space, taken on scene. Until job photos could
+    // be uploaded at all this rule made GOA impossible rather than careful —
+    // it demanded proof there was no way to provide.
     if ((string)setting('goa_requires_photo', '1') === '1') {
         $stmt = $pdo->prepare(
-            "SELECT COUNT(*) AS n FROM call_photos WHERE call_id = :c AND photo_type IN ('arrival','goa')"
+            "SELECT COUNT(*) AS n FROM call_photos
+              WHERE call_id = :c AND photo_type IN ('goa','arrival')"
         );
         $stmt->execute([':c' => $callId]);
         if ((int)$stmt->fetch()['n'] === 0) {
@@ -634,7 +639,15 @@ if ($method === 'POST' && $action === 'goa') {
         $pdo->prepare("UPDATE accounts SET jobs_goa = jobs_goa + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
 
-        logCallEvent($callId, 'goa', $in['note'] ?? 'Vehicle not on scene',
+        // The claim itself carries where it was made from and over what
+        // connection, alongside the photograph. A GOA is money moving on one
+        // person's say-so, and this is what makes it answerable later.
+        logCallEvent($callId, 'goa',
+            mb_substr(($in['note'] ?? 'Vehicle not on scene')
+                . ' — claimed from ' . requestIp()
+                . (isset($in['lat'], $in['lng'])
+                    ? sprintf(' at %.5f, %.5f', (float)$in['lat'], (float)$in['lng'])
+                    : ' (no position from the phone)'), 0, 500),
             (int)$user['account_id'], (int)$user['id'],
             isset($in['lat']) ? (float)$in['lat'] : null,
             isset($in['lng']) ? (float)$in['lng'] : null);
@@ -847,15 +860,23 @@ if ($method === 'POST' && $action === 'photo') {
     $pdo->prepare(
         "INSERT INTO call_photos
             (call_id, account_id, uploaded_by_user_id, photo_type, file_url,
-             stored_path, mime_type, file_size, note, lat, lng, taken_at)
-         VALUES (:c, :a, :u, :t, '', :p, :m, :sz, :n, :lat, :lng, NOW())"
+             stored_path, mime_type, file_size, note, lat, lng, ip_address,
+             accuracy_m, taken_at)
+         VALUES (:c, :a, :u, :t, '', :p, :m, :sz, :n, :lat, :lng, :ip, :acc, NOW())"
     )->execute([
         ':c' => $callId, ':a' => $user['account_id'], ':u' => $user['id'],
         ':t' => $type, ':p' => $stored['path'], ':m' => $stored['mime'],
         ':sz' => $stored['size'],
         ':n' => isset($_POST['note']) ? mb_substr((string)$_POST['note'], 0, 255) : null,
+        // Where and from what connection. The coordinates come from the phone
+        // and the IP from the request, so neither is worth much alone — but a
+        // photograph of an empty parking space that also says it was taken at
+        // that space, from that connection, at that minute is evidence rather
+        // than a picture of some tarmac.
         ':lat' => isset($_POST['lat']) ? (float)$_POST['lat'] : null,
         ':lng' => isset($_POST['lng']) ? (float)$_POST['lng'] : null,
+        ':ip'  => requestIp(),
+        ':acc' => isset($_POST['accuracy_m']) ? (int)$_POST['accuracy_m'] : null,
     ]);
     $photoId = (int)$pdo->lastInsertId();
 

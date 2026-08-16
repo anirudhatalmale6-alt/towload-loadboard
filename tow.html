@@ -666,7 +666,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260817e';
+  var v = '?v=20260818c';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -675,7 +675,8 @@ input::placeholder{color:#aab4c4}
 </script>
 <script>
 const API = 'api';
-let S = { svc:'tow', cls:'light', wheels:1, problem:'', pickup:null, dropoff:null, quote:null, token:null };
+let S = { svc:'tow', cls:'light', wheels:1, problem:'', pickup:null, dropoff:null,
+          pickupText:'', dropoffText:'', quote:null, token:null };
 
 async function api(path, opts={}){
   // Language rides along so API errors come back in the page's language.
@@ -738,12 +739,47 @@ async function initPlaces(){
   if (typeof TLPlaces === 'undefined') return;
   await TLPlaces.attach($('pickup'),  p => {
     S.pickup = p;
+    S.pickupText = $('pickup').value;
     // The GPS button and the address box answer the same question. A real
     // address is the better answer, so it takes the button's label back.
     $('gpsBtn').textContent = t('c.use_gps');
     clearErr();
   });
-  await TLPlaces.attach($('dropoff'), p => { S.dropoff = p; clearErr(); });
+  await TLPlaces.attach($('dropoff'), p => {
+    S.dropoff = p; S.dropoffText = $('dropoff').value; clearErr();
+  });
+
+  // THE BUG THIS FIXES, and it was a quiet one.
+  //
+  // A position was only ever set by picking a Google suggestion or tapping the
+  // GPS button, and nothing cleared it afterwards. So somebody who used GPS,
+  // then typed a different address and carried on without tapping the dropdown,
+  // was quoted, matched and coverage-checked at the OLD point. The address they
+  // typed sat in the box looking right while the job was priced for a different
+  // city — and the only symptom was a wrong answer, or "no trucks available"
+  // somewhere that plainly has trucks.
+  //
+  // Editing the text now drops the position; getQuote looks up what they typed.
+  ['pickup', 'dropoff'].forEach(id => {
+    $(id).addEventListener('input', () => {
+      if ($(id).value !== S[id + 'Text']) S[id] = null;
+    });
+  });
+}
+
+/* Turn whatever is in the box into a position, when they never tapped a
+   suggestion. False if it cannot be found. */
+async function resolveTyped(which){
+  const text = $(which).value.trim();
+  if(!text) return false;
+
+  const r = await api('/geo/geocode?q=' + encodeURIComponent(text));
+  if(!r.success) return false;
+
+  S[which] = {lat: r.lat, lng: r.lng, address: r.address,
+              city: r.city, state: r.state, zip: r.zip};
+  S[which + 'Text'] = $(which).value;
+  return true;
 }
 
 
@@ -753,7 +789,12 @@ function useGPS(){
   $('gpsBtn').textContent = t('c.gps_finding');
   navigator.geolocation.getCurrentPosition(
     p => { S.pickup = {lat:p.coords.latitude, lng:p.coords.longitude};
-           $('gpsBtn').textContent = t('c.gps_found'); $('pickup').value = $('pickup').value || t('c.your_location'); },
+           $('gpsBtn').textContent = t('c.gps_found');
+           $('pickup').value = $('pickup').value || t('c.your_location');
+           // So that editing the box afterwards drops this fix too — a GPS
+           // position is exactly as stale as a picked one once the address
+           // underneath it has been changed.
+           S.pickupText = $('pickup').value; },
     () => { $('gpsBtn').textContent = t('c.use_gps'); err(t('c.err_gps')); },
     {enableHighAccuracy:true, timeout:8000}
   );
@@ -768,6 +809,17 @@ async function getQuote(){
   // on it, and a mismatch silently re-prices the job.
   S.problem = $('problem').value;
   if(!S.problem){ $('problem').focus(); return err(t('c.err_problem')); }
+
+  // Typed an address and never tapped a suggestion: look it up, rather than
+  // refusing — or worse, quoting against wherever they happened to be before.
+  if(!S.pickup && $('pickup').value.trim()){
+    $('quoteBtn').textContent = t('c.locating');
+    await resolveTyped('pickup');
+    $('quoteBtn').textContent = t('c.see_price');
+  }
+  if(S.svc === 'tow' && !S.dropoff && $('dropoff').value.trim()){
+    await resolveTyped('dropoff');
+  }
 
   // No position, no quote. This used to fall back to downtown Miami when GPS
   // was denied or unavailable, which is the worst kind of bug: it succeeds.

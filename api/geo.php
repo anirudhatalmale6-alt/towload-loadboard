@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/geocode.php';
 require_once __DIR__ . '/../includes/geo.php';
 
 setCorsHeaders();
@@ -37,6 +38,23 @@ if (($_GET['action'] ?? '') === 'maps-key') {
         'key'     => $key,
         'enabled' => $key !== '',
     ]);
+}
+
+// ═══ GEOCODE ═════════════════════════════════════════════════════════════════
+// A typed address turned into a position, when the customer never tapped a
+// suggestion. Without this the form kept whatever coordinates were already in
+// memory — so an address typed in one city was quoted, matched and checked for
+// coverage in another, and the only symptom was a wrong answer that looked
+// completely ordinary.
+//
+// $_GET['action'] read directly: this file has no $action variable, and the
+// first version of this block compared one that was always null, so the
+// endpoint answered "Unknown action" to everything.
+if (($_GET['action'] ?? '') === 'geocode') {
+    $q = (string)($_GET['q'] ?? ($_POST['q'] ?? ''));
+    $hit = geocodeAddress($q);
+    if (!$hit) errorResponse(t('err.geocode_none'), 404);
+    successResponse($hit);
 }
 
 errorResponse('Unknown action', 404);

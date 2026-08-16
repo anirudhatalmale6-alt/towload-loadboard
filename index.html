@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260818b">
+<link rel="manifest" href="manifest.json?v=20260818c">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -143,6 +143,7 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 }
 .pshot.on{border-color:#1a6b2c;background:#0f2417}
 .pshot.extra{border-style:dashed;margin-top:10px}
+.pshot.extra.goa{border-color:#7c5a10}
 .pshot .pmark{
   flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
   font-size:13px;font-weight:800;background:var(--line);color:var(--ink-dim);
@@ -928,9 +929,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260818b"></script>
-<script src="presence.js?v=20260818b" defer></script>
-<script src="places.js?v=20260818b"></script>
+<script src="i18n.js?v=20260818c"></script>
+<script src="presence.js?v=20260818c" defer></script>
+<script src="places.js?v=20260818c"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2283,6 +2284,12 @@ function render(){
             : ''}
           ${isTower && !open && ['awarded','en_route','on_scene','in_progress'].includes(c.status)
             ? `<button class="btn green" onclick="advance(${c.id},'${c.status}','${c.service_type}')">${nextLabel(c.status, c.service_type)}</button>` : ''}
+          <!-- Gone on arrival. Offered once the driver is actually out — there
+               is nothing to be gone from before he has set off. Not offered
+               once the car is on the truck, because at that point it plainly
+               was there. -->
+          ${isTower && ['en_route','on_scene'].includes(c.status)
+            ? `<button class="btn ghost" onclick="claimGOA(${c.id})">${t('o.goa')}</button>` : ''}
           ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">${t('o.cancel')}</button>` : ''}
         </div>
       </div>
@@ -2370,8 +2377,32 @@ function photoPanel(c){
       <span class="pmark">&#43;</span>
       <span class="ptxt"><b>${t('o.ph_damage')}</b><small>${t('o.ph_damage_h')}</small></span>
     </label>
+    <!-- Only while he is out and could still find nothing there. -->
+    ${['en_route','on_scene'].includes(c.status) ? `
+    <label class="pshot extra goa">
+      <input type="file" accept="image/*" capture="environment" hidden
+             id="goaShot-${c.id}" onchange="uploadPhoto(${c.id}, 'goa', this)">
+      <span class="pmark">&#43;</span>
+      <span class="ptxt"><b>${t('o.ph_goa')}</b><small>${t('o.ph_goa_h')}</small></span>
+    </label>` : ''}
     <div class="pnote" id="pnote-${c.id}"></div>
   </details>`;
+}
+
+/* One position read, shared by the photo upload and the GOA claim.
+   Resolves to null rather than rejecting: every caller treats a missing fix as
+   "carry on without it", because the alternative is blocking a driver from
+   recording what he saw. */
+function currentPosition(timeoutMs = 8000){
+  return new Promise(resolve => {
+    if(!navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({lat: p.coords.latitude, lng: p.coords.longitude,
+                    accuracy: p.coords.accuracy}),
+      () => resolve(null),
+      {enableHighAccuracy: true, timeout: timeoutMs, maximumAge: 15000}
+    );
+  });
 }
 
 // Which photo panels the operator had open, kept across the refresh that
@@ -2395,6 +2426,17 @@ async function uploadPhoto(callId, type, input){
   fd.append('photo_type', type);
   fd.append('file', file);
 
+  // Where it was taken. Best effort and never blocking — a driver in an
+  // underground car park may get no fix at all, and refusing the photograph
+  // over that would lose the evidence entirely. The server stamps the IP and
+  // the time regardless.
+  const pos = await currentPosition();
+  if(pos){
+    fd.append('lat', pos.lat);
+    fd.append('lng', pos.lng);
+    if(pos.accuracy != null) fd.append('accuracy_m', Math.round(pos.accuracy));
+  }
+
   // Multipart, so no Content-Type header — the browser has to set the boundary
   // itself, and api() sends JSON.
   let r;
@@ -2414,6 +2456,63 @@ async function uploadPhoto(callId, type, input){
     return;
   }
   if(note) note.textContent = '';
+
+  // Patch this one job in place instead of reloading the whole board.
+  //
+  // load() refetched everything and rebuilt the list, which threw the operator
+  // back to the top of the page — mid walk-around, with the car he is
+  // photographing scrolled off the screen. The server already returned the new
+  // checklist with the upload, so there is nothing worth a second request for.
+  const job = (DATA || []).find(x => x.id === callId);
+  if(job){
+    job.photo_state = r.photos;
+    const y = window.scrollY;
+    render();
+    // render() replaces the list wholesale; nothing above this card changed
+    // height, so putting the scroll back lands exactly where he was.
+    window.scrollTo(0, y);
+  } else {
+    load();
+  }
+}
+
+/* ── gone on arrival ───────────────────────────────────────────────────
+   The driver turned out and the vehicle was not there. He has earned the
+   call-out fee and the customer gets the rest of their hold back.
+
+   This is money moving on one person's word, so it is the one action that
+   insists on evidence: a photograph of the empty space, taken on scene, with
+   the position from the phone and the IP and time stamped on by the server.
+   Until job photos could be uploaded at all, that rule made GOA impossible
+   rather than careful. */
+async function claimGOA(id){
+  const job = (DATA || []).find(x => x.id === id);
+  const ps  = job && job.photo_state;
+  // has_goa comes from the server, which counts the rows. The required-items
+  // list does not include gone-on-arrival — it is an extra shot, not a step in
+  // the walk-around — so checking it there would always come back false.
+  const hasProof = !!(ps && ps.has_goa);
+
+  // The photo comes FIRST, before anything is claimed. Asking afterwards means
+  // the driver has already pulled away from the space he was meant to
+  // photograph.
+  if(!hasProof){
+    alert(t('o.goa_need_photo'));
+    OPEN_PHOTOS.add(String(id));
+    const input = document.getElementById('goaShot-' + id);
+    if(input) input.click();
+    return;
+  }
+
+  if(!confirm(t('o.goa_confirm', {amount: money(job.goa_amount || 0)}))) return;
+
+  const pos = await currentPosition();
+  const body = {call_id: id};
+  if(pos){ body.lat = pos.lat; body.lng = pos.lng; }
+
+  const r = await api('/calls/goa', {method:'POST', body: JSON.stringify(body)});
+  if(!r.success) return alert(r.error);
+  alert(t('o.goa_done', {amount: money(r.goa_amount || 0)}));
   load();
 }
 
@@ -2579,9 +2678,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260818b"></script>
-<script src="realtime.js?v=20260818b"></script>
-<script src="driver.js?v=20260818b"></script>
+<script src="push.js?v=20260818c"></script>
+<script src="realtime.js?v=20260818c"></script>
+<script src="driver.js?v=20260818c"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

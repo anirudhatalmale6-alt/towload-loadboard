@@ -92,8 +92,11 @@ function photoState(int $callId): array {
     }
 
     $extras = 0;
+    $extraCounts = [];
     foreach (photoExtraTypes() as $t) {
-        $extras += count($byType[$t] ?? []);
+        $n = count($byType[$t] ?? []);
+        $extraCounts[$t] = $n;
+        $extras += $n;
     }
 
     return [
@@ -101,6 +104,11 @@ function photoState(int $callId): array {
         'items'            => $items,
         'total'            => count($rows),
         'extras'           => $extras,
+        // Per-type counts for the shots that are not on the required list.
+        // has_goa is what gates the gone-on-arrival button: the photograph of
+        // the empty space has to exist before money moves on the driver's word.
+        'extra_counts'     => $extraCounts,
+        'has_goa'          => ($extraCounts['goa'] ?? 0) > 0,
         'pickup_done'      => count($missingPickup) === 0,
         'dropoff_done'     => count($missingDropoff) === 0,
         'complete'         => count($missingPickup) === 0 && count($missingDropoff) === 0,
