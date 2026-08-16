@@ -153,6 +153,23 @@ function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null): in
  * "we have one truck there but I am not ready to sell that city yet".
  */
 function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
+    // Work the state out from the trucks when nobody told us one.
+    //
+    // This was a silent no-coverage bug, and a bad one. resolveZone() only
+    // matches a statewide zone if it is HANDED a state, and falls back to the
+    // national zone, which is deliberately not live. A customer who tapped
+    // "use my location" sends coordinates and nothing else — the browser gets
+    // no place name from GPS — so pickup_state was null, the zone came back
+    // national, and coverageAt said "not covered" while cheerfully reporting a
+    // truck sitting three miles away.
+    //
+    // The answer is already in the data: if an approved company is in range of
+    // this point, the point is in that company's state. No geocoding, no extra
+    // API, and it answers the exact question being asked.
+    if ($state === null || $state === '') {
+        $state = stateFromNearestTower($lat, $lng);
+    }
+
     $zone   = resolveZone($lat, $lng, $state);
     $trucks = approvedTowersNear($lat, $lng);
     $min    = max(1, (int)setting('min_trucks_for_coverage', 1));
@@ -162,4 +179,46 @@ function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
         'trucks'  => $trucks,
         'covered' => !empty($zone['is_live']) && $trucks >= $min,
     ];
+}
+
+/**
+ * The state of the closest approved, on-duty towing company in range.
+ *
+ * Same filters as approvedTowersNear so the two can never disagree: a company
+ * that does not count as coverage must not be the one that decides which zone
+ * the customer is priced in.
+ */
+function stateFromNearestTower(?float $lat, ?float $lng, ?float $radius = null): ?string {
+    if ($lat === null || $lng === null) return null;
+    $radius = $radius ?? (float)setting('coverage_radius_miles', 35);
+
+    $box = boundingBox($lat, $lng, $radius);
+    $stmt = getDB()->prepare(
+        "SELECT a.state, tp.base_lat, tp.base_lng, tp.service_radius_miles
+           FROM accounts a
+           JOIN tower_profiles tp ON tp.account_id = a.id
+          WHERE a.account_type = 'tower'
+            AND a.is_active = 1
+            AND a.verification_status = 'approved'
+            AND tp.is_available = 1
+            AND a.state IS NOT NULL AND a.state <> ''
+            AND tp.base_lat BETWEEN :minlat AND :maxlat
+            AND tp.base_lng BETWEEN :minlng AND :maxlng"
+    );
+    $stmt->execute([
+        ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
+        ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
+    ]);
+
+    $bestState = null;
+    $bestDist  = null;
+    foreach ($stmt as $row) {
+        $d = haversineMiles((float)$row['base_lat'], (float)$row['base_lng'], $lat, $lng);
+        if ($d > (float)$row['service_radius_miles'] && $d > $radius) continue;
+        if ($bestDist === null || $d < $bestDist) {
+            $bestDist  = $d;
+            $bestState = strtoupper(substr((string)$row['state'], 0, 2));
+        }
+    }
+    return $bestState;
 }

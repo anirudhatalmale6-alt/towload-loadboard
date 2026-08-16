@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260818c">
+<link rel="manifest" href="manifest.json?v=20260818d">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,27 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
   transition:.14s;
 }
 .call:hover{border-color:#33404f;background:var(--panel-2)}
+/* ── full-size photo viewer ──────────────────────────────── */
+#lightbox{
+  display:none;position:fixed;inset:0;z-index:200;
+  background:rgba(3,6,11,.94);
+  align-items:center;justify-content:center;flex-direction:column;gap:14px;
+  padding:20px;
+}
+#lightbox.on{display:flex}
+#lbImg{
+  max-width:100%;max-height:80vh;object-fit:contain;
+  border-radius:12px;border:1px solid var(--line);
+  /* The thumbnail is cropped square; this is the real photograph. */
+}
+.lb-cap{font-size:14px;font-weight:650;color:var(--ink-dim);text-align:center}
+.lb-x{
+  position:absolute;top:14px;right:16px;width:42px;height:42px;border-radius:50%;
+  background:var(--panel);border:1px solid var(--line);color:var(--ink);
+  font-size:24px;line-height:1;cursor:pointer;
+}
+.pthumb{cursor:zoom-in}
+
 /* ── job photos ─────────────────────────────────────────── */
 .photos{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .photos summary{
@@ -784,6 +805,13 @@ legend{
   </div>
 </div>
 
+<!-- Full-size photo viewer. One for the page, not one per card. -->
+<div id="lightbox" onclick="closePhoto()">
+  <button class="lb-x" onclick="closePhoto()" aria-label="Close">&times;</button>
+  <img id="lbImg" alt="" onclick="event.stopPropagation()">
+  <div class="lb-cap" id="lbCap"></div>
+</div>
+
 <!-- ═══ APP ═══ -->
 <div id="appView" class="hide">
 <header>
@@ -929,9 +957,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260818c"></script>
-<script src="presence.js?v=20260818c" defer></script>
-<script src="places.js?v=20260818c"></script>
+<script src="i18n.js?v=20260818d"></script>
+<script src="presence.js?v=20260818d" defer></script>
+<script src="places.js?v=20260818d"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2351,7 +2379,10 @@ function photoPanel(c){
         <b>${esc(i.label)}</b>
         <small>${i.done ? t('o.ph_taken') : esc(i.hint)}</small>
       </span>
-      ${i.done ? `<img class="pthumb" src="api/calls/photo?id=${i.photo_id}" alt="" loading="lazy">` : ''}
+      ${i.done ? `<img class="pthumb" src="api/calls/photo?id=${i.photo_id}" alt=""
+                       loading="lazy" title="${t('o.ph_view')}"
+                       onclick="event.preventDefault();event.stopPropagation();
+                                openPhoto(${i.photo_id}, '${esc(i.label).replace(/'/g, '&#39;')}')">` : ''}
     </label>`;
 
   return `
@@ -2388,6 +2419,32 @@ function photoPanel(c){
     <div class="pnote" id="pnote-${c.id}"></div>
   </details>`;
 }
+
+/* ── photo viewer ──────────────────────────────────────────────────────
+   A 44px thumbnail is enough to see that a photo exists and nothing else. The
+   whole point of these is looking closely at a bumper, so they open full size.
+
+   The image is fetched through the same authenticated endpoint as the
+   thumbnail — there is no public URL for it, and there should not be. */
+function openPhoto(id, label){
+  const box = document.getElementById('lightbox');
+  document.getElementById('lbImg').src = 'api/calls/photo?id=' + id;
+  document.getElementById('lbCap').textContent = label || '';
+  box.classList.add('on');
+  // Stop the page behind scrolling under the viewer on a phone.
+  document.body.style.overflow = 'hidden';
+}
+
+function closePhoto(){
+  document.getElementById('lightbox').classList.remove('on');
+  // Drop the source so a large photo is not held in memory behind the overlay.
+  document.getElementById('lbImg').src = '';
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape') closePhoto();
+});
 
 /* One position read, shared by the photo upload and the GOA claim.
    Resolves to null rather than rejecting: every caller treats a missing fix as
@@ -2678,9 +2735,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260818c"></script>
-<script src="realtime.js?v=20260818c"></script>
-<script src="driver.js?v=20260818c"></script>
+<script src="push.js?v=20260818d"></script>
+<script src="realtime.js?v=20260818d"></script>
+<script src="driver.js?v=20260818d"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>
