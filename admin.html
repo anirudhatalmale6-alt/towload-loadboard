@@ -153,6 +153,11 @@ p{color:var(--ink-2);font-size:13px;line-height:1.6}
 .notice.bad{background:#3b1515;border:1px solid #7f1d1d;color:#fca5a5}
 .notice b{font-weight:750}
 
+/* The headline count. Green because people being on the site is the good
+   outcome; the alert style is reserved for things needing attention. */
+.tile.live-now{border-color:var(--green-dim);background:#0f2417}
+.tile.live-now .n{color:#7ee2a0}
+
 /* live visitor kind pills */
 .pill.customer{background:#0f2233;color:#7fc4f5}
 .pill.tower{background:#241d0d;color:#f0c674}
@@ -489,7 +494,9 @@ async function drawLive(){
 
   $('view').innerHTML = `
     <div class="tiles">
-      <div class="tile ${r.online ? 'alert' : ''}"><div class="n">${r.online}</div><div class="l">On the site now</div></div>
+      <!-- Not the alert style: visitors are good news, and red here reads as
+           something being wrong. -->
+      <div class="tile live-now"><div class="n">${r.online}</div><div class="l">On the site now</div></div>
       <div class="tile"><div class="n">${c.customer||0}</div><div class="l">Customers</div></div>
       <div class="tile"><div class="n">${c.tower||0}</div><div class="l">Towing companies</div></div>
       <div class="tile"><div class="n">${r.last_hour||0}</div><div class="l">Last hour</div></div>
