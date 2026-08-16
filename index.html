@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260818a">
+<link rel="manifest" href="manifest.json?v=20260818b">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -117,6 +117,47 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
   transition:.14s;
 }
 .call:hover{border-color:#33404f;background:var(--panel-2)}
+/* ── job photos ─────────────────────────────────────────── */
+.photos{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.photos summary{
+  cursor:pointer;list-style:none;display:flex;align-items:center;gap:9px;
+  font-size:13px;font-weight:700;color:var(--ink-dim);padding:4px 0;user-select:none;
+}
+.photos summary::-webkit-details-marker{display:none}
+.pcount{
+  font-size:11.5px;font-weight:800;border-radius:20px;padding:2px 9px;
+  border:1px solid;font-variant-numeric:tabular-nums;
+}
+.pcount.ok{color:#7ee2a0;border-color:#1a6b2c;background:#0f2417}
+.pcount.warn{color:#f0c674;border-color:#7c5a10;background:#241d0d}
+.pwarn{
+  font-size:12.5px;line-height:1.5;color:#f0c674;background:#241d0d;
+  border:1px solid #7c5a10;border-radius:9px;padding:10px 12px;margin:8px 0 4px;
+}
+.pgroup{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+  color:var(--ink-faint);margin:12px 0 4px}
+.pshot{
+  display:flex;align-items:center;gap:11px;cursor:pointer;
+  border:1px solid var(--line);border-radius:11px;padding:10px 12px;margin-bottom:7px;
+  background:var(--panel-2);
+}
+.pshot.on{border-color:#1a6b2c;background:#0f2417}
+.pshot.extra{border-style:dashed;margin-top:10px}
+.pshot .pmark{
+  flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  font-size:13px;font-weight:800;background:var(--line);color:var(--ink-dim);
+}
+.pshot.on .pmark{background:var(--green);color:#fff}
+.pshot .ptxt{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1}
+.pshot .ptxt b{font-size:13.5px;color:var(--ink);font-weight:700}
+.pshot .ptxt small{font-size:11.5px;color:var(--ink-faint);line-height:1.4}
+.pthumb{
+  flex:none;width:44px;height:44px;border-radius:8px;object-fit:cover;
+  border:1px solid var(--line);
+}
+.pnote{font-size:12.5px;color:var(--ink-dim);margin-top:8px;min-height:1em}
+.pnote.bad{color:var(--red)}
+
 .addr{
   display:flex;align-items:flex-start;gap:8px;margin-top:6px;
   font-size:13px;color:var(--ink-2);line-height:1.45;
@@ -887,9 +928,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260818a"></script>
-<script src="presence.js?v=20260818a" defer></script>
-<script src="places.js?v=20260818a"></script>
+<script src="i18n.js?v=20260818b"></script>
+<script src="presence.js?v=20260818b" defer></script>
+<script src="places.js?v=20260818b"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2214,6 +2255,8 @@ function render(){
           ${flags.length ? `<span class="flag">${flags.join(' &middot; ')}</span>` : ''}
         </div>
 
+        ${isTower && c.photo_state ? photoPanel(c) : ''}
+
         ${isTower && c.lines && c.lines.length ? `
         <details class="bd" data-call="${c.id}" ${OPEN_BREAKDOWNS.has(String(c.id)) ? 'open' : ''}
                  ontoggle="rememberBreakdown(this)">
@@ -2277,9 +2320,117 @@ const nextLabel = (cur, svc) => ({
   in_progress: t('o.towing'), complete: t('o.complete'),
 }[towSteps(svc)[cur]] || t('o.complete'));
 
+/* ── job photos ────────────────────────────────────────────────────────
+   The evidence a damage claim is answered with. Three weeks after a tow a
+   customer says the bumper was not like that, and without photographs that is
+   one person's word against another's — which the towing company loses by
+   default, and Ricardo behind them.
+
+   The checklist comes from the SERVER (photo_state), never from counting here.
+   A tick drawn by the browser that disagreed with what the server has stored
+   would be the worst possible outcome: a driver who believes he is covered
+   and is not. */
+function photoPanel(c){
+  const ps = c.photo_state;
+  const pickup  = ps.items.filter(i => i.stage === 'pickup');
+  const dropoff = ps.items.filter(i => i.stage === 'dropoff');
+
+  const row = i => `
+    <label class="pshot ${i.done ? 'on' : ''}">
+      <input type="file" accept="image/*" capture="environment" hidden
+             onchange="uploadPhoto(${c.id}, '${i.key}', this)">
+      <span class="pmark">${i.done ? '&#10003;' : '&#43;'}</span>
+      <span class="ptxt">
+        <b>${esc(i.label)}</b>
+        <small>${i.done ? t('o.ph_taken') : esc(i.hint)}</small>
+      </span>
+      ${i.done ? `<img class="pthumb" src="api/calls/photo?id=${i.photo_id}" alt="" loading="lazy">` : ''}
+    </label>`;
+
+  return `
+  <details class="photos" data-call="${c.id}" ${OPEN_PHOTOS.has(String(c.id)) ? 'open' : ''}
+           ontoggle="rememberPhotos(this)">
+    <summary>
+      <span>${t('o.ph_title')}</span>
+      <span class="pcount ${ps.complete ? 'ok' : 'warn'}">
+        ${ps.items.filter(i => i.done).length}/${ps.items.length}
+      </span>
+    </summary>
+
+    ${!ps.complete ? `<div class="pwarn">${t('o.ph_warn')}</div>` : ''}
+
+    <div class="pgroup">${t('o.ph_before')}</div>
+    ${pickup.map(row).join('')}
+    <div class="pgroup">${t('o.ph_after')}</div>
+    ${dropoff.map(row).join('')}
+
+    <label class="pshot extra">
+      <input type="file" accept="image/*" capture="environment" hidden
+             onchange="uploadPhoto(${c.id}, 'damage', this)">
+      <span class="pmark">&#43;</span>
+      <span class="ptxt"><b>${t('o.ph_damage')}</b><small>${t('o.ph_damage_h')}</small></span>
+    </label>
+    <div class="pnote" id="pnote-${c.id}"></div>
+  </details>`;
+}
+
+// Which photo panels the operator had open, kept across the refresh that
+// follows every upload — otherwise it snaps shut mid-walk-around.
+const OPEN_PHOTOS = new Set();
+function rememberPhotos(el){
+  const id = String(el.dataset.call);
+  if(el.open) OPEN_PHOTOS.add(id); else OPEN_PHOTOS.delete(id);
+}
+
+async function uploadPhoto(callId, type, input){
+  const file = input.files && input.files[0];
+  if(!file) return;
+  OPEN_PHOTOS.add(String(callId));
+
+  const note = document.getElementById('pnote-' + callId);
+  if(note){ note.textContent = t('o.ph_saving'); note.className = 'pnote'; }
+
+  const fd = new FormData();
+  fd.append('call_id', callId);
+  fd.append('photo_type', type);
+  fd.append('file', file);
+
+  // Multipart, so no Content-Type header — the browser has to set the boundary
+  // itself, and api() sends JSON.
+  let r;
+  try {
+    const res = await fetch(`${API}/calls/photo?lang=${tlLang()}`, {
+      method: 'POST',
+      headers: TOKEN ? {'Authorization': 'Bearer ' + TOKEN} : {},
+      body: fd,
+    });
+    r = await res.json();
+  } catch(e){ r = {success:false, error: t('o.ph_failed')}; }
+
+  input.value = '';   // so re-taking the same slot fires change again
+
+  if(!r.success){
+    if(note){ note.textContent = r.error || t('o.ph_failed'); note.className = 'pnote bad'; }
+    return;
+  }
+  if(note) note.textContent = '';
+  load();
+}
+
 async function advance(id, cur, svc){
   const next = towSteps(svc)[cur];
   if(next === 'complete'){
+    // Last chance to take the photographs, naming the ones that are actually
+    // missing rather than saying "some photos". Not a block: refusing to let a
+    // driver close a job at 2am over a photograph strands his payout. He is
+    // told plainly what he is giving up, and the server records that he went
+    // ahead — which is what answers a damage claim either way.
+    const job = (DATA || []).find(x => x.id === id);
+    const ps  = job && job.photo_state;
+    if(ps && ps.required && !ps.complete){
+      if(!confirm(t('o.ph_confirm', {missing: ps.missing_summary}))) return;
+    }
+
     const r = await api('/calls/complete', {method:'POST', body:JSON.stringify({call_id:id})});
     if(!r.success) return alert(r.error);
     alert(t('o.completed_msg', {amount: money(r.net_to_you)}));
@@ -2368,7 +2519,18 @@ async function submitAct(){
   }
   if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
   closeAct();
-  if(ACT.mode === 'accept') alert(`${t('o.job_yours')}\n\n${r.customer_name} — ${r.customer_phone}\n${r.pickup_address}`);
+
+  if(ACT.mode === 'accept'){
+    alert(`${t('o.job_yours')}\n\n${r.customer_name} — ${r.customer_phone}\n${r.pickup_address}`);
+    // Straight to My jobs. The board is a list of work you have NOT got, so
+    // leaving an operator staring at it after accepting shows him the one
+    // screen where his new job does not appear — and the customer's phone
+    // number, the address and the buttons that run the job are all on the
+    // other tab. switchView calls load() itself.
+    switchView('mine');
+    return;
+  }
+
   load();
 }
 
@@ -2417,9 +2579,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260818a"></script>
-<script src="realtime.js?v=20260818a"></script>
-<script src="driver.js?v=20260818a"></script>
+<script src="push.js?v=20260818b"></script>
+<script src="realtime.js?v=20260818b"></script>
+<script src="driver.js?v=20260818b"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -6,6 +6,12 @@ require_once __DIR__ . '/../includes/matching.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
 require_once __DIR__ . '/../includes/sweep.php';
 require_once __DIR__ . '/../includes/settlement.php';
+require_once __DIR__ . '/../includes/photos.php';
+// The photo endpoints need both: isAdminRequest() to let an admin see any
+// photo, and complianceFilePath() to resolve a stored path safely. Serving
+// fataled with an empty 500 without them — photos.php pulls in uploads.php but
+// nothing was pulling in adminauth.
+require_once __DIR__ . '/../includes/adminauth.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -275,9 +281,10 @@ if ($method === 'GET' && $action === 'detail') {
     $stmt->execute([':c' => $callId]);
     $detail['timeline'] = $stmt->fetchAll();
 
-    $stmt = $pdo->prepare("SELECT photo_type, file_url, taken_at FROM call_photos WHERE call_id = :c");
-    $stmt->execute([':c' => $callId]);
-    $detail['photos'] = $stmt->fetchAll();
+    // file_url is left over from before there was anywhere to upload to; the
+    // real ones come back as endpoint URLs that check who is asking.
+    $detail['photos'] = photoList($callId);
+    $detail['photo_state'] = photoState($callId);
 
     if ($isProvider) {
         $stmt = $pdo->prepare(
@@ -503,9 +510,25 @@ if ($method === 'POST' && $action === 'complete') {
         // believed was open, with nothing anywhere to refund it. Committing
         // first also means this row stops being completable by anybody else,
         // so the capture below cannot be raced into happening twice.
+        // Written down, not enforced. Refusing to let a driver close a job at
+        // 2am over a missing photograph strands his payout and earns a phone
+        // call; he is warned hard on the way in, and if he goes ahead anyway
+        // that fact is recorded. A damage claim three weeks later is then
+        // answerable either way — here are the photographs, or here is the
+        // record that he was told and chose not to take them.
+        $photos = photoState($callId);
+
         $pdo->prepare(
-            "UPDATE calls SET status = 'completed', completed_at = NOW() WHERE id = :id"
-        )->execute([':id' => $callId]);
+            "UPDATE calls SET status = 'completed', completed_at = NOW(),
+                    photos_complete = :pc
+              WHERE id = :id"
+        )->execute([':pc' => $photos['complete'] ? 1 : 0, ':id' => $callId]);
+
+        if (!$photos['complete']) {
+            logCallEvent($callId, 'photos_missing',
+                'Completed without: ' . $photos['missing_summary'],
+                (int)$user['account_id'], (int)$user['id']);
+        }
 
         $pdo->prepare("UPDATE accounts SET jobs_completed = jobs_completed + 1 WHERE id = :a")
             ->execute([':a' => $user['account_id']]);
@@ -763,10 +786,129 @@ if ($method === 'GET' && $action === 'my-calls') {
         $row['tower_net'] = $c['tower_net'] !== null ? (float)$c['tower_net'] : null;
         $row['platform_fee'] = $c['platform_fee'] !== null ? (float)$c['platform_fee'] : null;
         $row['tower_name'] = $c['tower_name'] ?? null;
+        // The photo checklist rides along with each of the company's own jobs.
+        // Fetching it per card afterwards would be one request per job on a
+        // screen a driver refreshes constantly.
+        if (($c['awarded_tower_account_id'] ?? null) !== null) {
+            $row['photo_state'] = photoState((int)$c['id']);
+            $row['photos']      = photoList((int)$c['id']);
+        }
         $row['bid_count'] = isset($c['bid_count']) ? (int)$c['bid_count'] : null;
         $out[] = $row;
     }
     successResponse(['calls' => $out, 'count' => count($out)]);
+}
+
+// ═══ JOB PHOTOS ══════════════════════════════════════════════════════════════
+// The evidence a damage claim is answered with. call_photos has existed since
+// the first schema with nothing able to write to it — which also meant
+// goa_requires_photo demanded a photograph that could not be taken, so a driver
+// who turned out to an empty space could not claim the fee he had earned.
+if ($method === 'POST' && $action === 'photo') {
+    $user = requireAuth();
+    requireAccountType($user, 'tower');
+
+    $callId = (int)($_POST['call_id'] ?? 0);
+    $type   = (string)($_POST['photo_type'] ?? '');
+    if (!$callId) errorResponse('call_id is required');
+    if (!photoTypeIsValid($type)) errorResponse(t('err.photo_type'));
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare(
+        "SELECT id, status, awarded_tower_account_id FROM calls WHERE id = :id"
+    );
+    $stmt->execute([':id' => $callId]);
+    $call = $stmt->fetch();
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
+
+    // Only the company running the job. Photographs of a stranger's plate and
+    // VIN are not something any signed-in operator gets to add to any job.
+    if ((int)$call['awarded_tower_account_id'] !== (int)$user['account_id']) {
+        errorResponse(t('err.no_permission'), 403);
+    }
+    // Closed jobs stay closed. Allowing photos onto a finished job would let
+    // evidence be added after a dispute had already started.
+    if (in_array($call['status'], ['canceled', 'expired'], true)) {
+        errorResponse(t('err.job_closed'), 409);
+    }
+
+    $stored = storeComplianceFile($_FILES['file'] ?? [], (int)$user['account_id']);
+    if (empty($stored['ok'])) errorResponse($stored['error'], 400);
+
+    // One shot per required slot. Re-taking replaces rather than stacking, so
+    // the checklist cannot read "done" off a blurry first attempt while a good
+    // one sits underneath it — but the extra types stack freely, because
+    // "damage" is genuinely many photographs.
+    if (!in_array($type, photoExtraTypes(), true)) {
+        $pdo->prepare("DELETE FROM call_photos WHERE call_id = :c AND photo_type = :t")
+            ->execute([':c' => $callId, ':t' => $type]);
+    }
+
+    $pdo->prepare(
+        "INSERT INTO call_photos
+            (call_id, account_id, uploaded_by_user_id, photo_type, file_url,
+             stored_path, mime_type, file_size, note, lat, lng, taken_at)
+         VALUES (:c, :a, :u, :t, '', :p, :m, :sz, :n, :lat, :lng, NOW())"
+    )->execute([
+        ':c' => $callId, ':a' => $user['account_id'], ':u' => $user['id'],
+        ':t' => $type, ':p' => $stored['path'], ':m' => $stored['mime'],
+        ':sz' => $stored['size'],
+        ':n' => isset($_POST['note']) ? mb_substr((string)$_POST['note'], 0, 255) : null,
+        ':lat' => isset($_POST['lat']) ? (float)$_POST['lat'] : null,
+        ':lng' => isset($_POST['lng']) ? (float)$_POST['lng'] : null,
+    ]);
+    $photoId = (int)$pdo->lastInsertId();
+
+    logCallEvent($callId, 'photo', photoLabel($type) . ' photographed',
+        (int)$user['account_id'], (int)$user['id']);
+
+    successResponse([
+        'photo_id' => $photoId,
+        'photos'   => photoState($callId),
+    ], t('ok.photo_saved'));
+}
+
+// Serving one. Never a direct link: these are pictures of a stranger's vehicle,
+// plate and VIN, so the file goes out only to the company that took it, the
+// customer's own provider account, or an admin.
+if ($method === 'GET' && $action === 'photo') {
+    $id = (int)($_GET['id'] ?? 0);
+    if (!$id) { http_response_code(404); exit; }
+
+    $stmt = getDB()->prepare(
+        "SELECT p.*, c.awarded_tower_account_id, c.provider_account_id
+           FROM call_photos p JOIN calls c ON c.id = p.call_id
+          WHERE p.id = :id"
+    );
+    $stmt->execute([':id' => $id]);
+    $photo = $stmt->fetch();
+    if (!$photo) { http_response_code(404); exit; }
+
+    $allowed = false;
+    if (isAdminRequest()) {
+        $allowed = true;
+    } else {
+        $token  = bearerToken();
+        $claims = $token ? verifyJWT($token) : null;
+        $acct   = (int)($claims['account_id'] ?? 0);
+        if ($claims && ($claims['kind'] ?? '') !== 'admin' && $acct > 0
+            && ($acct === (int)$photo['awarded_tower_account_id']
+             || $acct === (int)$photo['provider_account_id'])) {
+            $allowed = true;
+        }
+    }
+    if (!$allowed) { http_response_code(403); exit; }
+
+    $path = complianceFilePath($photo['stored_path']);
+    if (!$path) { http_response_code(404); exit; }
+
+    header('Content-Type: ' . ($photo['mime_type'] ?: 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    // Private: this is somebody's vehicle and number plate, not a public asset.
+    header('Cache-Control: private, max-age=3600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($path);
+    exit;
 }
 
 // ═══ EXPIRY SWEEP ════════════════════════════════════════════════════════════
