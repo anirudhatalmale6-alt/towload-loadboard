@@ -295,6 +295,8 @@ input::placeholder{color:#aab4c4}
   font-size:14.5px;font-weight:600;line-height:1.5;
   display:flex;align-items:flex-start;gap:10px;
 }
+.okbar.info{background:#fff8ed;border-color:#f0c68a;color:#7a4a10}
+.okbar.info .tick{background:#d97706}
 .okbar .tick{
   flex:none;width:20px;height:20px;border-radius:50%;background:#16a34a;color:#fff;
   display:grid;place-items:center;font-size:12px;font-weight:800;margin-top:1px;
@@ -675,7 +677,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260818f';
+  var v = '?v=20260818g';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -1368,6 +1370,20 @@ async function poll(){
   const r = await api('/consumer/track?token=' + S.token);
   if(!r.success) return;
 
+  // A job that ended with nothing happening does not deserve a screen.
+  //
+  // Expired means no towing company took it before the clock ran out;
+  // cancelled means it was called off. Either way there is no truck, no
+  // driver to call and no timeline that will ever move again — just the word
+  // "Expired" over a dead progress list with a price underneath it, which
+  // reads like a bill for a tow that never came.
+  //
+  // Completed and gone-on-arrival are NOT sent home: those have a total, a
+  // receipt and a rating to leave, and the customer came back to see them.
+  if(r.status === 'expired' || r.status === 'canceled'){
+    return closeAndGoHome(r.status_text, r.status === 'canceled' ? 'ok' : 'info');
+  }
+
   $('trkBig').textContent = r.status_text;
   const done = ['completed','goa','canceled','expired'].includes(r.status);
   $('trkSpin').classList.toggle('hide', done);
@@ -1585,6 +1601,22 @@ function paintEta(etaMinutes, stale){
     : (etaMinutes ? '<b>' + etaMinutes + '</b> ' + t('c.map_min') : t('c.map_close'));
 }
 
+/* Back to the booking form, carrying the server's own sentence about what
+   happened. Shared by the cancel button and by a job that ended on its own. */
+function closeAndGoHome(message, tone){
+  try {
+    sessionStorage.setItem('tl_closed', message || '');
+    // A green tick on "no truck available" would be the page congratulating
+    // somebody for still being stranded. Cancelling is a tick — they asked for
+    // it. Nobody turning up is not.
+    sessionStorage.setItem('tl_closed_tone', tone || 'info');
+  } catch(e){}
+  // A full reload rather than hiding cards: it clears the polling timers, the
+  // realtime socket and every bit of page state in one go. Unpicking those by
+  // hand is how a finished job carries on quietly polling in the background.
+  location.replace('./?closed=1');
+}
+
 async function cancelJob(){
   if(!confirm(t('c.cancel_confirm'))) return;
   const r = await api('/consumer/cancel', {method:'POST', body:JSON.stringify({token:S.token})});
@@ -1597,7 +1629,7 @@ async function cancelJob(){
   // "you have not been charged" would be a lie in exactly the case where the
   // customer's card really was charged, and money is the last thing to be
   // casual about. r.message already says whichever of the two happened.
-  try { sessionStorage.setItem('tl_canceled', r.message || ''); } catch(e){}
+  // Same exit as an expired job — one path home, one banner.
 
   // Back to the start with a plain reload rather than by hiding cards.
   //
@@ -1610,7 +1642,7 @@ async function cancelJob(){
   // The reload is deliberate. It clears the timers, the socket and every bit of
   // state in one go; unpicking those by hand is how a cancelled job ends up
   // still quietly polling in the background.
-  location.replace('./?canceled=1');
+  closeAndGoHome(r.message, 'ok');
 }
 
 /* Returning to a link whose job never got past the card screen. Showing the
@@ -1627,6 +1659,12 @@ async function resumeJob(){
       publishable_key: r.payment.publishable_key
     });
   }
+  // Already over, and over with nothing to show. Straight home rather than
+  // painting a dead tracking screen for a second first.
+  if(r.success && (r.status === 'expired' || r.status === 'canceled')){
+    return closeAndGoHome(r.status_text, r.status === 'canceled' ? 'ok' : 'info');
+  }
+
   $('trackCard').classList.remove('hide');
   startTracking();
 }
@@ -1640,20 +1678,29 @@ async function resumeJob(){
 // link texted to them as their receipt. Read the path too.
 const params = new URLSearchParams(location.search);
 
-if(params.get('canceled') === '1'){
+// `canceled` is still honoured so a link already open in somebody's browser
+// from before this changed still shows its banner.
+if(params.get('closed') === '1' || params.get('canceled') === '1'){
   let msg = '';
   try {
-    msg = sessionStorage.getItem('tl_canceled') || '';
-    // Read once. Otherwise every later visit in this tab re-announces a
-    // cancellation from hours ago.
+    msg = sessionStorage.getItem('tl_closed')
+       || sessionStorage.getItem('tl_canceled') || '';
+    // Read once. Otherwise every later visit in this tab re-announces
+    // something that happened hours ago.
+    sessionStorage.removeItem('tl_closed');
     sessionStorage.removeItem('tl_canceled');
   } catch(e){}
 
+  let tone = 'ok';
+  try { tone = sessionStorage.getItem('tl_closed_tone') || 'ok';
+        sessionStorage.removeItem('tl_closed_tone'); } catch(e){}
+
   const bar = $('okBar');
-  bar.innerHTML = '<span class="tick">&#10003;</span><span></span>';
+  bar.classList.toggle('info', tone === 'info');
+  bar.innerHTML = '<span class="tick">' + (tone === 'info' ? '!' : '&#10003;') + '</span><span></span>';
   // textContent, not innerHTML: this string came back over the network, and
   // the banner sits at the top of the page every customer lands on.
-  bar.querySelector('span:last-child').textContent = msg || t('c.cancel_done');
+  bar.querySelector('span:last-child').textContent = msg || t('c.job_closed');
   bar.classList.remove('hide');
   // Drop the flag so a refresh, or a bookmark, does not keep announcing it.
   history.replaceState({}, '', './');
