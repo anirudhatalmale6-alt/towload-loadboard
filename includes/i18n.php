@@ -133,6 +133,7 @@ function i18nCatalogue(): array {
 
         // pricing breakdown — the customer reads these to judge the price
         'price.base'        => 'Tarifa base del servicio',
+        'price.hook'        => 'Enganche',
         'price.miles'       => '{n} millas después de las primeras {inc}',
         'price.accident'    => 'Recuperación de accidente',
         'price.no_keys'     => 'Sin llaves disponibles',
@@ -323,6 +324,7 @@ function i18nCatalogue(): array {
         'msg.canceled_fee'        => 'Canceled. A ${amount} call-out fee applies because a driver was already on the way.',
 
         'price.base'        => 'Base service fee',
+        'price.hook'        => 'Hook-up',
         'price.miles'       => '{n} mi beyond the first {inc}',
         'price.accident'    => 'Accident recovery',
         'price.no_keys'     => 'No keys available',

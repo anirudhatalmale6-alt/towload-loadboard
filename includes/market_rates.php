@@ -36,21 +36,27 @@ require_once __DIR__ . '/pricing.php';
 
 /** The services a company is asked about, and the shape of each answer. */
 function rateSheetShape(): array {
+    // 'miles' — asks for a mileage allowance and a per-mile rate beyond it.
+    // 'hook'  — asks for the hook-up fee separately from the call price.
+    //
+    // The roadside services carry mileage now too: their flat price used to
+    // cover any distance, which is fine across town and wrong when the
+    // customer is 40 miles out. per_mile left blank keeps the old behaviour.
     return [
-        ['service' => 'tow',            'class' => 'light',  'miles' => true],
-        ['service' => 'tow',            'class' => 'medium', 'miles' => true],
-        ['service' => 'tow',            'class' => 'heavy',  'miles' => true],
-        ['service' => 'winch_recovery', 'class' => 'light',  'miles' => false],
-        ['service' => 'lockout',        'class' => 'light',  'miles' => false],
-        ['service' => 'jumpstart',      'class' => 'light',  'miles' => false],
-        ['service' => 'tire_change',    'class' => 'light',  'miles' => false],
-        ['service' => 'fuel_delivery',  'class' => 'light',  'miles' => false],
+        ['service' => 'tow',            'class' => 'light',  'miles' => true,  'hook' => true],
+        ['service' => 'tow',            'class' => 'medium', 'miles' => true,  'hook' => true],
+        ['service' => 'tow',            'class' => 'heavy',  'miles' => true,  'hook' => true],
+        ['service' => 'winch_recovery', 'class' => 'light',  'miles' => false, 'hook' => false],
+        ['service' => 'lockout',        'class' => 'light',  'miles' => true,  'hook' => false],
+        ['service' => 'jumpstart',      'class' => 'light',  'miles' => false, 'hook' => false],
+        ['service' => 'tire_change',    'class' => 'light',  'miles' => true,  'hook' => false],
+        ['service' => 'fuel_delivery',  'class' => 'light',  'miles' => true,  'hook' => false],
     ];
 }
 
 function towerRates(int $accountId): array {
     $st = getDB()->prepare(
-        "SELECT service_type, vehicle_class, base_fee, included_miles, per_mile, updated_at
+        "SELECT service_type, vehicle_class, base_fee, hook_fee, included_miles, per_mile, updated_at
            FROM tower_rates WHERE account_id = :a"
     );
     $st->execute([':a' => $accountId]);
@@ -58,6 +64,7 @@ function towerRates(int $accountId): array {
     foreach ($st as $r) {
         $out[$r['service_type'] . ':' . $r['vehicle_class']] = [
             'base_fee'       => (float)$r['base_fee'],
+            'hook_fee'       => (float)$r['hook_fee'],
             'included_miles' => (float)$r['included_miles'],
             'per_mile'       => (float)$r['per_mile'],
             'updated_at'     => $r['updated_at'],
@@ -78,9 +85,10 @@ function saveTowerRates(int $accountId, array $rows): int {
     foreach (rateSheetShape() as $s) $allowed[$s['service'] . ':' . $s['class']] = $s;
 
     $up = $pdo->prepare(
-        "INSERT INTO tower_rates (account_id, service_type, vehicle_class, base_fee, included_miles, per_mile)
-              VALUES (:a, :s, :c, :b, :i, :m)
+        "INSERT INTO tower_rates (account_id, service_type, vehicle_class, base_fee, hook_fee, included_miles, per_mile)
+              VALUES (:a, :s, :c, :b, :h, :i, :m)
          ON DUPLICATE KEY UPDATE base_fee = VALUES(base_fee),
+                                 hook_fee = VALUES(hook_fee),
                                  included_miles = VALUES(included_miles),
                                  per_mile = VALUES(per_mile)"
     );
@@ -109,8 +117,15 @@ function saveTowerRates(int $accountId, array $rows): int {
             ? (isset($row['per_mile']) && $row['per_mile'] !== '' ? (float)$row['per_mile'] : 0.0)
             : 0.0;
 
+        // Only tows are asked for it, and blank means "my call price already
+        // covers the hook" — which is what the form asked for before this
+        // field existed, so it must stay the harmless answer.
+        $hook = !empty($allowed[$key]['hook']) && isset($row['hook_fee']) && $row['hook_fee'] !== ''
+            ? max(0.0, (float)$row['hook_fee']) : 0.0;
+
         $up->execute([':a' => $accountId, ':s' => $service, ':c' => $class,
-                      ':b' => round($base, 2), ':i' => round($miles, 2), ':m' => round($per, 2)]);
+                      ':b' => round($base, 2), ':h' => round($hook, 2),
+                      ':i' => round($miles, 2), ':m' => round($per, 2)]);
         $n++;
     }
     return $n;
@@ -162,6 +177,7 @@ function marketAverages(array $accountIds): array {
         "SELECT service_type, vehicle_class,
                 COUNT(*)                AS n,
                 AVG(base_fee)           AS base_fee,
+                AVG(hook_fee)           AS hook_fee,
                 AVG(NULLIF(included_miles, 0)) AS included_miles,
                 AVG(NULLIF(per_mile, 0))       AS per_mile
            FROM tower_rates
@@ -174,6 +190,10 @@ function marketAverages(array $accountIds): array {
         $out[$r['service_type'] . ':' . $r['vehicle_class']] = [
             'n'              => (int)$r['n'],
             'base_fee'       => round((float)$r['base_fee'], 2),
+            // Averaged across ALL of them, zeros included — a company with no
+            // separate hook fee genuinely charges nothing for it, so it must
+            // pull the market average down rather than be skipped.
+            'hook_fee'       => round((float)$r['hook_fee'], 2),
             'included_miles' => $r['included_miles'] === null ? 0.0 : round((float)$r['included_miles'], 1),
             'per_mile'       => $r['per_mile'] === null ? 0.0 : round((float)$r['per_mile'], 2),
         ];
@@ -226,6 +246,7 @@ function recomputeZoneRates(int $zoneId): array {
         if ($row && $row['rate_source'] === 'manual') { $held++; continue; }
 
         $base = grossUpForFee($a['base_fee']);
+        $hook = grossUpForFee($a['hook_fee']);
         $per  = grossUpForFee($a['per_mile']);
 
         // Time-of-day policy is the platform's, not the company's. A company
@@ -250,14 +271,15 @@ function recomputeZoneRates(int $zoneId): array {
         $pdo->prepare(
             "INSERT INTO pricing_rules
                  (zone_id, rate_source, sample_size, computed_at, service_type, vehicle_class,
-                  base_fee, included_miles, per_mile, minimum_total,
+                  base_fee, hook_fee, included_miles, per_mile, minimum_total,
                   after_hours_multiplier, weekend_multiplier, accident_surcharge,
                   no_keys_surcharge, wheels_locked_surcharge, underground_surcharge, is_active)
-             VALUES (:z, 'auto', :n, NOW(), :s, :c, :b, :i, :m, :min,
+             VALUES (:z, 'auto', :n, NOW(), :s, :c, :b, :hk, :i, :m, :min,
                      :ah, :wk, :acc, :nk, :wl, :ug, 1)
              ON DUPLICATE KEY UPDATE
                  rate_source = 'auto', sample_size = VALUES(sample_size),
                  computed_at = NOW(), base_fee = VALUES(base_fee),
+                 hook_fee = VALUES(hook_fee),
                  included_miles = VALUES(included_miles), per_mile = VALUES(per_mile),
                  minimum_total = VALUES(minimum_total),
                  -- Refreshed too, not just seeded. An 'auto' row is entirely
@@ -274,10 +296,11 @@ function recomputeZoneRates(int $zoneId): array {
                  is_active = 1"
         )->execute([
             ':z' => $zoneId, ':n' => $a['n'], ':s' => $service, ':c' => $class,
-            ':b' => $base, ':i' => $a['included_miles'], ':m' => $per,
-            // The floor is the base itself: a short job can never price under
-            // the hook-up the companies said they charge.
-            ':min' => $base,
+            ':b' => $base, ':hk' => $hook, ':i' => $a['included_miles'], ':m' => $per,
+            // The floor is everything charged before a wheel turns — call price
+            // plus the hook. Leaving the hook out of it would let a short job
+            // price under what the companies said they charge to hook up.
+            ':min' => round($base + $hook, 2),
             ':ah' => $d['after_hours_multiplier'], ':wk' => $d['weekend_multiplier'],
             ':acc' => $d['accident_surcharge'], ':nk' => $d['no_keys_surcharge'],
             ':wl' => $d['wheels_locked_surcharge'], ':ug' => $d['underground_surcharge'],

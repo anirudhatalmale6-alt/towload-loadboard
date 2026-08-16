@@ -69,7 +69,11 @@ function getPricingRule(string $serviceType, string $vehicleClass, int $zoneId =
  */
 function applyZoneRates(array $rule, float $multiplier): array {
     if (abs($multiplier - 1.0) < 0.001) return $rule;
-    foreach (['base_fee','per_mile','minimum_total','accident_surcharge',
+    // hook_fee belongs in this list. Every money column has to be here or a
+    // market on a 0.95 multiplier scales everything except the one that was
+    // added last, and the mistake shows up as a price a few dollars out with
+    // nothing failing. included_miles is absent on purpose — it is a distance.
+    foreach (['base_fee','hook_fee','per_mile','minimum_total','accident_surcharge',
               'no_keys_surcharge','wheels_locked_surcharge','underground_surcharge'] as $col) {
         $rule[$col] = round((float)$rule[$col] * $multiplier, 2);
     }
@@ -122,6 +126,15 @@ function quoteConsumerJob(array $opts): array {
     $base = (float)$rule['base_fee'];
     $lines[] = ['label' => t('price.base'), 'amount' => round($base, 2)];
     $subtotal = $base;
+
+    // Hook-up, itemised separately when the market charges for it. Zero for
+    // every rate entered before the field existed, where the call price already
+    // covered it — so nothing that was already priced moves.
+    $hook = (float)($rule['hook_fee'] ?? 0);
+    if ($hook > 0) {
+        $lines[] = ['label' => t('price.hook'), 'amount' => round($hook, 2)];
+        $subtotal += $hook;
+    }
 
     // Mileage, only beyond what the base fee already covers.
     $billableMiles = 0.0;

@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816f">
+<link rel="manifest" href="manifest.json?v=20260816g">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -587,7 +587,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816f"></script>
+<script src="i18n.js?v=20260816g"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -793,6 +793,10 @@ async function renderRatesPane(){
         <label>${t('rt.price')}
           <input type="number" min="0" step="1" class="r-base"
                  value="${x.base_fee ?? ''}" placeholder="—"></label>
+        ${x.asks_hook ? `
+        <label>${t('rt.hook')}
+          <input type="number" min="0" step="1" class="r-hook"
+                 value="${x.hook_fee ?? ''}" placeholder="—"></label>` : ''}
         ${x.asks_miles ? `
         <label>${t('rt.included')}
           <input type="number" min="0" step="1" class="r-miles"
@@ -810,6 +814,8 @@ async function renderRatesPane(){
         <p class="push-fine">${esc(r.note || '')}</p>
         <div class="rates">${(r.rows||[]).map(row).join('')}</div>
         <p class="push-fine">${t('rt.blank_note')}</p>
+        <p class="push-fine">${t('rt.hook_note')}</p>
+        <p class="push-fine">${t('rt.miles_note')}</p>
         <button class="btn go" onclick="saveRates(this)">${t('rt.save')}</button>
         <div id="rateMsg" class="push-fine"></div>
       </div>
@@ -822,6 +828,7 @@ async function saveRates(btn){
     service_type:   el.dataset.s,
     vehicle_class:  el.dataset.c,
     base_fee:       el.querySelector('.r-base')?.value  ?? '',
+    hook_fee:       el.querySelector('.r-hook')?.value  ?? '',
     included_miles: el.querySelector('.r-miles')?.value ?? '',
     per_mile:       el.querySelector('.r-per')?.value   ?? '',
   }));
@@ -1199,9 +1206,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816f"></script>
-<script src="realtime.js?v=20260816f"></script>
-<script src="driver.js?v=20260816f"></script>
+<script src="push.js?v=20260816g"></script>
+<script src="realtime.js?v=20260816g"></script>
+<script src="driver.js?v=20260816g"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

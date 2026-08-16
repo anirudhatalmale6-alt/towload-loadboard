@@ -33,8 +33,12 @@ if ($method === 'GET' && ($action === '' || $action === 'mine')) {
             'service_type'   => $s['service'],
             'vehicle_class'  => $s['class'],
             'asks_miles'     => $s['miles'],
+            'asks_hook'      => !empty($s['hook']),
             'label'          => t('rate.' . $s['service'] . '_' . $s['class']),
             'base_fee'       => $mine[$key]['base_fee']       ?? null,
+            // 0 is "no separate hook fee", which is the same thing as never
+            // having answered — show it blank rather than a meaningless $0.
+            'hook_fee'       => !empty($mine[$key]['hook_fee']) ? $mine[$key]['hook_fee'] : null,
             'included_miles' => $mine[$key]['included_miles'] ?? null,
             'per_mile'       => $mine[$key]['per_mile']       ?? null,
         ];
