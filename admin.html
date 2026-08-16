@@ -801,6 +801,8 @@ async function vJobs(){
 
 // ═══ SETTINGS ════════════════════════════════════════════
 const SETTING_HELP = {
+  ios_app_url: 'App Store link. Paste it here the day the app is published and the dashboard swaps the Add to Home Screen steps for a download button. While this is empty those steps stay, because they are the only way an iPhone receives a job alert.',
+  android_app_url: 'Google Play link. Optional — Android gets alerts from the browser without installing anything.',
   surge_max_multiplier: 'Hard ceiling. The algorithm can never go above this, whatever demand does.',
   surge_tiers: 'ratio:multiplier steps. Demand ÷ available trucks, lowest first.',
   surge_min_demand: 'Below this many open jobs in an area, never surge. One request is noise.',

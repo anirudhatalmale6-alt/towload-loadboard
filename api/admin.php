@@ -511,6 +511,7 @@ const EDITABLE_SETTINGS = [
     'default_language','spanish_regions','geoip_provider',
     'tracking_enabled','tracking_ping_seconds','tracking_stale_seconds',
     'tracking_retain_days','tracking_road_factor','tracking_avg_speed_mph',
+    'ios_app_url','android_app_url',
 ];
 
 // Keys whose VALUE must never leave the server, admin or not. The VAPID private

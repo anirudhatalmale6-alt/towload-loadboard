@@ -131,6 +131,36 @@ const TLPush = (() => {
 
 /* ─── UI ────────────────────────────────────────────────────────────────── */
 
+// Where the native apps live, asked once and cached for the page. Empty string
+// means not published yet.
+let APP_LINKS = null;
+async function appLinks() {
+  if (APP_LINKS) return APP_LINKS;
+  try {
+    const r = await api('/push/prefs');
+    APP_LINKS = r && r.app ? r.app : { ios: '', android: '' };
+  } catch (e) { APP_LINKS = { ios: '', android: '' }; }
+  return APP_LINKS;
+}
+
+// The Apple mark, drawn rather than loaded, so the button needs no asset and
+// works offline like the rest of the shell.
+function appleLogoSVG() {
+  return `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+    <path d="M17.05 12.54c-.02-2.2 1.8-3.26 1.88-3.31-1.02-1.5-2.61-1.7-3.18-1.72-1.35-.14-2.64.79-3.33.79-.69 0-1.75-.77-2.87-.75-1.48.02-2.84.86-3.6 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.25 2.74 2.21 1.1-.04 1.52-.71 2.85-.71 1.33 0 1.7.71 2.86.69 1.18-.02 1.93-1.08 2.65-2.14.83-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.32-3.5zM14.9 5.6c.6-.74 1.01-1.75.9-2.77-.87.04-1.94.59-2.57 1.32-.56.65-1.06 1.7-.93 2.7.97.08 1.97-.5 2.6-1.25z"/>
+  </svg>`;
+}
+
+// An App Store button. Apple's own badge is a licensed image asset; this is the
+// same shape drawn locally, which keeps the page self-contained.
+function appStoreButton(url, kind) {
+  const label = kind === 'android' ? t('p.get_on_play') : t('p.get_on_app_store');
+  const small = kind === 'android' ? t('p.get_it_on')   : t('p.download_on_the');
+  const logo  = kind === 'android' ? '' : appleLogoSVG();
+  return `<a class="store-btn" href="${esc(url)}" target="_blank" rel="noopener">
+    ${logo}<span class="store-txt"><small>${small}</small><b>${label}</b></span></a>`;
+}
+
 // Shown at the top of the board until alerts are on. Deliberately hard to
 // ignore: an operator who never turns this on gets no jobs, blames the
 // platform, and leaves — and neither of us ever finds out why.
@@ -142,6 +172,22 @@ async function renderPushBanner() {
   if (s === 'on') { box.innerHTML = ''; return; }
 
   if (s === 'ios_needs_install') {
+    const links = await appLinks();
+
+    // Once the app is published this is one button instead of three steps.
+    // Until then the steps stay, because they are the ONLY way an iPhone
+    // receives a job alert — swapping them for a dead button would switch
+    // alerts off for every iPhone operator without telling anybody.
+    if (links.ios) {
+      box.innerHTML = `
+        <div class="push-bar warn">
+          <h4>${t('p.app_h')}</h4>
+          <p>${t('p.app_p')}</p>
+          ${appStoreButton(links.ios, 'ios')}
+        </div>`;
+      return;
+    }
+
     box.innerHTML = `
       <div class="push-bar warn">
         <h4>${t('p.ios_h')}</h4>
@@ -218,11 +264,13 @@ async function renderAlertsPane() {
   ]);
   const p = prefsRes.prefs || {};
   const devices = devRes.devices || [];
+  APP_LINKS = prefsRes.app || APP_LINKS || { ios: '', android: '' };
+  const hasApp = !!(TLPush.isIOS ? APP_LINKS.ios : APP_LINKS.android);
 
   const statusRow = {
     on:                `<span class="dot ok"></span> ${t('p.st_on')}`,
     ready:             `<span class="dot warn"></span> ${t('p.st_ready')}`,
-    ios_needs_install: `<span class="dot warn"></span> ${t('p.st_ios')}`,
+    ios_needs_install: `<span class="dot warn"></span> ${hasApp ? t('p.st_get_app') : t('p.st_ios')}`,
     blocked:           `<span class="dot err"></span> ${t('p.st_blocked')}`,
     unsupported:       `<span class="dot err"></span> ${t('p.st_unsupported')}`,
   }[s];
@@ -240,7 +288,11 @@ async function renderAlertsPane() {
              <div id="testResult" class="push-fine"></div>`
           : s === 'ready'
             ? `<button class="btn go" onclick="doEnablePush(this)">${t('p.enable')}</button><p></p>`
-            : `<p class="push-fine">${s === 'ios_needs_install' ? t('p.ios_p') : t('p.blocked_p')}</p>`}
+            : s === 'ios_needs_install' && hasApp
+              // He asked for the download, not the Home Screen walkthrough.
+              // The walkthrough only survives while there is no app to point at.
+              ? `<p>${t('p.app_p')}</p>${appStoreButton(APP_LINKS.ios, 'ios')}`
+              : `<p class="push-fine">${s === 'ios_needs_install' ? t('p.ios_p') : t('p.blocked_p')}</p>`}
       </div>
     </div>
 

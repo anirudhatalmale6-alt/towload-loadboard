@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816g">
+<link rel="manifest" href="manifest.json?v=20260816h">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -178,6 +178,18 @@ h1{font-size:20px;font-weight:650;letter-spacing:-.3px}
 .push-bar.err h4{color:#f0776f}
 .push-bar p{font-size:13px;color:var(--ink-dim);line-height:1.6;margin-bottom:0}
 .push-bar .btn{margin-top:12px}
+/* App Store / Play button. Apple's real badge is a licensed image; this is the
+   same shape drawn in CSS so the shell stays self-contained and offline-safe. */
+.store-btn{
+  display:inline-flex;align-items:center;gap:10px;margin-top:14px;
+  background:#000;color:#fff;border:1px solid #3a3a3c;border-radius:10px;
+  padding:9px 16px 9px 13px;text-decoration:none;line-height:1.15;
+}
+.store-btn:hover{background:#151517;border-color:#5a5a5e}
+.store-btn .store-txt{display:flex;flex-direction:column}
+.store-btn small{font-size:10.5px;letter-spacing:.02em;opacity:.9}
+.store-btn b{font-size:17px;font-weight:650;letter-spacing:-.2px}
+
 .push-steps{margin:12px 0 0;padding:0;list-style:none;counter-reset:s}
 .push-steps li{
   display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink);
@@ -587,7 +599,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816g"></script>
+<script src="i18n.js?v=20260816h"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -1206,9 +1218,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816g"></script>
-<script src="realtime.js?v=20260816g"></script>
-<script src="driver.js?v=20260816g"></script>
+<script src="push.js?v=20260816h"></script>
+<script src="realtime.js?v=20260816h"></script>
+<script src="driver.js?v=20260816h"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

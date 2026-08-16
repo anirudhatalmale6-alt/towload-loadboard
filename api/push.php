@@ -191,7 +191,13 @@ if ($action === 'prefs' && $method === 'GET') {
     $stmt->execute([':a' => $accountId]);
     $p = $stmt->fetch() ?: [];
 
-    successResponse(['prefs' => [
+    // Where the native apps live, if they exist yet. The dashboard asks the
+    // server rather than hardcoding a link, so publishing the app is a setting
+    // Ricardo pastes in, not a deploy.
+    successResponse(['app' => [
+        'ios'     => trim((string)setting('ios_app_url', '')),
+        'android' => trim((string)setting('android_app_url', '')),
+    ], 'prefs' => [
         'enabled'        => (bool)($p['push_enabled'] ?? 1),
         'radius_miles'   => $p['push_radius_miles'] !== null ? (int)$p['push_radius_miles'] : null,
         'service_radius' => (int)($p['service_radius_miles'] ?? 25),
