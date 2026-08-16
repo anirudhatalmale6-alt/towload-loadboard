@@ -182,6 +182,16 @@ es: {
   'c.nocov_note':        'Si necesita una grúa ahora mismo, busque una compañía local. No queremos hacerle perder tiempo cuando no podemos ayudarle.',
 
   'c.assure':            '<b>No le cobramos ahora.</b> Solo dejamos una retención. Usted paga cuando el trabajo esté hecho, y si ninguna grúa lo toma, se libera la retención y no paga nada.',
+  // ─── Retención de la tarjeta ───
+  'c.secure':            'Protegido por Stripe',
+  'pay.h':               'Autorice el pago',
+  'pay.sub':             'Retenemos {amount} en su tarjeta. No se cobra nada hasta que la grúa termine el trabajo.',
+  'pay.hold_note':       'Esto es una retención, no un cargo. Si ninguna grúa acepta el trabajo, la retención se libera sola.',
+  'pay.btn':             'Autorizar {amount} y buscar grúa',
+  'pay.working':         'Autorizando…',
+  'pay.declined':        'Su banco rechazó la tarjeta. No se ha cobrado nada — pruebe con otra tarjeta.',
+  'pay.why':             '¿Por qué ahora? Las grúas solo ven trabajos con el pago ya asegurado. Por eso llegan.',
+  'pay.unavailable':     'No pudimos cargar el formulario de pago. Actualice la página e inténtelo de nuevo — no se le ha cobrado nada.',
   'c.your_name':         'Su nombre',
   'c.ph_name':           'Nombre y apellido',
   'c.mobile':            'Número de celular',
@@ -825,6 +835,16 @@ en: {
   'c.nocov_note':        'If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.',
 
   'c.assure':            '<b>Your card is not charged now.</b> We only place a hold. You pay when the job is finished — and if no driver takes it, the hold is released and you pay nothing.',
+  // ─── Card hold ───
+  'c.secure':            'Secured by Stripe',
+  'pay.h':               'Authorize payment',
+  'pay.sub':             'We place a hold of {amount} on your card. Nothing is charged until the truck finishes the job.',
+  'pay.hold_note':       'This is a hold, not a charge. If no one takes the job, the hold releases on its own.',
+  'pay.btn':             'Authorize {amount} and find a truck',
+  'pay.working':         'Authorizing…',
+  'pay.declined':        'Your bank declined the card. Nothing was charged — try a different card.',
+  'pay.why':             'Why now? Tow operators only see jobs with payment already secured. That is why they turn up.',
+  'pay.unavailable':     'We could not load the payment form. Please refresh and try again — nothing has been charged.',
   'c.your_name':         'Your name',
   'c.ph_name':           'First and last name',
   'c.mobile':            'Mobile number',

@@ -384,6 +384,24 @@ input::placeholder{color:#aab4c4}
 }
 .hide{display:none !important}
 .foot{text-align:center;color:var(--ink-3);font-size:12.5px;padding:22px 10px 0;line-height:1.7}
+
+/* ─── Card hold ────────────────────────────────────────────────────────── */
+.pay-amt{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1.1}
+.pay-sub{color:var(--ink-2);font-size:14.5px;margin:8px 0 18px;line-height:1.55}
+#payEl{margin-bottom:16px;min-height:80px}
+.pay-hold{background:var(--wash);border:1px solid var(--line);border-radius:11px;
+  padding:12px 14px;font-size:13.5px;color:var(--ink-2);line-height:1.5;margin-bottom:14px}
+.pay-why{font-size:12.5px;color:var(--ink-3);line-height:1.5;margin-top:14px}
+/* The Stripe iframe grows as the customer types — a saved-card prompt unfolds
+   once the postal code is in — and every time it does, everything below it
+   jumps down the page. Someone reaching for "Authorize" can have the button
+   move out from under their thumb mid-tap and hit a form field instead.
+   Sticking it to the bottom of the viewport means it is always in the same
+   place no matter what Stripe renders above it. */
+#payCard #payBtn{position:sticky;bottom:12px;z-index:2;
+  box-shadow:0 6px 22px rgba(255,106,0,.28)}
+.pay-lock{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;
+  color:var(--ink-3);font-weight:600;margin-bottom:14px}
 </style>
 </head>
 <body>
@@ -520,6 +538,27 @@ input::placeholder{color:#aab4c4}
     <div class="nocov-note" data-i18n="c.nocov_note">If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.</div>
   </div>
 
+  <!-- ═══ CARD HOLD ═══
+       Asked here and nowhere earlier, deliberately. A stranded person will not
+       hand over a card before they know the price and that somebody can
+       actually come — so the card comes AFTER the quote and the coverage check,
+       and it is the last thing between them and a truck.
+
+       It is also not optional. The board advertises every job as already paid
+       for; that badge is the whole reason a towing company drops what it is
+       doing and turns out. Until this screen is cleared the job is a draft and
+       no operator has seen it. -->
+  <div class="card hide" id="payCard">
+    <div class="pay-lock">🔒 <span data-i18n="c.secure">Secured by Stripe</span></div>
+    <div class="pay-amt" id="payAmt">—</div>
+    <div class="pay-sub" id="paySub"></div>
+    <div id="payErr" class="err hide"></div>
+    <div id="payEl"></div>
+    <div class="pay-hold" data-i18n="pay.hold_note">This is a hold, not a charge. If no one takes the job, the hold releases on its own.</div>
+    <button class="btn" id="payBtn" onclick="authorizeCard()">—</button>
+    <div class="pay-why" data-i18n="pay.why">Why now? Tow operators only see jobs with payment already secured. That is why they turn up.</div>
+  </div>
+
   <!-- ═══ TRACKING ═══ -->
   <div class="card hide" id="trackCard">
     <div class="track-status">
@@ -571,7 +610,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816u';
+  var v = '?v=20260816z';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -818,6 +857,159 @@ async function submitRequest(){
   S.token = r.tracking_token;
   history.replaceState({}, '', '?job=' + r.tracking_token);
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
+
+  // The job exists but is a DRAFT — no towing company has seen it and no phone
+  // has rung. It only reaches the board once the hold is on the card, which is
+  // the next screen.
+  return showPayment(r);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THE CARD HOLD
+
+   Asked for here, at the very end, and not a moment earlier. Everything before
+   this — service, vehicle, location, price, coverage — costs the customer
+   nothing and can be abandoned freely. A card field at the top of that flow
+   loses most of the people who genuinely need a truck.
+
+   By this point they have seen the exact price and been told a truck can
+   reach them. The hold is the last action, and it is what turns their request
+   into a job an operator will actually drive to.
+   ═══════════════════════════════════════════════════════════════════════════ */
+let PAY = { stripe:null, elements:null, amount:0, busy:false };
+
+function payErr(m){
+  const b = $('payErr'); b.textContent = m; b.classList.remove('hide');
+  b.scrollIntoView({behavior:'smooth', block:'center'});
+}
+function payClearErr(){ $('payErr').classList.add('hide'); }
+
+function loadStripeJs(){
+  if(window.Stripe) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const el = document.createElement('script');
+    el.src = 'https://js.stripe.com/v3/';
+    el.onload  = () => resolve(!!window.Stripe);
+    el.onerror = () => resolve(false);
+    document.head.appendChild(el);
+  });
+}
+
+async function showPayment(r){
+  $('payCard').classList.remove('hide');
+  window.scrollTo({top:0, behavior:'smooth'});
+
+  const amount = Number(r.total ?? r.offer_amount ?? (S.quote && S.quote.total) ?? 0);
+  PAY.amount = amount;
+  const money = '$' + amount.toFixed(2);
+  $('payAmt').textContent = money;
+  $('paySub').textContent = t('pay.sub', {amount: money});
+  $('payBtn').textContent = t('pay.btn', {amount: money});
+
+  // No key or no client secret means the server could not set up the payment.
+  // Say so plainly rather than showing an empty box — the customer is stranded
+  // and needs to know to try again, not to sit and wait.
+  if(!r.client_secret || !r.publishable_key){
+    $('payBtn').disabled = true;
+    return payErr(t('pay.unavailable'));
+  }
+
+  if(!await loadStripeJs()){
+    $('payBtn').disabled = true;
+    return payErr(t('pay.unavailable'));
+  }
+
+  PAY.stripe   = Stripe(r.publishable_key);
+  PAY.elements = PAY.stripe.elements({
+    clientSecret: r.client_secret,
+    appearance: {
+      theme: 'stripe',
+      variables: {
+        colorPrimary:'#ff6a00', colorText:'#0b1220', colorDanger:'#c0392b',
+        fontFamily:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif',
+        borderRadius:'12px', spacingUnit:'4px'
+      }
+    }
+  });
+  PAY.elements.create('payment', {
+    // The name and email are already on the request; asking again here reads
+    // as a second form.
+    fields: { billingDetails: { name:'never', email:'never' } },
+    terms:  { card:'never' },
+    // Country defaults from the browser's IP, which put "Germany" in front of a
+    // Miami test booking. TowSling operates in the US only, so it is stated
+    // rather than guessed — the field stays editable for a foreign card.
+    defaultValues: { billingDetails: { address: { country:'US' } } },
+    // Link off. It added "Bank" and "Klarna" tabs above the card fields, and
+    // the PaymentIntent only accepts cards — so a customer choosing either
+    // would have walked into a dead end, on a hard shoulder, having been told
+    // a truck was coming. It also asked again for the email and phone already
+    // given two screens earlier, and unfolded a panel that shoved the Authorize
+    // button down the page mid-tap.
+    //
+    // Apple Pay and Google Pay are deliberately left on: on a phone they are
+    // the fastest way through this screen, and both settle as cards.
+    wallets: { link: 'never' }
+  }).mount('#payEl');
+}
+
+async function authorizeCard(){
+  if(PAY.busy || !PAY.stripe) return;
+  PAY.busy = true;
+  payClearErr();
+  $('payBtn').disabled = true;
+  $('payBtn').textContent = t('pay.working');
+
+  const restore = () => {
+    PAY.busy = false;
+    $('payBtn').disabled = false;
+    $('payBtn').textContent = t('pay.btn', {amount:'$' + PAY.amount.toFixed(2)});
+  };
+
+  let res;
+  try {
+    res = await PAY.stripe.confirmPayment({
+      elements: PAY.elements,
+      // The intent is created with allow_redirects=never, so this resolves
+      // here rather than navigating away.
+      redirect: 'if_required',
+      confirmParams: {
+        payment_method_data: {
+          billing_details: {
+            name:  $('cName').value.trim(),
+            email: $('cEmail').value.trim() || undefined,
+            phone: $('cPhone').value.trim() || undefined
+          }
+        }
+      }
+    });
+  } catch(e){
+    restore();
+    return payErr(t('pay.unavailable'));
+  }
+
+  if(res.error){
+    restore();
+    // Stripe's own message is written for the cardholder and names the actual
+    // problem ("your card has insufficient funds"), which is more use than a
+    // generic decline. Anything else is an integration fault and must not be
+    // shown to a customer as if they had done something wrong.
+    const shown = (res.error.type === 'card_error' || res.error.type === 'validation_error')
+                    ? res.error.message : t('pay.declined');
+    return payErr(shown);
+  }
+
+  // Stripe says the hold is on. Our own server still asks Stripe directly
+  // before it will release the job — this call is a nudge, not the proof.
+  const c = await api('/consumer/confirm-payment', {
+    method:'POST', body: JSON.stringify({token: S.token})
+  });
+  if(!c.success){
+    restore();
+    return payErr(c.error || t('pay.unavailable'));
+  }
+
+  $('payCard').classList.add('hide');
   $('trackCard').classList.remove('hide');
   startTracking();
 }
@@ -1155,6 +1347,23 @@ async function cancelJob(){
   poll();
 }
 
+/* Returning to a link whose job never got past the card screen. Showing the
+   tracking spinner to that customer would be the same lie the board badge was:
+   nothing is looking for a truck, because no operator can see the job. Send
+   them back to the card instead. */
+async function resumeJob(){
+  const r = await api('/consumer/track?token=' + S.token);
+  if(r.success && r.payment && r.payment.required){
+    return showPayment({
+      total:           r.payment.total,
+      client_secret:   r.payment.client_secret,
+      publishable_key: r.payment.publishable_key
+    });
+  }
+  $('trackCard').classList.remove('hide');
+  startTracking();
+}
+
 // Returning to a tracking link picks up where they left off.
 //
 // The token can arrive two ways and only one of them used to work. /track/{token}
@@ -1167,8 +1376,7 @@ const existing = new URLSearchParams(location.search).get('job')
 if(existing && /^[a-f0-9]{32}$/.test(existing)){
   S.token = existing;
   $('formCard').classList.add('hide'); $('hero').classList.add('hide');
-  $('trackCard').classList.remove('hide');
-  startTracking();
+  resumeJob();
 } else {
   // Only on the booking form. Someone following a tracking link has no address
   // boxes, and loading the Maps script for them is a billed request for a

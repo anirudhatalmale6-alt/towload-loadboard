@@ -30,7 +30,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816u">
+<link rel="manifest" href="manifest.json?v=20260816w">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -818,9 +818,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816u"></script>
-<script src="presence.js?v=20260816u" defer></script>
-<script src="places.js?v=20260816u"></script>
+<script src="i18n.js?v=20260816w"></script>
+<script src="presence.js?v=20260816w" defer></script>
+<script src="places.js?v=20260816w"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2332,9 +2332,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816u"></script>
-<script src="realtime.js?v=20260816u"></script>
-<script src="driver.js?v=20260816u"></script>
+<script src="push.js?v=20260816w"></script>
+<script src="realtime.js?v=20260816w"></script>
+<script src="driver.js?v=20260816w"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

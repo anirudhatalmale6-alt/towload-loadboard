@@ -263,7 +263,19 @@ function stripeAuthorizeConsumerPayment(float $amount, int $callId, string $desc
         'description'                => $description,
         'metadata[towload_call_id]'  => (string)$callId,
         'metadata[kind]'             => 'consumer_job',
-        'automatic_payment_methods[enabled]' => 'true',
+        // Cards only, stated explicitly rather than letting Stripe decide.
+        //
+        // automatic_payment_methods offered Klarna and US bank debit alongside
+        // the card. Neither belongs on this screen: this whole flow authorises
+        // now and captures when the truck finishes, and a bank debit gives no
+        // authorisation to capture against. Beyond the mechanics, "pay in 4"
+        // for a $110 roadside tow is a promise to the towing company that the
+        // money is secured, made against a method that can still fall through.
+        //
+        // Card-only also means no redirect off to a bank's own site and back,
+        // which for someone standing on a hard shoulder with one bar of signal
+        // is a journey that does not reliably complete.
+        'payment_method_types[0]' => 'card',
     ];
     if ($email) $params['receipt_email'] = $email;
 

@@ -258,7 +258,7 @@ if ($method === 'POST' && $action === 'request') {
                 :cname, :cphone, :cemail,
                 'accept', :offer, :goa, :breakdown,
                 :sm, :sr, :sd, :ss,
-                DATE_ADD(NOW(), INTERVAL :exp MINUTE), 'open'
+                DATE_ADD(NOW(), INTERVAL :exp MINUTE), 'draft'
              )"
         )->execute([
             ':cn' => $callNumber, ':zone' => $opts['zone_id'], ':tok' => $trackingToken, ':pa' => $consumerId,
@@ -307,14 +307,27 @@ if ($method === 'POST' && $action === 'request') {
         if ($intent['ok']) {
             $paymentIntentId = $intent['data']['id'];
             $clientSecret    = $intent['data']['client_secret'];
+            // The intent id is recorded; payment_status is deliberately left at
+            // 'none'. Creating a PaymentIntent attaches no card and holds no
+            // money — it sits in requires_payment_method until the customer
+            // enters one. Writing 'authorized' here is how every job came to
+            // carry a "paid job" badge on the board with nothing behind it,
+            // which is the one promise a towing company turns out for. Only
+            // /consumer/confirm-payment sets it, and only after asking Stripe.
+            //
+            // ('none' rather than a new 'pending': the column is an ENUM without
+            // it, and status='draft' already identifies a job waiting on a card.)
             $pdo->prepare(
-                "UPDATE calls SET stripe_payment_intent_id = :pi, payment_status = 'authorized' WHERE id = :id"
+                "UPDATE calls SET stripe_payment_intent_id = :pi WHERE id = :id"
             )->execute([':pi' => $paymentIntentId, ':id' => $callId]);
         }
 
-        escrowHold($callId, $consumerId, null, $total, 'card', $paymentIntentId);
+        // No escrow hold yet. escrowHold() writes a row that says money is being
+        // held against this job, and at this point no card has been entered —
+        // the row would be describing money that does not exist. It is written
+        // in /consumer/confirm-payment, against a hold Stripe has confirmed.
 
-        logCallEvent($callId, 'posted',
+        logCallEvent($callId, 'requested',
             'Customer request at $' . money($total) . ' (surge ' . $surge['multiplier'] . 'x, '
             . ($surge['reason'] ?? '') . ') via ' . ($in['utm_source'] ?? 'direct'),
             $consumerId);
@@ -325,15 +338,10 @@ if ($method === 'POST' && $action === 'request') {
         errorResponse(t('err.request_failed', ['detail' => $e->getMessage()]), 500);
     }
 
-    // Every board that is open sees the job appear without waiting for its
-    // next poll. A nudge only — the browser refetches through the normal API,
-    // which is what decides whether that operator may see this job at all.
-    rtJobPosted($callId, $in['pickup_city'] ?? null, $opts['state'] ?? null);
-
-    // Wake the trucks. Queued rather than sent inline: the job is committed and
-    // the card is authorised by this point, so the alert is a side effect and
-    // the customer should not be watching a spinner while phones ring.
-    pushNewJobAfterResponse($callId);
+    // NOTHING is broadcast or pushed here. The job is a draft with no money
+    // secured against it; waking trucks for it would be offering work that may
+    // never be paid for. Both happen in /consumer/confirm-payment, once Stripe
+    // confirms the hold.
 
     successResponse([
         'covered'        => true,
@@ -346,6 +354,85 @@ if ($method === 'POST' && $action === 'request') {
         'client_secret'  => $clientSecret,
         'publishable_key'=> STRIPE_PUBLISHABLE_KEY,
         'payment_ready'  => $paymentIntentId !== null,
+    ], t('ok.finding_truck'));
+}
+
+// ═══ CONFIRM THE CARD HOLD ═══════════════════════════════════════════════════
+// The customer has entered a card and Stripe has authorised it. Only now does
+// the job become real: it goes on the board and the trucks are woken.
+//
+// The authoritative answer comes from STRIPE, never from the browser. A client
+// saying "it worked" is a client that can be edited, and the whole promise the
+// towing companies show up for — the money is already secured — rests on this
+// one check being honest.
+if ($method === 'POST' && $action === 'confirm-payment') {
+    $in    = jsonInput();
+    $token = (string)($in['token'] ?? '');
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse(t('err.bad_tracking'), 404);
+
+    $pdo  = getDB();
+    $stmt = $pdo->prepare("SELECT * FROM calls WHERE tracking_token = :t");
+    $stmt->execute([':t' => $token]);
+    $call = $stmt->fetch();
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
+
+    // Already live. Safe to call twice — the customer may refresh, and Stripe's
+    // own redirect can land here a second time.
+    if ($call['status'] !== 'draft') {
+        successResponse(['already' => true, 'status' => $call['status']], t('ok.finding_truck'));
+    }
+
+    if (empty($call['stripe_payment_intent_id'])) errorResponse(t('err.pay_no_intent'), 409);
+
+    $pi = stripeRequest('GET', '/payment_intents/' . $call['stripe_payment_intent_id']);
+    if (empty($pi['ok'])) {
+        error_log('[pay] could not read intent ' . $call['stripe_payment_intent_id'] . ': ' . ($pi['error'] ?? ''));
+        errorResponse(t('err.pay_check_failed'), 502);
+    }
+
+    $status = $pi['data']['status'] ?? '';
+    // requires_capture is the one we want: the money is held on the card and
+    // not yet taken. succeeded would mean it was captured outright, which this
+    // flow never does but is still a valid hold from our point of view.
+    if ($status !== 'requires_capture' && $status !== 'succeeded') {
+        errorResponse(t('err.pay_not_held', ['status' => str_replace('_', ' ', $status)]), 402);
+    }
+
+    // The amount Stripe actually holds must match what the customer was quoted.
+    // If they diverge, something re-priced between the two calls and the honest
+    // move is to stop rather than dispatch a job at the wrong number.
+    $held = ((int)($pi['data']['amount'] ?? 0)) / 100;
+    if (abs($held - (float)$call['offer_amount']) > 0.01) {
+        error_log('[pay] amount mismatch on call ' . $call['id'] . ': held ' . $held
+                  . ' vs quoted ' . $call['offer_amount']);
+        errorResponse(t('err.pay_amount_mismatch'), 409);
+    }
+
+    $pdo->prepare(
+        "UPDATE calls
+            SET status = 'open', payment_status = 'authorized',
+                expires_at = DATE_ADD(NOW(), INTERVAL :exp MINUTE)
+          WHERE id = :id AND status = 'draft'"
+    )->execute([
+        // The clock starts when the job actually reaches the board, not when
+        // the customer began typing their card in.
+        ':exp' => max(5, (int)setting('consumer_call_expiry_min', 12)),
+        ':id'  => $call['id'],
+    ]);
+
+    escrowHold((int)$call['id'], (int)$call['provider_account_id'], null,
+               (float)$call['offer_amount'], 'card', $call['stripe_payment_intent_id']);
+
+    logCallEvent((int)$call['id'], 'posted',
+        'Card authorised $' . money($held) . ' — job released to the board',
+        (int)$call['provider_account_id']);
+
+    rtJobPosted((int)$call['id'], $call['pickup_city'] ?? null, $call['pickup_state'] ?? null);
+    pushNewJobAfterResponse((int)$call['id']);
+
+    successResponse([
+        'status'         => 'open',
+        'tracking_token' => $token,
     ], t('ok.finding_truck'));
 }
 
@@ -414,14 +501,36 @@ if ($action === 'track') {
     $stmt->execute([':c' => $call['id']]);
 
     $friendly = [];
-    foreach (['open','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired'] as $st) {
+    foreach (['draft','open','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired'] as $st) {
         $friendly[$st] = t('status.' . $st);
+    }
+
+    // A customer who closed the tab on the card screen and came back to their
+    // link must land back on that card screen — not on "Finding you a truck"
+    // for a job no operator can see. Handing the client secret back lets the
+    // page pick the payment up exactly where it was left.
+    $payment = null;
+    if ($call['status'] === 'draft') {
+        $payment = [
+            'required'        => true,
+            'total'           => (float)$call['offer_amount'],
+            'publishable_key' => STRIPE_PUBLISHABLE_KEY,
+            'client_secret'   => null,
+        ];
+        if (!empty($call['stripe_payment_intent_id'])) {
+            $pi = stripeRequest('GET', '/payment_intents/' . $call['stripe_payment_intent_id']);
+            // The secret is only useful while the intent is still waiting for a
+            // card. Once it is held or captured this branch is unreachable
+            // anyway, because the call is no longer a draft.
+            if (!empty($pi['ok'])) $payment['client_secret'] = $pi['data']['client_secret'] ?? null;
+        }
     }
 
     successResponse([
         'call_number'   => $call['call_number'],
         'status'        => $call['status'],
         'status_text'   => $friendly[$call['status']] ?? $call['status'],
+        'payment'       => $payment,
         'service_type'  => $call['service_type'],
         'pickup_address'=> $call['pickup_address'],
         'dropoff_address'=> $call['dropoff_address'],

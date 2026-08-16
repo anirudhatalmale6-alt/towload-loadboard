@@ -768,7 +768,38 @@ if ($action === 'expire-sweep') {
             if ($pdo->inTransaction()) $pdo->rollBack();
         }
     }
-    successResponse(['expired' => $expired]);
+    // ─── Abandoned at the card screen ────────────────────────────────────────
+    // A draft is a request whose customer never finished paying. No operator
+    // ever saw it, so there is nothing to release and nobody to tell — but the
+    // PaymentIntent is still open at Stripe and the row still counts as live
+    // demand for surge. Close both off after an hour.
+    $stmt = $pdo->query(
+        "SELECT id, call_number, stripe_payment_intent_id
+           FROM calls
+          WHERE status = 'draft' AND created_at < DATE_SUB(NOW(), INTERVAL 60 MINUTE)
+          LIMIT 200"
+    );
+    $abandoned = 0;
+    foreach ($stmt->fetchAll() as $call) {
+        try {
+            if ($call['stripe_payment_intent_id']) {
+                stripeCancelPayment($call['stripe_payment_intent_id']);
+            }
+            // 'canceled', not 'expired'. Surge reads 'expired' as "a real job no
+            // truck would take" and raises prices in that area on the strength
+            // of it. Somebody who closed the tab before entering a card is not
+            // evidence of a shortage of trucks, and must not make the next
+            // customer pay more.
+            $pdo->prepare("UPDATE calls SET status = 'canceled' WHERE id = :id AND status = 'draft'")
+                ->execute([':id' => $call['id']]);
+            logCallEvent((int)$call['id'], 'canceled', 'Request abandoned before payment');
+            $abandoned++;
+        } catch (Throwable $e) {
+            error_log('[sweep] could not close draft ' . $call['id'] . ': ' . $e->getMessage());
+        }
+    }
+
+    successResponse(['expired' => $expired, 'abandoned' => $abandoned]);
 }
 
 errorResponse('Unknown action', 404);

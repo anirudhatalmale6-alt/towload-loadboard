@@ -180,7 +180,19 @@ function publicCallRow(array $c, bool $revealCustomer = false): array {
         'provider_name'  => ($c['source'] ?? 'board') === 'consumer'
                               ? 'Direct customer' : ($c['provider_name'] ?? null),
         'provider_rating'=> isset($c['provider_rating']) ? (float)$c['provider_rating'] : null,
-        'is_funded'      => true,   // money is held before a call ever hits the board
+        // Read from the row, not asserted. This was hardcoded true, so every job
+        // on the board carried a "paid job" badge whether or not any money
+        // existed behind it — and that badge is the single reason a towing
+        // company drops what it is doing and turns out.
+        //
+        // The two sources secure money in different places, so they are asked
+        // different questions:
+        //   consumer — a hold on the customer's card, which lives at Stripe
+        //   board    — debited from the posting provider's balance at post time
+        //              (calls.php refuses to post the job if it will not cover)
+        'is_funded'      => ($c['source'] ?? 'board') === 'consumer'
+                              ? in_array($c['payment_status'] ?? '', ['authorized', 'captured'], true)
+                              : true,
     ];
 
     // What the tower actually takes home, computed server-side with the fee that
