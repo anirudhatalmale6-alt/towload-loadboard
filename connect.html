@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es" data-i18n-title="title.connect">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conectando su banco — TowSling</title>
+<meta name="robots" content="noindex">
+
+<!-- ─── Base path ────────────────────────────────────────────────────────
+     This file is served at /connect/return and /connect/refresh, which is one
+     level deeper than it lives. Every relative URL on the page — i18n.js,
+     presence.js, the api/ calls, the links back to the dashboard — therefore
+     resolved against /connect/ and 404'd, and the first symptom was the page
+     sitting on "Checking with Stripe…" forever with "tlLang is not defined" in
+     the console.
+
+     Exactly the same trap as /track/{token}, and fixed the same way: set the
+     base before any of those tags are parsed, computed from the path so it
+     still works if the app is ever moved into a subfolder. -->
+<script>
+(function(){
+  var m = location.pathname.match(/^(.*\/)connect\/(return|refresh)\/?$/);
+  if (!m) return;
+  var b = document.createElement('base');
+  b.href = m[1];
+  document.head.appendChild(b);
+})();
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     WHERE STRIPE SENDS A TOWING COMPANY BACK TO
+
+     config/stripe.php has always pointed Stripe's return_url and refresh_url
+     at /connect/return and /connect/refresh. Neither route existed. So the
+     moment a company finished handing over its bank details — the single most
+     nervous point in the whole signup — Stripe returned them to a raw Apache
+     "Not Found" page. Nothing was actually broken behind it, which is worse:
+     they had every reason to think their bank details had gone nowhere.
+
+     return  = they came back from Stripe. Ask Stripe what the real state is,
+               because finishing the form is not the same as being approved.
+     refresh = the link expired or was reloaded. Mint a fresh one and send
+               them straight back rather than making them start over.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<style>
+:root{
+  --bg:#0d1117; --panel:#151b23; --panel-2:#1b232d; --line:#242e3a;
+  --ink:#e6edf3; --ink-dim:#8b98a8; --ink-faint:#5d6b7d;
+  --accent:#ff7a18; --accent-dim:#c25a0e;
+  --green:#2ea043; --green-dim:#1a6b2c; --red:#e5534b; --amber:#d29922;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);min-height:100vh;
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;display:grid;place-items:center;padding:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+  padding:30px;max-width:520px;width:100%}
+.mark{width:38px;height:38px;border-radius:9px;display:grid;place-items:center;
+  background:linear-gradient(145deg,var(--accent),var(--accent-dim));
+  color:#fff;font-weight:900;font-size:15px;margin-bottom:18px}
+h1{font-size:21px;font-weight:750;letter-spacing:-.4px;margin-bottom:8px}
+p{color:var(--ink-dim);margin-bottom:14px}
+.state{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;
+  padding:5px 11px;border-radius:20px;margin-bottom:16px;border:1px solid}
+.state.ok{background:#0f2417;border-color:var(--green-dim);color:#7ee2a0}
+.state.wait{background:#241d0d;border-color:#7c5a10;color:#f0c674}
+.state.bad{background:#3b1515;border-color:var(--red);color:#ff9b95}
+.btn{display:inline-block;padding:12px 20px;border-radius:9px;font-weight:700;font-size:14.5px;
+  background:var(--accent);color:#fff;border:none;cursor:pointer;text-decoration:none;
+  margin-right:9px;margin-top:6px}
+.btn:hover{background:var(--accent-dim)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim)}
+ul{margin:10px 0 14px 20px;color:var(--ink-dim);font-size:14px}
+li{margin-bottom:4px}
+.spin{width:30px;height:30px;border-radius:50%;border:3px solid var(--line);
+  border-top-color:var(--accent);animation:sp .8s linear infinite;margin-bottom:16px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.fine{font-size:12.5px;color:var(--ink-faint);margin-top:18px;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="mark">TS</div>
+  <div class="spin"></div>
+  <h1 data-i18n="cn.checking">Comprobando con Stripe…</h1>
+  <p data-i18n="cn.checking_p">Un momento, estamos confirmando el estado de su cuenta.</p>
+</div>
+
+<script src="i18n.js?v=20260816r"></script>
+<script src="presence.js?v=20260816r" defer></script>
+<script>
+const API = 'api';
+const TOKEN = localStorage.getItem('tl_token') || '';
+const STATE = new URLSearchParams(location.search).get('state') || 'return';
+
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, c => (
+    {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+  ));
+}
+
+async function api(path, opts){
+  const url = API + path + (path.includes('?') ? '&' : '?') + 'lang=' + tlLang();
+  const r = await fetch(url, Object.assign({
+    headers: Object.assign({'Content-Type':'application/json'},
+                           TOKEN ? {'Authorization':'Bearer ' + TOKEN} : {})
+  }, opts || {}));
+  return r.json();
+}
+
+function show(html){ document.getElementById('card').innerHTML =
+  '<div class="mark">TS</div>' + html; }
+
+function signedOut(){
+  show(`<h1>${t('cn.signin_h')}</h1>
+        <p>${t('cn.signin_p')}</p>
+        <a class="btn" href="tow">${t('cn.signin_btn')}</a>`);
+}
+
+async function run(){
+  if(!TOKEN) return signedOut();
+
+  // The link expired or was reloaded. Get them a fresh one and send them
+  // straight back — making somebody restart their bank setup because a link
+  // timed out is how a company gives up halfway.
+  if(STATE === 'refresh'){
+    show(`<div class="spin"></div><h1>${t('cn.refresh_h')}</h1><p>${t('cn.refresh_p')}</p>`);
+    const r = await api('/connect/onboard', {method:'POST', body:'{}'});
+    if(r.success && r.onboarding_url){ location.href = r.onboarding_url; return; }
+    return show(`<div class="state bad">${t('cn.problem')}</div>
+      <h1>${t('cn.refresh_fail_h')}</h1>
+      <p>${esc(r.error || t('cn.refresh_fail_p'))}</p>
+      <a class="btn" href="tow">${t('cn.back')}</a>`);
+  }
+
+  // Coming back from Stripe. Finishing the form is NOT the same as being
+  // approved — Stripe verifies in the background and can come back asking for
+  // more — so ask them rather than congratulating on arrival.
+  const r = await api('/connect/status');
+  if(!r.success) return signedOut();
+
+  if(r.payouts_enabled){
+    return show(`<div class="state ok">✓ ${t('cn.done_badge')}</div>
+      <h1>${t('cn.done_h')}</h1>
+      <p>${t('cn.done_p')}</p>
+      <a class="btn" href="tow?tab=money">${t('cn.done_btn')}</a>
+      <a class="btn ghost" href="tow">${t('cn.back')}</a>`);
+  }
+
+  const due = (r.requirements_due || []).filter(Boolean);
+  show(`<div class="state wait">${t('cn.pending_badge')}</div>
+    <h1>${t('cn.pending_h')}</h1>
+    <p>${t('cn.pending_p')}</p>
+    ${due.length ? `<p>${t('cn.pending_needs')}</p><ul>${
+        due.slice(0,8).map(d => `<li>${esc(String(d).replace(/[._]/g,' '))}</li>`).join('')
+      }</ul>` : ''}
+    <button class="btn" onclick="resume()">${t('cn.resume')}</button>
+    <a class="btn ghost" href="tow">${t('cn.back')}</a>
+    <div class="fine">${t('cn.fine')}</div>`);
+}
+
+async function resume(){
+  const r = await api('/connect/onboard', {method:'POST', body:'{}'});
+  if(r.success && r.onboarding_url) location.href = r.onboarding_url;
+  else alert(r.error || '');
+}
+
+run();
+</script>
+</body>
+</html>

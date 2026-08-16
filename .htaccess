@@ -4,6 +4,8 @@
 #    /                        -> tow.html            (stranded motorist)
 #    /tow                     -> index.html          (operator dashboard)
 #    /join                    -> join.html           (tow operator signup)
+#    /support                 -> support.html        (public support page)
+#    /connect/return|refresh  -> connect.html        (back from Stripe)
 #    /track/{token}           -> tow.html?job={token}
 #    /api/auth/login          -> api/auth.php?action=login
 #    /api/calls/board?radius= -> api/calls.php?action=board&radius=
@@ -81,6 +83,17 @@ RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 # before they have one. QSA keeps ?doc=customer|tower|privacy.
 RewriteRule ^terms/?$                        terms.html [QSA,L]
 RewriteRule ^privacy/?$                      terms.html?doc=privacy [L]
+
+# Public support page. Stripe requires a customer support URL before a platform
+# can take real money, and it is also the only route to a human for a stranded
+# motorist who has no account and no job number.
+RewriteRule ^support/?$                      support.html [L]
+
+# Where Stripe returns a towing company after bank setup. Both of these URLs
+# have been handed to Stripe since the Connect code was written, and neither
+# route existed — so finishing bank setup landed on an Apache 404 with no sign
+# that anything had been saved.
+RewriteRule ^connect/(return|refresh)/?$     connect.html?state=$1 [L]
 
 # Platform control panel.
 RewriteRule ^admin/?$                        admin.html [L]
