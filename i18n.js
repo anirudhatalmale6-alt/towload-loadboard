@@ -176,6 +176,10 @@ es: {
   'c.verified':          'Verificada',
 
   /* sin cobertura */
+  'c.busy_head':         'No hay grúas libres ahora mismo',
+  'c.busy_note':         'Las grúas vuelven a estar disponibles constantemente. Si no puede esperar, llame a una empresa local — preferimos decírselo a dejarlo aquí esperando.',
+  'c.try_again':         'Intentar de nuevo',
+  'c.trying':            'Buscando…',
   'c.nocov_head':        'Todavía no llegamos a su zona',
   'c.nocov_msg':         'Todavía no tenemos grúas disponibles en su zona. No le hemos cobrado nada.',
   'c.notify_me':         'Avísenme cuando lleguen',
@@ -889,6 +893,10 @@ en: {
   'c.err_terms':         'Tick the Terms of Service box to continue.',
   'c.verified':          'Verified',
 
+  'c.busy_head':         'No trucks free right now',
+  'c.busy_note':         'Trucks come back on duty all the time. If you cannot wait, try a local company — we would rather say so than leave you sitting here.',
+  'c.try_again':         'Try again',
+  'c.trying':            'Checking…',
   'c.nocov_head':        'We are not in your area yet',
   'c.nocov_msg':         'We do not have trucks available in your area yet. You have not been charged anything.',
   'c.notify_me':         'Let me know when you get here',

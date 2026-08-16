@@ -149,7 +149,13 @@ if ($action === 'quote') {
             'covered'       => false,
             'trucks_nearby' => $coverage['trucks'],
             'area'          => zoneName($coverage['zone']),
-            'message'       => t('msg.no_coverage'),
+            // Which kind of no. 'none_available' means we DO cover here and
+            // every local company is off duty or busy — telling that customer
+            // "we are not in your area yet" would be untrue, and it is said to
+            // somebody standing next to a broken car in a town we serve.
+            'reason'        => $coverage['reason'],
+            'message'       => $coverage['reason'] === 'none_available'
+                                 ? t('msg.none_available') : t('msg.no_coverage'),
         ]);
     }
 
@@ -204,7 +210,9 @@ if ($method === 'POST' && $action === 'request') {
         successResponse([
             'covered'       => false,
             'trucks_nearby' => $coverage['trucks'],
-            'message'       => t('msg.no_coverage_saved'),
+            'reason'        => $coverage['reason'],
+            'message'       => $coverage['reason'] === 'none_available'
+                                 ? t('msg.none_available') : t('msg.no_coverage_saved'),
         ]);
     }
 

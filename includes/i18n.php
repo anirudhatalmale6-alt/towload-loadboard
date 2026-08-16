@@ -297,6 +297,7 @@ function i18nCatalogue(): array {
         'inc.allin'         => 'Precio final — sin cargos sorpresa',
 
         // coverage
+        'msg.none_available'    => 'Ahora mismo no hay ninguna grúa libre cerca de usted. Suele durar poco — vuelva a intentarlo en unos minutos.',
         'msg.no_coverage'       => 'Todavía no tenemos grúas disponibles en su zona. Estamos creciendo rápido — déjenos su teléfono y le avisamos apenas lleguemos.',
         'msg.no_coverage_saved' => 'Guardamos su solicitud. Todavía no tenemos grúas en su zona, y no le hemos cobrado nada. Le avisamos apenas tengamos cobertura.',
         'err.need_contact'      => 'Déjenos un teléfono o un correo para poder avisarle.',
@@ -623,6 +624,7 @@ function i18nCatalogue(): array {
         'inc.hookup'        => 'Hook-up and labour included',
         'inc.allin'         => 'Final price — no surprise charges',
 
+        'msg.none_available'    => 'No trucks are free near you right now. This usually clears quickly — please try again in a few minutes.',
         'msg.no_coverage'       => 'We do not have trucks in your area yet. We are expanding fast — leave your number and we will let you know the moment we do.',
         'msg.no_coverage_saved' => 'We saved your request. We do not have trucks in your area yet, and you have not been charged anything. We will let you know as soon as we cover you.',
         'err.need_contact'      => 'Leave a phone number or an email so we can reach you.',

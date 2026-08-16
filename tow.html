@@ -445,7 +445,7 @@ input::placeholder{color:#aab4c4}
 
 <div class="top">
   <div class="brand"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</div>
-  <div class="live"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Drivers available</span></div>
+  <div class="live" id="liveBadge"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Drivers available</span></div>
   <button id="langBtn" onclick="tlToggle()" style="margin-left:12px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--ink-2)">English</button>
 </div>
 
@@ -584,12 +584,23 @@ input::placeholder{color:#aab4c4}
        Authorising a card for a job nobody can take is the worst possible
        outcome; this turns that click into a name on the recruiting list. -->
   <div class="card hide" id="noCovCard">
-    <div class="nocov-ico">📍</div>
-    <div class="nocov-h" data-i18n="c.nocov_head">We are not in your area yet</div>
+    <div class="nocov-ico" id="noCovIco">📍</div>
+    <div class="nocov-h" id="noCovHead" data-i18n="c.nocov_head">We are not in your area yet</div>
     <div class="nocov-p" id="noCovMsg"></div>
-    <div class="f"><label data-i18n="c.mobile">Mobile number</label><input id="lPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
-    <button class="btn" onclick="saveLead()" id="leadBtn" data-i18n="c.notify_me">Let me know when you get here</button>
-    <div class="nocov-note" data-i18n="c.nocov_note">If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.</div>
+
+    <!-- Only shown when we genuinely do not operate here. Asking a customer to
+         join a waiting list for a town we already cover is nonsense — what they
+         need is to try again in a few minutes. -->
+    <div id="noCovLead">
+      <div class="f"><label data-i18n="c.mobile">Mobile number</label><input id="lPhone" type="tel" placeholder="(305) 555-1234" autocomplete="tel"></div>
+      <button class="btn" onclick="saveLead()" id="leadBtn" data-i18n="c.notify_me">Let me know when you get here</button>
+      <div class="nocov-note" data-i18n="c.nocov_note">If you need a truck right now, try a local company. We are not going to waste your time when we cannot help.</div>
+    </div>
+
+    <div id="noCovRetry" class="hide">
+      <button class="btn" onclick="retryQuote()" id="retryBtn" data-i18n="c.try_again">Try again</button>
+      <div class="nocov-note" data-i18n="c.busy_note">Trucks come back on duty all the time. If you cannot wait, try a local company — we would rather say so than leave you sitting here.</div>
+    </div>
   </div>
 
   <!-- ═══ CARD HOLD ═══
@@ -677,7 +688,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260818g';
+  var v = '?v=20260818i';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -898,11 +909,46 @@ async function getQuote(){
 }
 
 function showNoCoverage(r){
-  $('noCovMsg').textContent = r.message || t('c.nocov_msg');
+  // 'none_available' means we DO cover here and every local company is off
+  // duty or busy. Telling that customer "we are not in your area yet" is
+  // simply untrue, and it is the kind of untrue that loses them for good: they
+  // are standing next to a broken car in a town we serve.
+  const busy = r.reason === 'none_available';
+
+  $('noCovIco').textContent  = busy ? '🕑' : '📍';
+  $('noCovHead').textContent = busy ? t('c.busy_head') : t('c.nocov_head');
+  $('noCovMsg').textContent  = r.message || t('c.nocov_msg');
+
+  $('noCovLead').classList.toggle('hide', busy);
+  $('noCovRetry').classList.toggle('hide', !busy);
+
+  // "Drivers available" is a fixed line in the header, not a live reading. On
+  // the one screen where we have just told somebody the opposite, leaving it up
+  // makes the page argue with itself — and the customer believes the cheerful
+  // one and wonders why we will not send anybody.
+  const badge = $('liveBadge');
+  if(badge) badge.classList.add('hide');
+
   $('formCard').classList.add('hide');
   $('hero').classList.add('hide');
   $('noCovCard').classList.remove('hide');
   window.scrollTo({top:0, behavior:'smooth'});
+}
+
+/* Straight back to asking for a price, without making them re-enter anything.
+   Somebody stranded should not have to retype an address to find out whether a
+   truck has come free in the last two minutes. */
+async function retryQuote(){
+  const btn = $('retryBtn');
+  btn.disabled = true;
+  btn.textContent = t('c.trying');
+  $('noCovCard').classList.add('hide');
+  $('formCard').classList.remove('hide');
+  const badge = $('liveBadge');
+  if(badge) badge.classList.remove('hide');
+  await getQuote();
+  btn.disabled = false;
+  btn.textContent = t('c.try_again');
 }
 
 async function saveLead(){

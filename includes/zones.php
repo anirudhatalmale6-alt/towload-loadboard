@@ -174,19 +174,84 @@ function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
     $trucks = approvedTowersNear($lat, $lng);
     $min    = max(1, (int)setting('min_trucks_for_coverage', 1));
 
+    // Two different noes, and the customer deserves to be told which.
+    //
+    // "We are not in your area yet" is a statement about the business. Saying
+    // it because every local company happened to flip its duty switch off for
+    // the night is simply false — and it is the worst kind of false, because a
+    // customer who reads it once has no reason ever to come back, and it is
+    // said to somebody standing next to a broken car in a town we DO cover.
+    //
+    // So count the companies based here at all, separately from the ones on
+    // duty right now.
+    $inArea = $trucks > 0 ? $trucks : towersInArea($lat, $lng);
+
+    $covered = !empty($zone['is_live']) && $trucks >= $min;
+    $reason  = null;
+    if (!$covered) {
+        // A zone that is not live is a decision Ricardo has made about that
+        // market, so it counts as no coverage regardless of who is parked there.
+        $reason = (!empty($zone['is_live']) && $inArea > 0)
+                    ? 'none_available'   // we cover here; nobody is free
+                    : 'no_coverage';     // we genuinely are not here
+    }
+
     return [
-        'zone'    => $zone,
-        'trucks'  => $trucks,
-        'covered' => !empty($zone['is_live']) && $trucks >= $min,
+        'zone'           => $zone,
+        'trucks'         => $trucks,
+        'trucks_in_area' => $inArea,
+        'covered'        => $covered,
+        'reason'         => $reason,
     ];
 }
 
 /**
- * The state of the closest approved, on-duty towing company in range.
+ * Companies based within range, ON DUTY OR NOT.
  *
- * Same filters as approvedTowersNear so the two can never disagree: a company
- * that does not count as coverage must not be the one that decides which zone
- * the customer is priced in.
+ * Same filters as approvedTowersNear minus the duty switch: this answers "do we
+ * operate here", where the other answers "can somebody come right now".
+ */
+function towersInArea(?float $lat, ?float $lng, ?float $radius = null): int {
+    if ($lat === null || $lng === null) return 0;
+    $radius = $radius ?? (float)setting('coverage_radius_miles', 35);
+
+    $box = boundingBox($lat, $lng, $radius);
+    $stmt = getDB()->prepare(
+        "SELECT tp.base_lat, tp.base_lng, tp.service_radius_miles
+           FROM accounts a
+           JOIN tower_profiles tp ON tp.account_id = a.id
+          WHERE a.account_type = 'tower'
+            AND a.is_active = 1
+            AND a.verification_status = 'approved'
+            AND tp.base_lat BETWEEN :minlat AND :maxlat
+            AND tp.base_lng BETWEEN :minlng AND :maxlng"
+    );
+    $stmt->execute([
+        ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
+        ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
+    ]);
+
+    $n = 0;
+    foreach ($stmt as $row) {
+        $d = haversineMiles((float)$row['base_lat'], (float)$row['base_lng'], $lat, $lng);
+        if ($d <= (float)$row['service_radius_miles'] || $d <= $radius) $n++;
+    }
+    return $n;
+}
+
+/**
+ * The state of the closest approved towing company in range.
+ *
+ * Deliberately does NOT filter on the duty switch, and that is a correction:
+ * it used to, copied from approvedTowersNear for consistency. But whether a
+ * company is taking jobs tonight has nothing whatever to do with which state a
+ * point is in. With the only local company off duty, the state came back null,
+ * the zone fell through to the not-live national one, and the customer was
+ * told "we are not in your area yet" about a town we plainly cover.
+ *
+ * Consistency with approvedTowersNear was the wrong goal here. They answer
+ * different questions: that one asks "can somebody come now", this one asks
+ * "where on the map is this".
  */
 function stateFromNearestTower(?float $lat, ?float $lng, ?float $radius = null): ?string {
     if ($lat === null || $lng === null) return null;
@@ -200,7 +265,6 @@ function stateFromNearestTower(?float $lat, ?float $lng, ?float $radius = null):
           WHERE a.account_type = 'tower'
             AND a.is_active = 1
             AND a.verification_status = 'approved'
-            AND tp.is_available = 1
             AND a.state IS NOT NULL AND a.state <> ''
             AND tp.base_lat BETWEEN :minlat AND :maxlat
             AND tp.base_lng BETWEEN :minlng AND :maxlng"
