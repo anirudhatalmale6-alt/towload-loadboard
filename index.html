@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816k">
+<link rel="manifest" href="manifest.json?v=20260816m">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -522,6 +522,19 @@ legend{
   letter-spacing:2px;font-weight:700}
 .vc-code:focus{border-color:var(--accent)}
 
+/* ── toasts ────────────────────────────────────────────────────────
+   Fixed to the viewport and hung off <body>, NOT off anything inside <main>.
+   Every pane in there is replaced wholesale on re-render, so a confirmation
+   written into one is wiped by the redraw that follows the action. */
+.toasts{position:fixed;top:14px;right:14px;z-index:200;display:grid;gap:8px;
+  width:min(380px,calc(100vw - 28px))}
+.toast{padding:12px 15px;border-radius:9px;font-size:13.5px;font-weight:650;
+  line-height:1.5;box-shadow:0 10px 30px rgba(0,0,0,.45);
+  animation:toastIn .18s ease-out}
+.toast.ok{background:#0f2417;border:1px solid var(--green-dim);color:#7ee2a0}
+.toast.bad{background:#3b1515;border:1px solid var(--red);color:#ff9b95}
+@keyframes toastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
 /* ── money ─────────────────────────────────────────────────────── */
 .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;
   margin-bottom:16px}
@@ -742,7 +755,7 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816k"></script>
+<script src="i18n.js?v=20260816m"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -917,9 +930,10 @@ async function uploadVerifyDoc(docType, input){
   if(me.success) ME = me;
   VDOCS_OPEN = true;          // they are mid-way through a set; do not shut it
   renderVerifyBar();
-  // "Cannot accept jobs" is computed from these documents. Without this it
-  // keeps naming a missing certificate that was just supplied.
-  load();
+  // The steps banner is computed from these documents, so it has to be
+  // recomputed too. Not via load() — that only refreshes the banner on the
+  // board tab, and this upload happens elsewhere.
+  refreshVerification();
 }
 
 async function refreshWallet(){
@@ -1514,10 +1528,51 @@ async function confirmCode(channel){
   const r = await api('/verify/confirm', {method:'POST', body: JSON.stringify({channel, code})});
   if(!r.success){ msg.textContent = r.error || ''; msg.style.color = 'var(--red)'; return; }
 
-  // Verifying can be the last thing standing between this company and the
-  // board, so the job list has to be re-read, not just this panel.
-  renderCompanyPane();
-  load();
+  toast(t(channel === 'email' ? 'co.email_confirmed_ok' : 'co.phone_confirmed_ok'));
+
+  // Two separate things have to catch up, and only one of them is on screen.
+  //
+  // The panel below is easy — it is re-read here. The steps banner at the top
+  // of every page is the one that used to go stale: renderNotices() is only
+  // called from load(), and load() only refreshes it when the BOARD tab is
+  // open. Confirming happens on the company tab, so the banner kept saying
+  // "Confirm your phone number" with a red ! until the page was reloaded.
+  await renderCompanyPane();
+  await refreshVerification();
+}
+
+/**
+ * Redraw the steps banner from the server's own answer, whichever tab is open.
+ * Deliberately not routed through load() — that fetches a job list, which has
+ * nothing to do with whether a phone number is confirmed, and does not run at
+ * all on four of the seven tabs.
+ */
+async function refreshVerification(){
+  const box = document.getElementById('notices');
+  if(!box) return;
+  const r = await api('/verify/status');
+  if(!r.success || !r.steps) return;
+
+  box.innerHTML = r.steps.ok ? '' : verifyStepsHTML(r.steps);
+}
+
+/* A short-lived confirmation, anchored to the document rather than to any pane.
+   Everything inside <main> gets replaced wholesale by a re-render, so a message
+   written in there is destroyed by the very redraw that follows the action it
+   was confirming. */
+function toast(text, bad){
+  let host = document.getElementById('toastHost');
+  if(!host){
+    host = document.createElement('div');
+    host.id = 'toastHost';
+    host.className = 'toasts';
+    document.body.appendChild(host);
+  }
+  const el = document.createElement('div');
+  el.className = 'toast ' + (bad ? 'bad' : 'ok');
+  el.textContent = text;
+  host.appendChild(el);
+  setTimeout(() => el.remove(), bad ? 8000 : 4500);
 }
 
 async function uploadMyDoc(docType, input){
@@ -1553,9 +1608,9 @@ async function uploadMyDoc(docType, input){
   // Re-read rather than patch the row: the server decides the new status, and
   // uploading a replacement can reset an approved document to pending.
   renderDocsPane();
-  // The blocker banner is computed from these documents, so it has to be
-  // recomputed too or it keeps saying "cannot accept jobs" after the fix.
-  load();
+  // Same as above: the banner is derived from these documents and must be
+  // re-read whichever tab we are on.
+  refreshVerification();
 }
 
 async function renderRatesPane(){
@@ -2075,9 +2130,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816k"></script>
-<script src="realtime.js?v=20260816k"></script>
-<script src="driver.js?v=20260816k"></script>
+<script src="push.js?v=20260816m"></script>
+<script src="realtime.js?v=20260816m"></script>
+<script src="driver.js?v=20260816m"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

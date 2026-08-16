@@ -18,4 +18,20 @@ if (($_GET['action'] ?? '') === 'lang') {
     ]);
 }
 
+// GET /api/geo/maps-key — the browser key for Places autocomplete.
+//
+// Public on purpose, and safe: a Maps JavaScript key is visible to anyone who
+// views the page source, by design — there is no way to use the JS API without
+// shipping it to the browser. What protects it is the referrer restriction and
+// the API allowlist set in the Google console, not secrecy. Serving it from
+// here rather than hardcoding it into the HTML means it can be rotated from the
+// admin panel without a deploy.
+if (($_GET['action'] ?? '') === 'maps-key') {
+    $key = trim((string)setting('google_maps_key', ''));
+    successResponse([
+        'key'     => $key,
+        'enabled' => $key !== '',
+    ]);
+}
+
 errorResponse('Unknown action', 404);
