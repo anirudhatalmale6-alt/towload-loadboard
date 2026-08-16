@@ -214,13 +214,17 @@ if ($method === 'GET' && $action === 'board') {
     // Closest first — for a 20-minute call, distance beats everything.
     usort($out, function ($a, $b) { return $a['distance_miles'] <=> $b['distance_miles']; });
 
-    $eligibility = towerCanAccept((int)$user['account_id']);
+    // The full step list rides along, not just a yes/no. The dashboard shows
+    // documents / email / phone as a checklist, and it must agree with the rule
+    // that will actually refuse the job rather than guessing at it.
+    $verification = towerVerificationSteps((int)$user['account_id']);
     successResponse([
         'calls' => $out,
         'count' => count($out),
         'search' => ['lat' => $lat, 'lng' => $lng, 'radius_miles' => $radius],
-        'can_accept' => $eligibility['ok'],
-        'blocked_reason' => $eligibility['ok'] ? null : $eligibility['reason'],
+        'can_accept' => $verification['ok'],
+        'blocked_reason' => $verification['ok'] ? null : $verification['reason'],
+        'verification' => $verification,
     ]);
 }
 

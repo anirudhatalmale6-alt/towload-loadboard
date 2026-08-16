@@ -2,6 +2,9 @@
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/uploads.php';
 require_once __DIR__ . '/../includes/adminauth.php';
+// DOC_TYPES, DOCS_NEEDING_EXPIRY, requiredDocTypes(), docChecklist(). Shared so
+// the dashboard banner reaches the same verdict this endpoint does.
+require_once __DIR__ . '/../includes/compliance.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  COMPLIANCE DOCUMENTS
@@ -20,18 +23,6 @@ $action = $_GET['action'] ?? '';
 
 // The `file` action streams a document and must not send JSON headers first.
 if ($action !== 'file') setCorsHeaders();
-
-function requiredDocTypes(): array {
-    $raw = (string)setting('required_tower_docs', 'ein_letter,state_registration,coi_liability,owner_id');
-    return array_values(array_filter(array_map('trim', explode(',', $raw))));
-}
-
-const DOC_TYPES = ['coi_liability','coi_garage_keepers','coi_on_hook','w9','business_license',
-                   'tow_license','dot_authority','ein_letter','state_registration','owner_id','other'];
-
-// Insurance is the only document where an expiry date is meaningful enough to
-// insist on — it is the one that blocks dispatch when it lapses.
-const DOCS_NEEDING_EXPIRY = ['coi_liability','coi_garage_keepers','coi_on_hook'];
 
 // ═══ UPLOAD ══════════════════════════════════════════════════════════════════
 if ($method === 'POST' && $action === 'upload') {
@@ -118,36 +109,6 @@ function maybeSubmitForReview(PDO $pdo, int $accountId): bool {
           WHERE id = :a"
     )->execute([':a' => $accountId]);
     return true;
-}
-
-/** What is still missing, in the order the signup page asks for it. */
-function docChecklist(int $accountId): array {
-    $stmt = getDB()->prepare(
-        "SELECT doc_type, status, expires_at, created_at, review_notes
-           FROM compliance_docs
-          WHERE account_id = :a AND status IN ('pending','approved','rejected')
-          ORDER BY created_at DESC"
-    );
-    $stmt->execute([':a' => $accountId]);
-
-    $have = [];
-    foreach ($stmt as $row) {
-        if (!isset($have[$row['doc_type']])) $have[$row['doc_type']] = $row;
-    }
-
-    $out = [];
-    foreach (requiredDocTypes() as $type) {
-        $row = $have[$type] ?? null;
-        $out[] = [
-            'doc_type'   => $type,
-            'label'      => t('doc.' . $type),
-            'uploaded'   => $row !== null,
-            'status'     => $row['status'] ?? 'missing',
-            'expires_at' => $row['expires_at'] ?? null,
-            'notes'      => $row['review_notes'] ?? null,
-        ];
-    }
-    return $out;
 }
 
 // ═══ MY DOCUMENTS ════════════════════════════════════════════════════════════

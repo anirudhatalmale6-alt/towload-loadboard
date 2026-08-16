@@ -1,10 +1,34 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-i18n-title="title.customer" data-i18n-desc="desc.customer">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>¿Necesita una grúa? Pídala ahora — TowSling</title>
 <meta name="description" content="Precio real en segundos y una grúa en camino. Sin llamadas, sin regateo. Su tarjeta solo se cobra cuando el trabajo está hecho.">
+
+<!-- ─── Installed operator app landing here by mistake ───────────────────
+     The operator app used to live at the bare domain and now lives at /tow.
+     Android picks up the new start_url from the manifest, but iOS does not:
+     an operator who added TowSling to their Home Screen has the OLD address
+     frozen into that icon, and iOS reads none of the manifest for it. So every
+     one of them would tap their icon and get the customer booking form, with no
+     way to tell that anything had moved.
+
+     Standalone display mode is the tell — a browser tab is never standalone, so
+     a real customer is untouched by this. Runs before anything else on the page
+     so the wrong screen is never painted. -->
+<script>
+(function(){
+  var standalone = window.navigator.standalone === true ||
+                   (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  // A tracking link is a customer link even in standalone, so never bounce one.
+  var isTracking = /\/track\/[a-f0-9]{32}\/?$/.test(location.pathname) ||
+                   new URLSearchParams(location.search).has('job');
+  if (standalone && !isTracking && /\/(index\.html)?$/.test(location.pathname)) {
+    location.replace('tow' + location.search);
+  }
+})();
+</script>
 
 <!-- ─── Base path ────────────────────────────────────────────────────────
      /track/{token} is served by an INTERNAL rewrite to this same file. The
@@ -73,6 +97,10 @@ input,select,textarea{font:inherit;color:inherit}
 .hero{text-align:center;padding:14px 4px 22px}
 .hero h1{font-size:29px;line-height:1.18;letter-spacing:-.8px;font-weight:800;margin-bottom:10px}
 .hero p{color:var(--ink-2);font-size:16px}
+/* Second line of the promise. Slightly quieter than the line above it so the
+   two read as one block rather than competing for the same weight. */
+.hero .hero-sub2{margin-top:7px;font-size:14.5px;color:var(--ink-3);max-width:32em;
+  margin-left:auto;margin-right:auto}
 .trust{
   display:flex;justify-content:center;gap:18px;margin-top:16px;flex-wrap:wrap;
   font-size:13px;color:var(--ink-2);font-weight:600;
@@ -240,6 +268,27 @@ input::placeholder{color:#aab4c4}
   animation:spin 900ms linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+/* ── rating ───────────────────────────────────────────── */
+.rate-ask{background:var(--wash);border:1px solid var(--line);border-radius:13px;
+  padding:16px;margin-top:14px}
+.rate-ask .ra-h{font-size:15px;font-weight:700;margin-bottom:10px;letter-spacing:-.2px}
+.ra-stars{display:flex;gap:5px;margin-bottom:12px}
+/* Big targets: this is tapped one-handed, at the roadside, often in the rain. */
+.ra-star{background:none;font-size:31px;line-height:1;color:#d3dae4;padding:2px 3px;
+  transition:.12s;transform-origin:center}
+.ra-star.on{color:#f5a524}
+.ra-star:active{transform:scale(.88)}
+.rate-ask textarea{width:100%;background:var(--bg);border:1.5px solid var(--line);
+  padding:11px 12px;border-radius:10px;outline:none;resize:vertical;margin-bottom:10px}
+.rate-ask textarea:focus{border-color:var(--accent)}
+.rate-ask .btn{padding:13px;font-size:15px}
+.rate-ask .btn:disabled{opacity:.45}
+.ra-msg{font-size:13px;color:var(--red);margin-top:8px}
+.rate-done{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:13px;
+  padding:15px 16px;margin-top:14px;text-align:center}
+.rd-stars{font-size:23px;color:#f5a524;letter-spacing:2px;line-height:1.2}
+.rd-txt{font-size:13.5px;color:#14532d;margin-top:5px;font-weight:600}
+
 .timeline{margin-top:22px}
 .tl{display:flex;gap:13px;padding-bottom:20px;position:relative}
 .tl:last-child{padding-bottom:0}
@@ -290,8 +339,9 @@ input::placeholder{color:#aab4c4}
 
   <!-- ═══ HERO ═══ -->
   <div class="hero" id="hero">
-    <h1><span data-i18n="c.hero_1">¿Se quedó varado?</span><br><span data-i18n="c.hero_2">Pida una grúa ahora.</span></h1>
-    <p data-i18n="c.hero_sub">Precio real en segundos. Sin llamadas, sin regateo.</p>
+    <h1><span data-i18n="c.hero_1">¿Necesita una grúa?</span><br><span data-i18n="c.hero_2">Se la mandamos.</span></h1>
+    <p data-i18n="c.hero_sub">Precio claro por adelantado. Grúas profesionales cerca de usted. Sin llamar a nadie.</p>
+    <p class="hero-sub2" data-i18n="c.hero_sub2">Pida asistencia en carretera y siga su grúa desde que sale hasta que llega.</p>
     <div class="trust">
       <span><i class="tick">✓</i> <span data-i18n="c.trust_1">Con licencia y seguro</span></span>
       <span><i class="tick">✓</i> <span data-i18n="c.trust_2">Paga después del servicio</span></span>
@@ -423,6 +473,8 @@ input::placeholder{color:#aab4c4}
       <div class="map-eta" id="mapEta"></div>
     </div>
     <div id="driverBox"></div>
+    <!-- Only ever filled once the job is finished. See renderRating(). -->
+    <div id="rateBox"></div>
     <div class="timeline" id="trkTimeline"></div>
     <div class="lines" id="trkLines" style="margin-top:20px"></div>
     <button class="btn sec" style="margin-top:8px" onclick="cancelJob()" id="cancelBtn" data-i18n="c.cancel_req">Cancelar esta solicitud</button>
@@ -449,7 +501,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260816i';
+  var v = '?v=20260816j';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
 })();
@@ -682,6 +734,72 @@ function startTracking(){
   }).catch(() => {});
 }
 
+// ── rating ──────────────────────────────────────────────
+// Every company on the platform has been showing ★0.0 to customers since day
+// one: rating_avg was read on this very screen, on the job board and in the
+// admin list, but there was no way for anyone to leave one.
+//
+// The poll below runs every few seconds, so this must not rebuild the stars
+// while somebody is part-way through choosing one — RATING_DRAWN guards that.
+let RATING_DRAWN = false;
+let RATING_PICK  = 0;
+
+function renderRating(r){
+  const box = $('rateBox');
+  if(!box) return;
+
+  if(r.my_rating){
+    // Already rated. Show it back rather than hiding the section, so tapping a
+    // star has a visible, permanent result.
+    box.innerHTML = `<div class="rate-done">
+        <div class="rd-stars">${'★'.repeat(r.my_rating.stars)}${'☆'.repeat(5 - r.my_rating.stars)}</div>
+        <div class="rd-txt">${t('c.rate_thanks')}</div>
+      </div>`;
+    RATING_DRAWN = true;
+    return;
+  }
+  if(!r.can_rate){ box.innerHTML = ''; RATING_DRAWN = false; return; }
+  if(RATING_DRAWN) return;   // mid-interaction; leave it alone
+
+  RATING_DRAWN = true;
+  box.innerHTML = `<div class="rate-ask">
+      <div class="ra-h">${t('c.rate_h', {name: r.tower ? r.tower.name : ''})}</div>
+      <div class="ra-stars" id="raStars">
+        ${[1,2,3,4,5].map(n =>
+          `<button class="ra-star" data-n="${n}" onclick="pickStar(${n})" aria-label="${n}">★</button>`
+        ).join('')}
+      </div>
+      <textarea id="raComment" rows="2" placeholder="${t('c.rate_ph')}"></textarea>
+      <button class="btn" id="raSend" onclick="sendRating()" disabled>${t('c.rate_send')}</button>
+      <div class="ra-msg" id="raMsg"></div>
+    </div>`;
+}
+
+function pickStar(n){
+  RATING_PICK = n;
+  document.querySelectorAll('.ra-star').forEach(b =>
+    b.classList.toggle('on', Number(b.dataset.n) <= n));
+  $('raSend').disabled = false;
+}
+
+async function sendRating(){
+  if(!RATING_PICK) return;
+  const btn = $('raSend');
+  btn.disabled = true;
+  const r = await api('/consumer/rate', {method:'POST', body: JSON.stringify({
+    token: S.token, stars: RATING_PICK, comment: ($('raComment').value || '').trim()
+  })});
+  if(!r.success){
+    $('raMsg').textContent = r.error || '';
+    btn.disabled = false;
+    return;
+  }
+  // Let the next poll redraw it as the "thanks" state — one code path for what
+  // a rated job looks like, rather than two that can drift apart.
+  RATING_DRAWN = false;
+  poll();
+}
+
 // ── tracking ────────────────────────────────────────────
 // The towing leg only exists on a tow. A lockout or a jump start goes from
 // "truck arrived" straight to "done", and showing an empty Towing step on those
@@ -726,6 +844,8 @@ async function poll(){
       </div>
       <a href="tel:${r.tower.phone}">${t('c.call')}</a>
     </div>` : '';
+
+  renderRating(r);
 
   const reached = {};
   (r.timeline||[]).forEach(t => reached[t.event_type] = t.created_at);

@@ -9,6 +9,7 @@ require_once __DIR__ . '/../includes/legal.php';
 require_once __DIR__ . '/../includes/stripe_connect.php';
 require_once __DIR__ . '/../includes/webpush.php';
 require_once __DIR__ . '/../includes/realtime.php';
+require_once __DIR__ . '/../includes/ratings.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -442,8 +443,33 @@ if ($action === 'track') {
             'verified' => $call['tower_status'] === 'approved',
             'verified_since' => $call['tower_verified_at'],
         ] : null,
+        // Rating only ever appears on a finished job, and only inside the
+        // window — asking someone to rate a truck that has not arrived yet is
+        // how you collect ratings about the wait rather than the work.
+        'can_rate'   => ratingWindowOpen($call),
+        'my_rating'  => customerRatingFor((int)$call['id']),
         'timeline' => $stmt->fetchAll(),
     ]);
+}
+
+// ═══ RATE — how did the towing company do? ═══════════════════════════════════
+// The tracking token is the customer's only credential. It came to them by text
+// on the job they are rating, which is exactly the right scope: it authorises
+// rating that one job and nothing else.
+if ($method === 'POST' && $action === 'rate') {
+    $in    = jsonInput();
+    $token = $in['token'] ?? '';
+    if (!preg_match('/^[a-f0-9]{32}$/', $token)) errorResponse(t('err.bad_tracking'), 404);
+
+    $stmt = getDB()->prepare("SELECT * FROM calls WHERE tracking_token = :tok");
+    $stmt->execute([':tok' => $token]);
+    $call = $stmt->fetch();
+    if (!$call) errorResponse(t('err.job_not_found'), 404);
+
+    $res = saveCustomerRating($call, (int)($in['stars'] ?? 0), $in['comment'] ?? null);
+    if (!$res['ok']) errorResponse($res['error'], 409);
+
+    successResponse(['my_rating' => customerRatingFor((int)$call['id'])], t('ok.rating_saved'));
 }
 
 // ═══ CANCEL — customer changes their mind ════════════════════════════════════

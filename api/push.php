@@ -165,7 +165,7 @@ if ($method === 'POST' && $action === 'test') {
         // Relative to the service worker's scope, so it follows the app
         // wherever it is deployed. An absolute path baked in here pointed at
         // the old subfolder and would open a 404 from the notification.
-        'url'   => './',
+        'url'   => 'tow',
         'tag'   => 'test',
     ], 'test');
 

@@ -435,6 +435,16 @@ function towersToAlert(array $call): array {
                -- being pushed a job you are not allowed to accept is worse
                -- than silence.
                AND a.verification_status = 'approved'
+               -- Same reasoning for the contact details. A company that has not
+               -- confirmed its phone number cannot be handed a customer, so it
+               -- must not be woken at 3am for a job the board will then refuse.
+               -- Compared against the CURRENT value: verifying a number and
+               -- then editing it puts the company back behind this line.
+               AND (:need_contact = 0 OR (
+                     a.email_verified_at IS NOT NULL
+                     AND a.email_verified_value = a.email
+                     AND a.phone_verified_at IS NOT NULL
+                     AND a.phone_verified_value = a.phone))
                AND p.base_lat BETWEEN :minlat AND :maxlat
                AND p.base_lng BETWEEN :minlng AND :maxlng";
 
@@ -442,6 +452,7 @@ function towersToAlert(array $call): array {
     $stmt->execute([
         ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
         ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
+        ':need_contact' => (string)setting('require_verification_to_accept', '1') === '1' ? 1 : 0,
     ]);
 
     $net = isset($call['tower_net_estimate'])
@@ -546,7 +557,7 @@ function pushNewJob(int $callId): array {
         'body'    => trim($area . ($miles ? ' · ' . $miles : '')),
         // Relative — see the note in api/push.php. The service worker
         // resolves it against its own scope.
-        'url'     => './?job=' . (int)$call['id'],
+        'url'     => 'tow?job=' . (int)$call['id'],
         'tag'     => 'job-' . (int)$call['id'],
         'expires' => $call['expires_at'],
     ];

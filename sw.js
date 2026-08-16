@@ -16,11 +16,15 @@
 // Bumped whenever a shell file changes. The activate handler deletes every
 // cache that is not this one, so a bump is how a stale copy inside the service
 // worker gets thrown away — the browser cache is only half the problem.
-const CACHE_VERSION = 'towsling-v20260816d';
+const CACHE_VERSION = 'towsling-v20260816e';
 // Deliberately short. Everything here risks being served from a previous
 // deploy, and the translations in particular caused a page to print a raw key
 // on screen when they fell behind the HTML that referenced it.
-const SHELL = ['./'];
+// The operator app moved from '/' to '/tow'. This is the OPERATOR's service
+// worker, so its shell and its offline fallback have to follow it — precaching
+// './' now caches the customer booking page, and an operator who lost signal
+// would be handed that instead of their job board.
+const SHELL = ['tow'];
 
 self.addEventListener('install', (event) => {
   // Take over immediately rather than waiting for every tab to close. An
@@ -65,7 +69,7 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./')))
+      .catch(() => caches.match(req).then((hit) => hit || caches.match('tow')))
   );
 });
 
@@ -97,7 +101,7 @@ self.addEventListener('push', (event) => {
     // A towing call is a decision, not an FYI. Keep it on screen.
     requireInteraction: d.kind === 'new_job',
     timestamp: Date.now(),
-    data: { url: d.url || './', call_id: d.call_id || null, kind: d.kind || 'info' },
+    data: { url: d.url || 'tow', call_id: d.call_id || null, kind: d.kind || 'info' },
     vibrate: [200, 80, 200],
   };
 
@@ -106,7 +110,7 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || './';
+  const target = (event.notification.data && event.notification.data.url) || 'tow';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((wins) => {

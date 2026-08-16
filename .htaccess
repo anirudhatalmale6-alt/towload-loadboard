@@ -1,8 +1,8 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #  Clean URLs — nothing in this app ever shows a .php extension.
 #
-#    /                        -> index.html          (dispatcher board)
-#    /tow                     -> tow.html            (stranded motorist)
+#    /                        -> tow.html            (stranded motorist)
+#    /tow                     -> index.html          (operator dashboard)
 #    /join                    -> join.html           (tow operator signup)
 #    /track/{token}           -> tow.html?job={token}
 #    /api/auth/login          -> api/auth.php?action=login
@@ -64,9 +64,15 @@ RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Consumer-facing pages. /tow is what the Google ads point at; /track/{token}
-# is the link a customer gets by text and comes back to.
-RewriteRule ^tow/?$                          tow.html [L]
+# The bare domain is the customer's page — they are the volume, and the address
+# on a business card or an ad should be the one a stranded motorist can be told
+# over the phone. The operator app moved to /tow to make room for it.
+#
+# NOTE: there is deliberately no redirect from the old /tow to the new /. There
+# cannot be — /tow is now where the operator app lives. Anything still pointing
+# at towsling.com/tow for customers (ads, QR codes, print) has to be repointed
+# at the bare domain by hand.
+RewriteRule ^tow/?$                          index.html [L]
 RewriteRule ^join/?$                         join.html [L]
 RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 
@@ -84,10 +90,10 @@ RewriteRule ^api/([a-z-]+)/([a-z-]+)/?$      api/$1.php?action=$2 [QSA,L]
 RewriteRule ^api/([a-z-]+)/?$                api/$1.php [QSA,L]
 RewriteRule ^webhooks/([a-z-]+)/?$           webhooks/$1.php [QSA,L]
 
-# The app itself. DirectoryIndex rather than a rewrite: mod_dir resolves the
+# The bare domain. DirectoryIndex rather than a rewrite: mod_dir resolves the
 # directory request before mod_rewrite gets a per-directory rule for an empty
-# URI, which otherwise leaves /towload/ as a 403.
-DirectoryIndex index.html
+# URI, which otherwise leaves the folder as a 403.
+DirectoryIndex tow.html
 
 # ─── Hardening ──────────────────────────────────────────────────────────────
 # Config, includes and the schema must never be fetchable over HTTP.

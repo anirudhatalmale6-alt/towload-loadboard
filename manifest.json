@@ -3,7 +3,7 @@
   "short_name": "TowSling",
   "description": "Live tow jobs near you. Get alerted the moment one is posted.",
   "id": "/",
-  "start_url": "./?src=pwa",
+  "start_url": "tow?src=pwa",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
@@ -25,13 +25,13 @@
     {
       "name": "Open jobs",
       "short_name": "Jobs",
-      "url": "./?tab=board",
+      "url": "tow?tab=board",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "My jobs",
       "short_name": "Mine",
-      "url": "./?tab=mine",
+      "url": "tow?tab=mine",
       "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }]
     }
   ]

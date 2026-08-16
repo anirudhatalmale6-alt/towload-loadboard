@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-i18n-title="title.join" data-i18n-desc="desc.join">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -97,6 +97,14 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
 .fine{font-size:12.5px;color:var(--ink-3);text-align:center;margin-top:14px;line-height:1.6}
 .hide{display:none !important}
 
+/* The processing hand-off. Deliberately plain: it is on screen for about a
+   second and a half, and its only job is to say that something is happening
+   and that it worked. */
+.spin{width:34px;height:34px;margin:2px auto 16px;border-radius:50%;
+  border:3px solid #bbf7d0;border-top-color:var(--green);animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.done-slot .ok h3{margin-bottom:6px}
+
 /* The confirmation card once it has been lifted to the top of the page. It
    inherits none of .card's framing up there, so it brings its own. */
 .done-slot{max-width:560px;margin:0 auto;padding:26px 20px 60px}
@@ -104,11 +112,6 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
 .done-slot .ok h3{text-align:center;font-size:22px}
 .done-slot .ok > p{text-align:center}
 
-/* The insurance row is the only one with a date box, and on a phone the row
-   could not fit mark + label + date + button, so the date box sat on top of
-   the words "Certificate of liability insurance". Let it wrap onto its own
-   line instead of fighting the label for the space. */
-}
 
 /* terms */
 .terms{display:flex;gap:11px;align-items:flex-start;margin:16px 0 18px;
@@ -121,24 +124,6 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
   font-size:14.5px;padding:13px;margin-bottom:15px}
 .btn.sec:hover{background:#eef1f6}
 
-/* document checklist */
-.docs{text-align:left}
-.dh{font-size:16px;font-weight:780;margin-bottom:5px;color:var(--ink)}
-.dsub{font-size:13.5px;color:var(--ink-3);line-height:1.6;margin-bottom:16px}
-.docrow{display:flex;align-items:center;gap:11px;padding:12px 0;border-top:1px solid #d7ead9}
-.docrow .dmark{width:22px;height:22px;border-radius:50%;border:1.5px solid #bbd8c1;
-  flex:none;display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:800;color:#16a34a}
-.docrow.have .dmark{background:#16a34a;border-color:#16a34a;color:#fff}
-.docrow .dinfo{flex:1;min-width:0}
-.docrow .dinfo b{display:block;font-size:14px;font-weight:700;color:var(--ink)}
-.docrow .dinfo small{font-size:12.5px;color:var(--ink-3)}
-.docrow .dexp{width:auto;padding:7px 9px;font-size:12.5px;border-radius:8px;flex:none}
-.dbtn{display:inline-block;background:var(--ink);color:#fff;border-radius:9px;
-  padding:9px 13px;font-size:13px;font-weight:700;cursor:pointer;flex:none;margin:0}
-.dstatus{margin-top:16px;padding:12px 14px;border-radius:10px;background:#fffbeb;
-  border:1px solid #fde68a;color:#78350f;font-size:13.5px;font-weight:650;line-height:1.55}
-.dstatus.go{background:#eff6ff;border-color:#bfdbfe;color:#1e40af}
 .foot{border-top:1px solid var(--line);padding:26px 20px;text-align:center;color:var(--ink-3);font-size:13px}
 
 @media(max-width:760px){
@@ -146,17 +131,6 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
   .hero h1{font-size:27px}
   .two{grid-template-columns:1fr}
 }
-@media (max-width:560px){
-  /* flex-wrap alone does nothing here: .dinfo is shrinkable, so it absorbed
-     the whole overflow and collapsed to 23px instead of pushing anything onto
-     a second line. Giving it a min-width of the full line is what actually
-     forces the break. */
-  .docrow{flex-wrap:wrap}
-  /* A floor, not a full line: the label and its Upload button still share row
-     one. Only the date box, with a 100% basis, is forced onto its own. */
-  .docrow .dinfo{flex:1 1 140px;min-width:140px}
-  .docrow .dexp{order:3;flex:1 1 100%;margin-left:33px;box-sizing:border-box}
-
 </style>
 </head>
 <body>
@@ -164,7 +138,7 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
 <div class="top">
   <div class="brand"><div class="mark">TS</div>TowSling</div>
   <button id="langBtn" onclick="tlToggle()" style="margin-left:auto;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13.5px;font-weight:700;color:var(--ink-2);margin-right:12px">English</button>
-  <a class="login" href="./" data-i18n="nav.operator_login">Entrar operadores →</a>
+  <a class="login" href="tow" data-i18n="nav.operator_login">Entrar operadores →</a>
 </div>
 
 <!-- The confirmation card is moved in here once signup succeeds. It used to
@@ -281,18 +255,21 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
         <p class="fine"><span data-i18n="j.fine"></span><br><span data-i18n="j.fine2"></span></p>
       </div>
 
-      <!-- ═══ STEP 2 — documents ═══
-           Verification is the whole trust layer. Asking for the documents right
-           here, while they are still on the page, is the difference between a
-           queue that fills itself and one Ricardo has to chase people for. -->
+      <!-- ═══ STEP 2 — handing over to the dashboard ═══
+           The four document uploads used to happen right here, seconds after
+           the account was created. It was the highest-friction point on the
+           whole page: someone who has just typed their details is now asked to
+           go and find an insurance certificate, and the ones who leave to look
+           for it do not come back.
+
+           So the account is made and they go straight to their dashboard. The
+           documents are not dropped — the dashboard opens with the verification
+           steps at the top and a Documents tab, which is a better place to ask
+           anyway, because they can come back to it. -->
       <div id="doneBox" class="ok hide">
-        <h3 data-i18n="j.done_h">¡Listo!</h3>
-        <p id="doneMsg"></p>
-
-        <div class="docs" id="docList" style="margin-top:22px"></div>
-        <div id="docErr" class="err hide" style="margin-top:12px"></div>
-
-        <p style="margin-top:20px"><a href="./" style="font-weight:700" data-i18n="j.open_board">Abrir mi tablero de trabajos →</a></p>
+        <div class="spin" aria-hidden="true"></div>
+        <h3 data-i18n="j.processing_h">Creando su cuenta…</h3>
+        <p id="doneMsg" data-i18n="j.processing_p"></p>
       </div>
     </div>
   </div>
@@ -300,7 +277,7 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
 
 <div class="foot">TowSling · <span data-i18n="foot.licensed"></span></div>
 
-<script src="i18n.js?v=20260816i"></script>
+<script src="i18n.js?v=20260816j"></script>
 <script>
 const API = 'api';
 
@@ -404,14 +381,19 @@ async function signup(){
   TOKEN = r.token;
   $('formBox').classList.add('hide');
   $('doneBox').classList.remove('hide');
-  $('doneMsg').textContent = r.next_step || t('j.done_p');
-  loadDocs();
   showDoneAtTop();
+
+  // A minimum dwell on the processing screen. Without it the redirect can fire
+  // in under 200ms on a good connection, which reads as a flicker and leaves
+  // people unsure whether anything was saved — the exact confusion this screen
+  // exists to remove. Long enough to register, short enough not to be a wait.
+  const MIN_MS = 1400;
+  const started = Date.now();
+  setTimeout(() => location.replace('tow'), Math.max(0, MIN_MS - (Date.now() - started)));
 }
 
 // Physically relocate the card to the top of the document and put the pitch
-// away. Someone who has just signed up does not need to be sold to again, and
-// the only thing that matters now is the four documents.
+// away. Someone who has just signed up does not need to be sold to again.
 function showDoneAtTop(){
   const done = $('doneBox');
   $('topSlot').appendChild(done);
@@ -421,77 +403,10 @@ function showDoneAtTop(){
   window.scrollTo({top:0, behavior:'auto'});
 }
 
-// ═══ DOCUMENTS ═══════════════════════════════════════════════════════════════
-// Asked for immediately after signup, on the same page. A company that leaves
-// to "find the insurance certificate later" mostly does not come back, and an
-// unverified company cannot take a single job — so this step is the funnel.
+// The token is kept so the dashboard this page redirects to is already signed
+// in. Everything that used to live below here — the four document uploads —
+// moved to the Documents tab on the dashboard.
 let TOKEN = localStorage.getItem('tl_token') || '';
-
-async function loadDocs(){
-  const r = await fetch(API + '/docs/mine?lang=' + tlLang(), {
-    headers:{'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN}
-  }).then(x => x.json()).catch(() => null);
-  if(!r || !r.success) return;
-
-  const allIn = r.checklist.every(c => c.uploaded);
-
-  $('docList').innerHTML = `
-    <h4 class="dh">${t('j.docs_h')}</h4>
-    <p class="dsub">${t('j.docs_sub')}</p>
-    ${r.checklist.map(c => `
-      <div class="docrow ${c.uploaded ? 'have' : ''}">
-        <div class="dmark">${c.uploaded ? '✓' : ''}</div>
-        <div class="dinfo">
-          <b>${c.label}</b>
-          <small>${c.uploaded
-            ? (c.status === 'rejected'
-                ? t('j.doc_rejected') + (c.notes ? ' — ' + c.notes : '')
-                : t('j.doc_received'))
-            : t('j.doc_missing')}</small>
-        </div>
-        ${c.doc_type.startsWith('coi') ? `<input type="date" class="dexp" id="exp_${c.doc_type}" title="${t('j.doc_expiry')}">` : ''}
-        <label class="dbtn">
-          ${c.uploaded ? t('j.doc_replace') : t('j.doc_upload')}
-          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp" style="display:none"
-                 onchange="uploadDoc('${c.doc_type}', this)">
-        </label>
-      </div>`).join('')}
-    <div class="dstatus ${allIn ? 'go' : ''}">${allIn ? t('j.docs_submitted') : t('j.docs_waiting')}</div>`;
-}
-
-async function uploadDoc(docType, input){
-  const file = input.files[0];
-  if(!file) return;
-  $('docErr').classList.add('hide');
-
-  const expEl = $('exp_' + docType);
-  if(docType.startsWith('coi') && expEl && !expEl.value){
-    input.value = '';
-    return docErr(t('j.err_expiry'));
-  }
-
-  const fd = new FormData();
-  fd.append('doc_type', docType);
-  fd.append('file', file);
-  if(expEl && expEl.value) fd.append('expires_at', expEl.value);
-
-  const r = await fetch(API + '/docs/upload?lang=' + tlLang(), {
-    method:'POST',
-    // No Content-Type header on purpose — the browser has to set the multipart
-    // boundary itself, and setting it by hand silently breaks the upload.
-    headers:{'Authorization':'Bearer ' + TOKEN, 'X-Auth-Token':TOKEN},
-    body:fd
-  }).then(x => x.json()).catch(() => ({success:false, error:'Upload failed'}));
-
-  input.value = '';
-  if(!r.success) return docErr(r.error);
-  loadDocs();
-}
-
-function docErr(m){
-  const b = $('docErr');
-  b.textContent = m; b.classList.remove('hide');
-}
 </script>
 </body>
 </html>

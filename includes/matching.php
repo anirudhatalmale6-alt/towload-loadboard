@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/compliance.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  MATCHING + VISIBILITY RULES
@@ -43,28 +44,98 @@ function towerIsCapable(array $profile, array $call): bool {
     return true;
 }
 
+/** Has this channel been confirmed, for the value currently on the account? */
+function verifiedFor(array $account, string $channel): bool {
+    $at      = $account[$channel . '_verified_at'] ?? null;
+    $checked = trim((string)($account[$channel . '_verified_value'] ?? ''));
+    $current = trim((string)($account[$channel] ?? ''));
+
+    // Comparing the value, not just the timestamp. Otherwise a company verifies
+    // one number, edits it to another on the profile screen, and keeps a green
+    // tick against a number nobody has ever answered.
+    return $at !== null && $current !== '' && $checked === $current;
+}
+
+/**
+ * The three things standing between a towing company and its first job:
+ * documents, email, phone. Returned as a list so the dashboard can show them as
+ * steps and the board can refuse a job, without the two disagreeing.
+ */
+function towerVerificationSteps(int $accountId): array {
+    $stmt = getDB()->prepare(
+        "SELECT id, email, phone, email_verified_at, email_verified_value,
+                phone_verified_at, phone_verified_value
+           FROM accounts WHERE id = :a"
+    );
+    $stmt->execute([':a' => $accountId]);
+    $account = $stmt->fetch() ?: [];
+
+    $docState    = docsState($accountId);
+    $docsOk      = $docState === 'approved';
+    $needDocs    = (string)setting('require_coi_to_accept', '1') === '1';
+    $needContact = (string)setting('require_verification_to_accept', '1') === '1';
+
+    $emailOk = verifiedFor($account, 'email');
+    $phoneOk = verifiedFor($account, 'phone');
+
+    $steps = [
+        [
+            'key'      => 'documents',
+            'state'    => $docState,
+            'done'     => $docsOk,
+            'required' => $needDocs,
+            'label'    => t('v.step_docs'),
+            // 'pending' is the case this whole rewrite exists for: everything is
+            // uploaded and the company is waiting on a person, which is not a
+            // failure on their side and must not be worded as one.
+            'detail'   => t('v.docs_' . $docState),
+        ],
+        [
+            'key'      => 'email',
+            'state'    => $emailOk ? 'approved' : 'missing',
+            'done'     => $emailOk,
+            'required' => $needContact,
+            'label'    => t('v.step_email'),
+            'detail'   => $emailOk ? t('v.email_done') : t('v.email_todo'),
+        ],
+        [
+            'key'      => 'phone',
+            'state'    => $phoneOk ? 'approved' : 'missing',
+            'done'     => $phoneOk,
+            'required' => $needContact,
+            'label'    => t('v.step_phone'),
+            'detail'   => $phoneOk ? t('v.phone_done') : t('v.phone_todo'),
+        ],
+    ];
+
+    $outstanding = array_values(array_filter($steps, fn($s) => $s['required'] && !$s['done']));
+
+    // The headline names ONE thing — whichever the operator should do next.
+    // A banner listing three problems at once gets read as "this is broken".
+    $reason = $outstanding ? $outstanding[0]['detail'] : null;
+
+    return [
+        'ok'          => count($outstanding) === 0,
+        // Documents pending review is a wait, not a fault. The dashboard styles
+        // it calmly instead of as an error the operator has to fix.
+        'waiting'     => count($outstanding) === 1
+                         && $outstanding[0]['key'] === 'documents'
+                         && $docState === 'pending',
+        'reason'      => $reason,
+        'steps'       => $steps,
+        'outstanding' => count($outstanding),
+    ];
+}
+
 /**
  * Insurance is checked at the moment of accepting, not at upload time.
  * A certificate that expired last week must stop dispatch today.
  */
 function towerCanAccept(int $accountId): array {
-    if ((string)setting('require_coi_to_accept', '1') !== '1') return ['ok' => true];
-
-    $stmt = getDB()->prepare(
-        "SELECT expires_at FROM compliance_docs
-          WHERE account_id = :a AND doc_type = 'coi_liability' AND status = 'approved'
-          ORDER BY expires_at DESC LIMIT 1"
-    );
-    $stmt->execute([':a' => $accountId]);
-    $doc = $stmt->fetch();
-
-    if (!$doc) {
-        return ['ok' => false, 'reason' => t('err.no_insurance')];
-    }
-    if ($doc['expires_at'] && strtotime($doc['expires_at']) < time()) {
-        return ['ok' => false, 'reason' => t('err.insurance_expired', ['date' => $doc['expires_at']])];
-    }
-    return ['ok' => true];
+    $v = towerVerificationSteps($accountId);
+    return $v['ok']
+        ? ['ok' => true]
+        : ['ok' => false, 'reason' => $v['reason'], 'waiting' => $v['waiting']];
 }
 
 /**

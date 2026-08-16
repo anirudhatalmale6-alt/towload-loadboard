@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-i18n-title="title.operator">
 <head>
 <meta charset="utf-8">
 <!-- viewport-fit=cover + the safe-area padding below keeps the header clear of
@@ -11,7 +11,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260816i">
+<link rel="manifest" href="manifest.json?v=20260816j">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -380,14 +380,6 @@ legend{
 }
 .login .brand h1{font-size:24px;letter-spacing:-.5px;margin-bottom:5px}
 .login .brand p{color:var(--ink-faint);font-size:13px}
-.demo-pick{display:grid;gap:9px;margin-top:16px}
-.demo-btn{
-  padding:13px 15px;background:var(--panel-2);border:1px solid var(--line);
-  border-radius:var(--radius);text-align:left;color:var(--ink);transition:.14s;
-}
-.demo-btn:hover{border-color:var(--accent)}
-.demo-btn b{display:block;font-size:14px;margin-bottom:2px}
-.demo-btn span{font-size:12px;color:var(--ink-faint)}
 .hide{display:none !important}
 
 @media(max-width:820px){
@@ -463,6 +455,72 @@ legend{
   background:var(--panel-2);color:var(--ink);border:1px solid var(--line);outline:none}
 .rate-fields input:focus{border-color:var(--accent)}
 .rate-fields input::placeholder{color:var(--ink-faint)}
+
+/* ── verification steps banner ─────────────────────────────────────
+   Two moods. `blocked` is something the operator has to act on; `waiting` is
+   the platform owing them an answer. They must not look the same — a company
+   that has done everything and is waiting on review was being shown the same
+   red alarm as one that had uploaded nothing, which reads as "you failed". */
+.verify-steps{border-radius:10px;padding:14px 16px;margin-bottom:14px;border:1px solid}
+.verify-steps.blocked{background:#241d0d;border-color:#7c5a10}
+.verify-steps.waiting{background:#12202c;border-color:#1f4a6b}
+.verify-steps h4{font-size:14px;font-weight:750;margin-bottom:3px}
+.verify-steps.blocked h4{color:#f0c674}
+.verify-steps.waiting h4{color:#7fc4f5}
+.verify-steps .vs-sub{font-size:12.5px;color:var(--ink-dim);line-height:1.5;margin-bottom:11px}
+.vs-rows{display:grid;gap:7px}
+.vs-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:7px;
+  background:rgba(0,0,0,.22)}
+.vs-mark{width:20px;height:20px;border-radius:50%;flex:none;display:grid;place-items:center;
+  font-size:11px;font-weight:800;background:var(--panel-2);border:1px solid var(--line);
+  color:var(--ink-faint)}
+.vs-row.done .vs-mark{background:var(--green-dim);border-color:var(--green);color:#fff}
+.vs-row.wait .vs-mark{background:#1f4a6b;border-color:#2f6f9e;color:#cfe8fb}
+.vs-row.todo .vs-mark{background:#3b2f0d;border-color:#7c5a10;color:#f0c674}
+.vs-text{flex:1 1 auto;min-width:0}
+.vs-text b{display:block;font-size:13px;font-weight:700}
+.vs-text small{display:block;font-size:12px;color:var(--ink-dim);margin-top:1px;line-height:1.45}
+.vs-go{flex:none;font-size:12px;font-weight:700;color:var(--accent);text-decoration:underline;
+  white-space:nowrap}
+
+/* ── company page ──────────────────────────────────────────────── */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;
+  margin-bottom:14px}
+.cf{display:flex;flex-direction:column;gap:5px;min-width:0}
+.cf > span{font-size:12px;color:var(--ink-dim)}
+.cf input,.cf select{width:100%;padding:9px 11px;border-radius:7px;background:var(--panel-2);
+  color:var(--ink);border:1px solid var(--line);outline:none}
+.cf input:focus,.cf select:focus{border-color:var(--accent)}
+.caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:10px 0 14px}
+.cap{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.cap input{accent-color:var(--accent)}
+.pane-h .cnt{font-size:12px;color:var(--ink-faint);font-weight:600;margin-left:6px}
+
+.truck{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 0;border-top:1px solid var(--line)}
+.truck:first-child{border-top:none}
+.tk-main{flex:1 1 180px;min-width:180px}
+.tk-main b{display:block;font-size:14px;font-weight:700}
+.tk-main small{display:block;font-size:12.5px;color:var(--ink-dim);margin-top:2px;line-height:1.45}
+.tk-main .tk-eq{color:var(--ink-faint);font-size:12px}
+.btn.sm{padding:7px 11px;font-size:12.5px}
+.btn.danger{color:var(--red);border-color:#4a2320}
+.tk-form{margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:9px;
+  background:var(--panel-2)}
+.tk-form h4{font-size:13.5px;font-weight:750;margin-bottom:12px}
+
+.vrowc{padding:12px 0;border-top:1px solid var(--line)}
+.vrowc:first-child{border-top:none}
+.vc-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vc-head b{font-size:13.5px;font-weight:700}
+.vc-val{font-size:12.5px;color:var(--ink-dim);flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.vc-state{font-size:12px;font-weight:700;color:var(--ink-faint);white-space:nowrap}
+.vrowc.done .vc-state{color:var(--green)}
+.vc-act{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:9px}
+.vc-code{width:104px;padding:8px 10px;border-radius:7px;background:var(--panel);
+  color:var(--ink);border:1px solid var(--line);outline:none;text-align:center;
+  letter-spacing:2px;font-weight:700}
+.vc-code:focus{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -482,15 +540,6 @@ legend{
       <div id="liErr" class="notice err hide" style="margin:14px 0 0"></div>
       <div style="text-align:center;margin-top:16px;font-size:13px;color:var(--ink-dim)">
         <span data-i18n="o.no_account"></span> <a href="join" style="color:var(--accent);font-weight:600;text-decoration:none" data-i18n="o.signup_link"></a>
-      </div>
-      <div class="demo-pick">
-        <div style="text-align:center;font-size:11px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.6px;margin:6px 0 2px">Demo accounts</div>
-        <button class="demo-btn" onclick="demo('provider')">
-          <b>Sunshine Motor Club</b><span>Provider — posts calls, funds escrow</span>
-        </button>
-        <button class="demo-btn" onclick="demo('tower')">
-          <b>Tri-County Towing</b><span>Tower — works the board, gets paid</span>
-        </button>
       </div>
     </div>
   </div>
@@ -526,6 +575,7 @@ legend{
   <div id="alertsPane" class="hide"></div>
   <div id="ratesPane" class="hide"></div>
   <div id="docsPane" class="hide"></div>
+  <div id="companyPane" class="hide"></div>
 </main>
 </div>
 
@@ -635,11 +685,12 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260816i"></script>
+<script src="i18n.js?v=20260816j"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
 let ME = null, VIEW = 'board', DATA = [], FEE_PCT = 10, FEE_MIN = 5;
+let VDOCS_OPEN = false;   // survives the re-render that follows a document upload
 
 // Escapes anything that came from outside this file before it goes into
 // innerHTML. Most strings on this page are from the server's own catalogue and
@@ -665,11 +716,6 @@ const money = n => '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDig
 const feeOn = a => Math.min(a, Math.max(FEE_MIN, Math.round(a*FEE_PCT)/100));
 
 /* ── auth ──────────────────────────────────────────────────────── */
-function demo(kind){
-  document.getElementById('liEmail').value = kind==='provider' ? 'ops@sunshinemc.test' : 'disp@tricounty.test';
-  document.getElementById('liPass').value  = 'testpass123';
-  doLogin();
-}
 async function doLogin(){
   const err = document.getElementById('liErr');
   err.classList.add('hide');
@@ -708,7 +754,7 @@ async function boot(){
 
   const isTower = me.account.account_type === 'tower';
   document.getElementById('tabs').innerHTML = isTower
-    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button><button class="tab" data-v="docs">${t('o.docs')}</button>`
+    ? `<button class="tab" data-v="board">${t('o.available_jobs')}</button><button class="tab" data-v="mine">${t('o.my_jobs')}</button><button class="tab" data-v="alerts">${t('o.alerts')}</button><button class="tab" data-v="rates">${t('o.rates')}</button><button class="tab" data-v="docs">${t('o.docs')}</button><button class="tab" data-v="company">${t('o.company')}</button>`
     : `<button class="tab" data-v="mine">${t('o.my_jobs')}</button>`;
   document.querySelectorAll('.tab').forEach(b => b.onclick = () => switchView(b.dataset.v));
 
@@ -743,6 +789,13 @@ async function renderVerifyBar(){
   const list = (r.success ? r.checklist : []);
   const missing = list.filter(c => !c.uploaded).length;
 
+  // <details> keeps its open/closed state in the DOM, and this function replaces
+  // that DOM wholesale. So uploading a document — which re-renders to show the
+  // new tick — collapsed the card the operator was still working in, mid-way
+  // through a set of four. Carry the state across the rebuild.
+  const prev = box.querySelector('.vdocs-wrap');
+  if (prev) VDOCS_OPEN = prev.open;
+
   box.innerHTML = `<div class="verify-bar">
     <h4>${status === 'pending' ? t('o.review_h') : t('o.unverified_h')}</h4>
     <p>${status === 'pending' ? t('o.review_p')
@@ -753,8 +806,9 @@ async function renderVerifyBar(){
            signed up is not asked for four documents before it has seen a single
            job; the platform asks at review, and this is here only for the
            operator who wants to get ahead of it. -->
-      <details class="vdocs-wrap" ${status === 'rejected' ? 'open' : ''}>
-        <summary>${status === 'rejected' ? t('j.docs_fix') : t('j.docs_optional')}</summary>
+      <details class="vdocs-wrap" ${status === 'rejected' || VDOCS_OPEN ? 'open' : ''}
+               ontoggle="VDOCS_OPEN = this.open">
+        <summary>${status === 'rejected' ? t('j.docs_fix') : t('j.docs_upload_now')}</summary>
       <div class="vdocs">
         ${list.map(c => `
           <div class="vrow ${c.uploaded ? 'have' : ''}">
@@ -804,7 +858,11 @@ async function uploadVerifyDoc(docType, input){
   // banner has to be re-read rather than patched.
   const me = await api('/auth/me');
   if(me.success) ME = me;
+  VDOCS_OPEN = true;          // they are mid-way through a set; do not shut it
   renderVerifyBar();
+  // "Cannot accept jobs" is computed from these documents. Without this it
+  // keeps naming a missing certificate that was just supplied.
+  load();
 }
 
 async function refreshWallet(){
@@ -893,6 +951,264 @@ function fmtDate(d){
   try { return new Date(d + 'T00:00:00').toLocaleDateString(tlLang() === 'es' ? 'es-US' : 'en-US',
         {year:'numeric', month:'short', day:'numeric'}); }
   catch(e){ return d; }
+}
+
+/* ── company ─────────────────────────────────────────────────────
+   Details, verification, equipment, trucks. */
+let CO = null;   // last loaded overview, so the truck editor can read it back
+
+const EQUIP_KEYS = ['dollies','winch','straps','wheel_lift','low_clearance','ev_kit',
+                    'air_cushion','rollback','jump_pack','fuel_can','lockout_kit'];
+const TRUCK_TYPE_KEYS = ['flatbed','wheel_lift','wrecker','heavy_wrecker','service_van','other'];
+
+// These drive matching — which jobs are offered to this company at all.
+const CAPABILITY_KEYS = ['has_light_duty','has_medium_duty','has_heavy_duty','has_flatbed',
+                         'has_wheel_lift','has_winch_recovery','has_lockout','has_jumpstart',
+                         'has_tire_change','has_fuel_delivery','has_motorcycle','has_ev_certified',
+                         'has_lowclearance'];
+
+async function renderCompanyPane(){
+  const pane = document.getElementById('companyPane');
+  if(!pane) return;
+  pane.innerHTML = `<div class="empty">${t('o.loading')}</div>`;
+
+  const r = await api('/company/overview');
+  if(!r.success){ pane.innerHTML = `<div class="empty"><p>${esc(r.error||'')}</p></div>`; return; }
+  CO = r;
+  const c = r.company;
+
+  const field = (id, label, val, type) =>
+    `<label class="cf"><span>${label}</span>
+       <input id="co_${id}" type="${type||'text'}" value="${esc(val==null?'':val)}"></label>`;
+
+  const capBox = CAPABILITY_KEYS.map(k =>
+    `<label class="cap"><input type="checkbox" id="co_${k}" ${Number(c[k]) ? 'checked' : ''}>
+       <span>${t('cap.' + k)}</span></label>`).join('');
+
+  pane.innerHTML = `
+    <div class="pane">
+      <div class="pane-h"><h3>${t('co.details_h')}</h3></div>
+      <div class="pane-b">
+        <div class="cgrid">
+          ${field('name',    t('co.name'),    c.name)}
+          ${field('phone',   t('co.phone'),   c.phone,   'tel')}
+          ${field('address', t('co.address'), c.address)}
+          ${field('city',    t('co.city'),    c.city)}
+          ${field('state',   t('co.state'),   c.state)}
+          ${field('zip',     t('co.zip'),     c.zip)}
+          ${field('website', t('co.website'), c.website)}
+          ${field('dot_number', t('co.dot'),  c.dot_number)}
+          ${field('mc_number',  t('co.mc'),   c.mc_number)}
+          ${field('service_radius_miles', t('co.radius'), c.service_radius_miles, 'number')}
+        </div>
+        <p class="push-fine">${t('co.email_note', {email: esc(c.email)})}</p>
+        <button class="btn go" onclick="saveCompany()">${t('co.save')}</button>
+        <span id="coMsg" class="push-fine"></span>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('co.verify_h')}</h3></div>
+      <div class="pane-b">${verifyPanelHTML(r.verification, c)}</div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('co.equip_h')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('co.equip_sub')}</p>
+        <div class="caps">${capBox}</div>
+        <button class="btn go" onclick="saveCompany()">${t('co.save')}</button>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('co.trucks_h')} <span class="cnt">${r.trucks.length}</span></h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('co.trucks_sub')}</p>
+        <div id="truckList">${trucksHTML(r.trucks)}</div>
+        <button class="btn ghost" onclick="editTruck(0)">${t('co.truck_add')}</button>
+        <div id="truckForm"></div>
+      </div>
+    </div>`;
+}
+
+function trucksHTML(trucks){
+  if(!trucks.length) return `<div class="empty"><p>${t('co.no_trucks')}</p></div>`;
+  return trucks.map(tk => `
+    <div class="truck">
+      <div class="tk-main">
+        <b>${esc(tk.label)}</b>
+        <small>${t('tt.' + tk.truck_type)} · ${t('cls.' + tk.capacity_class)}${
+          tk.year || tk.make || tk.model
+            ? ' · ' + esc([tk.year, tk.make, tk.model].filter(Boolean).join(' ')) : ''
+        }${tk.plate ? ' · ' + esc(tk.plate) : ''}</small>
+        ${tk.equipment.length
+          ? `<small class="tk-eq">${tk.equipment.map(e => t('eq.' + e)).join(' · ')}</small>` : ''}
+      </div>
+      <button class="btn ghost sm" onclick="editTruck(${tk.id})">${t('co.edit')}</button>
+      <!-- Only the id goes in the attribute. Passing the label meant putting a
+           JSON string — with its own double quotes — inside a double-quoted
+           onclick, which closed the attribute early and left the handler as a
+           syntax error. The label is read from CO.trucks instead. -->
+      <button class="btn ghost sm danger" onclick="deleteTruck(${tk.id})">${t('co.remove')}</button>
+    </div>`).join('');
+}
+
+function editTruck(id){
+  const tk = id ? (CO.trucks.find(x => x.id === id) || {}) : {};
+  const eq = tk.equipment || [];
+  document.getElementById('truckForm').innerHTML = `
+    <div class="tk-form">
+      <h4>${id ? t('co.truck_edit') : t('co.truck_new')}</h4>
+      <div class="cgrid">
+        <label class="cf"><span>${t('co.tk_label')}</span>
+          <input id="tk_label" value="${esc(tk.label||'')}" placeholder="${t('co.tk_label_ph')}"></label>
+        <label class="cf"><span>${t('co.tk_type')}</span>
+          <select id="tk_type">${TRUCK_TYPE_KEYS.map(k =>
+            `<option value="${k}" ${tk.truck_type===k?'selected':''}>${t('tt.'+k)}</option>`).join('')}</select></label>
+        <label class="cf"><span>${t('co.tk_class')}</span>
+          <select id="tk_class">${['light','medium','heavy'].map(k =>
+            `<option value="${k}" ${tk.capacity_class===k?'selected':''}>${t('cls.'+k)}</option>`).join('')}</select></label>
+        <label class="cf"><span>${t('co.tk_year')}</span>
+          <input id="tk_year" type="number" value="${esc(tk.year||'')}"></label>
+        <label class="cf"><span>${t('co.tk_make')}</span>
+          <input id="tk_make" value="${esc(tk.make||'')}"></label>
+        <label class="cf"><span>${t('co.tk_model')}</span>
+          <input id="tk_model" value="${esc(tk.model||'')}"></label>
+        <label class="cf"><span>${t('co.tk_plate')}</span>
+          <input id="tk_plate" value="${esc(tk.plate||'')}"></label>
+      </div>
+      <div class="cf"><span>${t('co.tk_equip')}</span>
+        <div class="caps">${EQUIP_KEYS.map(k =>
+          `<label class="cap"><input type="checkbox" id="tkeq_${k}" ${eq.includes(k)?'checked':''}>
+             <span>${t('eq.'+k)}</span></label>`).join('')}</div></div>
+      <div class="row">
+        <button class="btn go" onclick="saveTruck(${id})">${t('co.save')}</button>
+        <button class="btn ghost" onclick="document.getElementById('truckForm').innerHTML=''">${t('co.cancel')}</button>
+      </div>
+      <div id="tkMsg" class="push-fine"></div>
+    </div>`;
+  document.getElementById('tk_label').focus();
+}
+
+async function saveTruck(id){
+  const val = i => (document.getElementById(i)?.value || '').trim();
+  const body = {
+    id, label: val('tk_label'), truck_type: val('tk_type'), capacity_class: val('tk_class'),
+    year: val('tk_year'), make: val('tk_make'), model: val('tk_model'), plate: val('tk_plate'),
+    equipment: EQUIP_KEYS.filter(k => document.getElementById('tkeq_' + k)?.checked)
+  };
+  if(!body.label){ document.getElementById('tkMsg').textContent = t('co.tk_need_label'); return; }
+
+  const r = await api('/company/truck-save', {method:'POST', body: JSON.stringify(body)});
+  const msg = document.getElementById('tkMsg');
+  if(!r.success){ msg.textContent = r.error || ''; msg.style.color = 'var(--red)'; return; }
+
+  CO.trucks = r.trucks;
+  document.getElementById('truckList').innerHTML = trucksHTML(r.trucks);
+  document.getElementById('truckForm').innerHTML = '';
+  renderCompanyPane();
+}
+
+async function deleteTruck(id){
+  // Removing a truck is not undoable from this screen, so it asks first and
+  // names the one it is about to remove.
+  const tk = (CO?.trucks || []).find(x => x.id === id);
+  if(!confirm(t('co.tk_confirm', {label: tk ? tk.label : '#' + id}))) return;
+  const r = await api('/company/truck-delete', {method:'POST', body: JSON.stringify({id})});
+  if(!r.success) return alert(r.error || '');
+  CO.trucks = r.trucks;
+  renderCompanyPane();
+}
+
+async function saveCompany(){
+  const val = i => document.getElementById('co_' + i)?.value?.trim();
+  const body = {
+    name: val('name'), phone: val('phone'), address: val('address'), city: val('city'),
+    state: val('state'), zip: val('zip'), website: val('website'),
+    dot_number: val('dot_number'), mc_number: val('mc_number'),
+    service_radius_miles: val('service_radius_miles')
+  };
+  CAPABILITY_KEYS.forEach(k => { body[k] = document.getElementById('co_' + k)?.checked ? 1 : 0; });
+
+  // Changing the number un-verifies it — the verified value is compared against
+  // the current one server-side. Say so before saving rather than letting the
+  // green tick quietly turn back into a red step.
+  const before = CO?.company?.phone || '';
+  if(before && body.phone && normalizeLoose(body.phone) !== normalizeLoose(before)
+     && CO?.company?.phone_verified){
+    if(!confirm(t('co.phone_reverify'))) return;
+  }
+
+  const r = await api('/auth/update-profile', {method:'POST', body: JSON.stringify(body)});
+
+  if(!r.success){
+    const msg = document.getElementById('coMsg');
+    msg.textContent = r.error || '';
+    msg.style.color = 'var(--red)';
+    return;
+  }
+
+  // The confirmation has to be written AFTER the redraw, not before it.
+  // renderCompanyPane() replaces this pane wholesale — including #coMsg — so
+  // setting the text first meant "Saved." was destroyed a moment later and the
+  // save looked like it had done nothing at all.
+  const me = await api('/auth/me');
+  if(me.success) ME = me;
+  await renderCompanyPane();
+
+  const msg = document.getElementById('coMsg');
+  if(msg){ msg.textContent = t('co.saved'); msg.style.color = 'var(--green)'; }
+}
+
+const normalizeLoose = s => String(s||'').replace(/\D+/g, '');
+
+/* The two contact steps, with the code boxes. Rendered inside the company page
+   because that is where the number being verified is edited. */
+function verifyPanelHTML(v, c){
+  const row = (channel, verified, shown) => `
+    <div class="vrowc ${verified ? 'done' : ''}">
+      <div class="vc-head">
+        <b>${t(channel === 'email' ? 'co.email_v' : 'co.phone_v')}</b>
+        <span class="vc-val">${esc(shown || '—')}</span>
+        <span class="vc-state">${verified ? '✓ ' + t('co.confirmed') : t('co.not_confirmed')}</span>
+      </div>
+      ${verified ? '' : `
+        <div class="vc-act">
+          <button class="btn ghost sm" onclick="sendCode('${channel}')">${t('co.send_code')}</button>
+          <input class="vc-code" id="vc_${channel}" inputmode="numeric" maxlength="6"
+                 placeholder="000000">
+          <button class="btn go sm" onclick="confirmCode('${channel}')">${t('co.confirm')}</button>
+        </div>`}
+      <div class="push-fine" id="vcmsg_${channel}"></div>
+    </div>`;
+
+  return row('email', c.email_verified, c.email)
+       + row('phone', c.phone_verified, c.phone)
+       + (v && !v.ok ? `<p class="push-fine">${t('co.why_verify')}</p>` : '');
+}
+
+async function sendCode(channel){
+  const msg = document.getElementById('vcmsg_' + channel);
+  msg.textContent = t('co.sending');
+  msg.style.color = '';
+  const r = await api('/verify/send', {method:'POST', body: JSON.stringify({channel})});
+  msg.textContent = r.success ? (r.message || '') + (r.sent_to ? ' (' + r.sent_to + ')' : '') : (r.error || '');
+  msg.style.color = r.success ? 'var(--green)' : 'var(--red)';
+}
+
+async function confirmCode(channel){
+  const msg = document.getElementById('vcmsg_' + channel);
+  const code = document.getElementById('vc_' + channel)?.value?.trim();
+  if(!code){ msg.textContent = t('co.enter_code'); msg.style.color = 'var(--red)'; return; }
+
+  const r = await api('/verify/confirm', {method:'POST', body: JSON.stringify({channel, code})});
+  if(!r.success){ msg.textContent = r.error || ''; msg.style.color = 'var(--red)'; return; }
+
+  // Verifying can be the last thing standing between this company and the
+  // board, so the job list has to be re-read, not just this panel.
+  renderCompanyPane();
+  load();
 }
 
 async function uploadMyDoc(docType, input){
@@ -1008,6 +1324,24 @@ function switchView(v){
   const list = document.getElementById('list');
 
   const dpane = document.getElementById('docsPane');
+  const cpane = document.getElementById('companyPane');
+
+  // The company's own record: contact details, the equipment it runs, its
+  // trucks, and the two verification steps. None of this was reachable — the
+  // columns existed and the API could write them, but there was no screen.
+  if(v === 'company'){
+    document.getElementById('viewTitle').textContent = t('o.company');
+    document.getElementById('viewSub').textContent = '';
+    f.innerHTML = '';
+    list.classList.add('hide');
+    pane.classList.add('hide');
+    rpane.classList.add('hide');
+    dpane.classList.add('hide');
+    cpane.classList.remove('hide');
+    renderCompanyPane();
+    return;
+  }
+  cpane.classList.add('hide');
 
   // Documents. This screen did not exist: the only place a company could ever
   // upload its paperwork was the signup page, immediately after registering.
@@ -1107,12 +1441,42 @@ async function load(){
 
 function renderNotices(res){
   const n = document.getElementById('notices');
-  n.innerHTML = (res.can_accept === false && res.blocked_reason)
-    // A blocker that names a problem with no route to the fix is a dead end.
-    // Every reason this fires is a document, so it links to the documents tab.
-    ? `<div class="notice warn"><b>${t('o.cannot_accept')}</b> ${res.blocked_reason}
-         <a href="#" class="notice-fix" onclick="switchView('docs');return false">${t('o.fix_docs')}</a>
-       </div>` : '';
+  if(!res.verification || res.verification.ok){ n.innerHTML = ''; return; }
+  n.innerHTML = verifyStepsHTML(res.verification);
+}
+
+/* The three things between a company and its first job, as a checklist.
+   Built as one component because the board, the documents tab and the company
+   page all have to show the same state — three hand-written copies of it is how
+   two screens end up telling an operator different things about whether they
+   can work. */
+function verifyStepsHTML(v){
+  // Everything uploaded and waiting on a human is NOT an error, and must not be
+  // dressed as one. This was the whole complaint: a company that had done all
+  // four uploads still got a red "cannot accept jobs" naming a missing
+  // certificate, because the only question ever asked was "is one APPROVED?".
+  const waiting = v.waiting === true;
+
+  const rows = v.steps.map(s => {
+    const mark = s.done ? '✓' : (s.state === 'pending' ? '•' : '!');
+    const cls  = s.done ? 'done' : (s.state === 'pending' ? 'wait' : 'todo');
+    // Only offer an action for the step the operator can actually act on.
+    const act  = s.done || s.state === 'pending' ? ''
+      : s.key === 'documents'
+        ? `<a href="#" class="vs-go" onclick="switchView('docs');return false">${t('v.go_docs')}</a>`
+        : `<a href="#" class="vs-go" onclick="switchView('company');return false">${t('v.go_verify')}</a>`;
+    return `<div class="vs-row ${cls}">
+        <span class="vs-mark">${mark}</span>
+        <span class="vs-text"><b>${s.label}</b><small>${s.detail}</small></span>
+        ${act}
+      </div>`;
+  }).join('');
+
+  return `<div class="verify-steps ${waiting ? 'waiting' : 'blocked'}">
+      <h4>${waiting ? t('v.head_waiting') : t('v.head_blocked')}</h4>
+      <p class="vs-sub">${waiting ? t('v.sub_waiting') : t('v.sub_blocked')}</p>
+      <div class="vs-rows">${rows}</div>
+    </div>`;
 }
 
 // Which price breakdowns the operator has open. Survives a redraw, because
@@ -1384,9 +1748,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260816i"></script>
-<script src="realtime.js?v=20260816i"></script>
-<script src="driver.js?v=20260816i"></script>
+<script src="push.js?v=20260816j"></script>
+<script src="realtime.js?v=20260816j"></script>
+<script src="driver.js?v=20260816j"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>
