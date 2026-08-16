@@ -162,7 +162,7 @@ function vapidAuthHeader(string $endpoint): string {
         // 12h. The spec caps it at 24h; short enough that a leaked header is
         // worth little, long enough to survive a slow retry queue.
         'exp' => time() + 43200,
-        'sub' => (string)setting('vapid_subject', 'https://bot24.io/towload'),
+        'sub' => (string)setting('vapid_subject', APP_URL),
     ]));
 
     $priv = openssl_pkey_get_private($keys['private_pem']);
@@ -544,7 +544,9 @@ function pushNewJob(int $callId): array {
         'call_id' => (int)$call['id'],
         'title'   => '$' . number_format($call['tower_net_estimate'], 0) . ' · ' . $service,
         'body'    => trim($area . ($miles ? ' · ' . $miles : '')),
-        'url'     => '/towload/?job=' . (int)$call['id'],
+        // Relative — see the note in api/push.php. The service worker
+        // resolves it against its own scope.
+        'url'     => './?job=' . (int)$call['id'],
         'tag'     => 'job-' . (int)$call['id'],
         'expires' => $call['expires_at'],
     ];

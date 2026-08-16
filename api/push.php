@@ -162,7 +162,10 @@ if ($method === 'POST' && $action === 'test') {
         'kind'  => 'test',
         'title' => t('push.test_title'),
         'body'  => t('push.test_body'),
-        'url'   => '/towload/',
+        // Relative to the service worker's scope, so it follows the app
+        // wherever it is deployed. An absolute path baked in here pointed at
+        // the old subfolder and would open a 404 from the notification.
+        'url'   => './',
         'tag'   => 'test',
     ], 'test');
 

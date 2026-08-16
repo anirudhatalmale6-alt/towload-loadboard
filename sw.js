@@ -6,8 +6,9 @@
    than one that shows an error, so nothing from the API is ever cached and
    navigations always try the network first.
 
-   Scope is this folder, so it is registered from /towload/ and controls
-   /towload/*. Bump CACHE_VERSION on any shell change — an old service worker
+   Scope is this folder, wherever that folder happens to be — everything here
+   is relative so the app can move domains without an edit. Bump
+   CACHE_VERSION on any shell change — an old service worker
    serving an old index.html is the classic "he says he deployed it but I still
    see the old screen".
    ══════════════════════════════════════════════════════════════════════════ */
@@ -15,7 +16,7 @@
 // Bumped whenever a shell file changes. The activate handler deletes every
 // cache that is not this one, so a bump is how a stale copy inside the service
 // worker gets thrown away — the browser cache is only half the problem.
-const CACHE_VERSION = 'towload-v20260815a';
+const CACHE_VERSION = 'towload-v20260816a';
 // Deliberately short. Everything here risks being served from a previous
 // deploy, and the translations in particular caused a page to print a raw key
 // on screen when they fell behind the HTML that referenced it.
@@ -112,8 +113,13 @@ self.addEventListener('notificationclick', (event) => {
       // Reuse a window that is already open — on a phone this is the difference
       // between landing on the job and landing on a second copy of the app that
       // has to log in again.
+      //
+      // Matched against the worker's own scope, not a folder name. The app
+      // moved from /towload/ to a domain root, and a hardcoded name would have
+      // matched nothing here: every notification tap would have opened a fresh
+      // copy needing a login, on the exact screen an operator taps while driving.
       for (const w of wins) {
-        if (w.url.includes('/towload') && 'focus' in w) {
+        if (w.url.startsWith(self.registration.scope) && 'focus' in w) {
           if ('navigate' in w) w.navigate(target).catch(() => {});
           return w.focus();
         }

@@ -69,15 +69,22 @@ DirectoryIndex index.html
 # holds the shared secret. It runs from the operator's home directory, not from
 # here — it only lives in the deploy tree so it version-controls with everything
 # else, and nothing in it should ever be fetchable.
-RedirectMatch 404 ^/.*/(config|includes|migrations|ws)/.*$
-RedirectMatch 404 ^/.*/schema\.sql$
-RedirectMatch 404 ^/.*/\.git
+#
+# The optional `(.*/)?` is load-bearing. These read on the FULL request path,
+# not the path relative to this directory, and the app moved from a subfolder
+# (/towload/config/…) to a domain root (/config/…). `^/.*/` demanded a segment
+# before `config`, so at the root every one of these rules silently stopped
+# matching — the database password would have been a public URL the moment the
+# domain changed, with nothing failing to show it.
+RedirectMatch 404 ^/(.*/)?(config|includes|migrations|ws)/.*$
+RedirectMatch 404 ^/(.*/)?schema\.sql$
+RedirectMatch 404 ^/(.*/)?\.git
 
 # Compliance uploads: EIN letters, insurance certificates, driver's licences.
 # Belt and braces — uploads/.htaccess denies these too, and the only way to read
 # one is api/docs/file, which checks who is asking. Any single layer failing
 # still leaves them unreachable.
-RedirectMatch 404 ^/.*/uploads/.*$
+RedirectMatch 404 ^/(.*/)?uploads/.*$
 
 <FilesMatch "\.(sql|log|md|bak|bak-.*)$">
     Require all denied

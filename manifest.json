@@ -2,7 +2,7 @@
   "name": "TowLoad — Operator",
   "short_name": "TowLoad",
   "description": "Live tow jobs near you. Get alerted the moment one is posted.",
-  "id": "/towload/",
+  "id": "/",
   "start_url": "./?src=pwa",
   "scope": "./",
   "display": "standalone",
