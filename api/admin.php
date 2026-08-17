@@ -565,12 +565,48 @@ if ($method === 'POST' && $action === 'settings-save') {
         // rather than trusted, because there is no undo on a job already priced.
         if ($key === 'consumer_fee_percent') $value = max(0, min(40, (float)$value));
         if ($key === 'surge_max_multiplier')  $value = max(1.0, min(SURGE_ABSOLUTE_MAX, (float)$value));
+
+        // Prove the server key works BEFORE storing it.
+        //
+        // The obvious mistake here is pasting in the browser key, or a new key
+        // that still carries the default referrer restriction — Google refuses
+        // both for this API, and a stored-but-refused key looks configured
+        // while doing nothing. Asking Google once at save time turns a silent
+        // misconfiguration into a sentence on screen.
+        if ($key === 'google_server_key' && trim((string)$value) !== '') {
+            $check = geocodeProbe(trim((string)$value));
+            if (!$check['ok']) {
+                errorResponse('That key was not saved. Google says: ' . $check['error'], 422);
+            }
+        }
+
         $stmt->execute([':v' => (string)$value, ':k' => $key]);
         $changed[$key] = $value;
     }
 
     adminLog((int)$admin['id'], 'settings_save', json_encode($changed));
     successResponse(['changed' => $changed], t('ok.saved'));
+}
+
+/**
+ * Ask Google whether a key can actually geocode from this server.
+ * Returns ['ok' => bool, 'error' => string].
+ */
+function geocodeProbe(string $key): array {
+    $ch = curl_init('https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query([
+        'address' => '1600 Amphitheatre Parkway, Mountain View, CA',
+        'key'     => $key,
+    ]));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 10]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+    if ($body === false) return ['ok' => false, 'error' => 'could not reach Google to check the key'];
+
+    $d = json_decode((string)$body, true);
+    $status = $d['status'] ?? 'no reply';
+    if ($status === 'OK') return ['ok' => true, 'error' => ''];
+
+    return ['ok' => false, 'error' => $status . ' — ' . ($d['error_message'] ?? 'no detail given')];
 }
 
 // ═══ RATE TABLE ══════════════════════════════════════════════════════════════
