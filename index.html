@@ -42,7 +42,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260818l">
+<link rel="manifest" href="manifest.json?v=20260818m">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -519,10 +519,14 @@ legend{
 .login-wrap{min-height:100vh;display:grid;place-items:center;padding:20px}
 .login{width:100%;max-width:400px}
 .login .brand{text-align:center;margin-bottom:26px}
+/* No white tile here any more.
+   The tile existed because the old mark's lower half was a near-black navy
+   that vanished into the dark panel behind it. The orange artwork has its own
+   contrast and a transparent background, so a white card around it now reads
+   as a sticker stuck on the page rather than as the brand. */
 .login .brand .mark{
-  height:56px;width:auto;display:block;margin:0 auto 14px;
-  background:#fff;border-radius:13px;padding:8px 12px;
-  box-shadow:0 2px 10px rgba(0,0,0,.4);
+  height:64px;width:auto;display:block;margin:0 auto 14px;
+  filter:drop-shadow(0 2px 8px rgba(0,0,0,.45));
 }
 .login .brand h1{font-size:24px;letter-spacing:-.5px;margin-bottom:5px}
 .login .brand p{color:var(--ink-faint);font-size:13px}
@@ -814,7 +818,7 @@ legend{
 <div class="login-wrap" id="loginView">
   <div class="login">
     <div class="brand">
-      <img class="mark" src="assets/logo-160.png?v=1" alt="" width="65" height="56">
+      <img class="mark" src="assets/logo-orange-160.png?v=2" alt="TowSling" width="78" height="64">
       <h1>TowSling</h1>
       <p data-i18n="brand.tagline">The tow you need, when you need it</p>
     </div>
@@ -995,9 +999,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260818l"></script>
-<script src="presence.js?v=20260818l" defer></script>
-<script src="places.js?v=20260818l"></script>
+<script src="i18n.js?v=20260818m"></script>
+<script src="presence.js?v=20260818m" defer></script>
+<script src="places.js?v=20260818m"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2904,9 +2908,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260818l"></script>
-<script src="realtime.js?v=20260818l"></script>
-<script src="driver.js?v=20260818l"></script>
+<script src="push.js?v=20260818m"></script>
+<script src="realtime.js?v=20260818m"></script>
+<script src="driver.js?v=20260818m"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

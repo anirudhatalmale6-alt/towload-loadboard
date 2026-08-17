@@ -527,7 +527,11 @@ const EDITABLE_SETTINGS = [
 // google_server_key is IP-restricted to this machine and is never meant to
 // reach a browser, so it is written but never read back — same treatment as the
 // push signing key.
-const SECRET_SETTINGS = ['vapid_private_key', 'geoip_key', 'google_server_key'];
+// The APNs private key and the provider token minted from it can both send a
+// notification to every iPhone on the platform, so neither is ever returned
+// to the settings screen in full.
+const SECRET_SETTINGS = ['vapid_private_key', 'geoip_key', 'google_server_key',
+                         'apns_private_key', 'apns_token_cache'];
 
 if ($method === 'GET' && $action === 'settings') {
     requireAdmin();

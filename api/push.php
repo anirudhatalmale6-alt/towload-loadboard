@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/webpush.php';
+require_once __DIR__ . '/../includes/notify.php';   // settingWrite()
 
 setCorsHeaders();
 
@@ -95,6 +96,63 @@ if ($method === 'POST' && $action === 'subscribe') {
     successResponse(['registered' => true], t('ok.push_on'));
 }
 
+// ─── Register a native iPhone (APNs) ────────────────────────────────────────
+//
+// Same table as web push, with transport = 'apns' and the hex device token in
+// the endpoint column. One device list means one set of targeting rules, one
+// retirement policy and one delivery log — a parallel table for iOS would mean
+// maintaining "who should be woken for this job" twice.
+if ($method === 'POST' && $action === 'register-ios') {
+    $token = strtolower(preg_replace('/[^0-9a-fA-F]/', '', (string)($in['device_token'] ?? '')));
+
+    // APNs tokens are 32 bytes today and Apple has said they may grow, so this
+    // checks the shape rather than pinning an exact length. Rejecting here
+    // beats discovering it inside a send loop at 3am, where the only symptom
+    // is a job nobody was told about.
+    if ($token === '' || strlen($token) < 64 || strlen($token) > 200) {
+        errorResponse('Invalid device token', 422);
+    }
+
+    // Which APNs host this token belongs to. A token minted by a debug build
+    // from Xcode is a SANDBOX token and Apple answers BadDeviceToken if it is
+    // sent to the production host — the commonest way this silently fails, and
+    // indistinguishable from "push is broken" unless the app says which it is.
+    $env = ($in['environment'] ?? '') === 'sandbox' ? 'sandbox' : 'production';
+
+    getDB()->prepare(
+        "INSERT INTO push_subscriptions
+            (account_id, user_id, endpoint, endpoint_hash, p256dh, auth_secret,
+             transport, apns_env, platform, is_standalone, user_agent, label, last_seen_at)
+         VALUES (:a, :u, :e, :h, '', '', 'apns', :env, 'ios', 1, :ua, :lb, NOW())
+         ON DUPLICATE KEY UPDATE
+             account_id = VALUES(account_id),
+             user_id    = VALUES(user_id),
+             transport  = 'apns',
+             apns_env   = VALUES(apns_env),
+             platform   = 'ios',
+             user_agent = VALUES(user_agent),
+             label      = VALUES(label),
+             is_active  = 1,
+             fail_count = 0,
+             last_error = NULL,
+             last_seen_at = NOW()"
+    )->execute([
+        ':a'  => $accountId,
+        ':u'  => (int)$user['id'],
+        ':e'  => $token,
+        ':h'  => hash('sha256', 'apns:' . $token),
+        ':env' => $env,
+        ':ua' => substr((string)($in['device_name'] ?? 'iPhone'), 0, 255),
+        ':lb' => isset($in['label']) ? substr(trim((string)$in['label']), 0, 60) : 'iPhone app',
+    ]);
+
+    // Recorded so an admin can see at a glance whether the app is registering
+    // sandbox tokens against a production key.
+    settingWrite('apns_last_environment_seen', $env);
+
+    successResponse(['registered' => true, 'environment' => $env], t('ok.push_on'));
+}
+
 // ─── Drop a device ──────────────────────────────────────────────────────────
 if ($method === 'POST' && $action === 'unsubscribe') {
     $endpoint = trim((string)($in['endpoint'] ?? ''));
@@ -150,7 +208,7 @@ if ($action === 'devices') {
 // nothing, and an operator who has seen it work once stops worrying.
 if ($method === 'POST' && $action === 'test') {
     $stmt = getDB()->prepare(
-        "SELECT id, account_id, endpoint, p256dh, auth_secret
+        "SELECT id, account_id, endpoint, p256dh, auth_secret, transport, apns_env
            FROM push_subscriptions WHERE account_id = :a AND is_active = 1"
     );
     $stmt->execute([':a' => $accountId]);

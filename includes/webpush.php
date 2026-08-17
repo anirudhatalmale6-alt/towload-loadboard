@@ -232,6 +232,13 @@ function encryptPayload(string $plaintext, string $p256dhB64, string $authB64,
 /** Build the curl handle for one send. Returns null if the device's key
  *  material is unusable, which is a permanent condition, not a retry. */
 function pushHandle(array $sub, array $payload, ?string &$error = null) {
+    // A native iPhone is a different transport, not a different push system.
+    // Everything above this line — who gets alerted, how far, how much, quiet
+    // hours, equipment — has already been decided and is shared.
+    if (($sub['transport'] ?? 'webpush') === 'apns') {
+        require_once __DIR__ . '/apns.php';
+        return apnsHandle($sub, $payload, $error);
+    }
     try {
         $body = encryptPayload(json_encode($payload), $sub['p256dh'], $sub['auth_secret']);
         $auth = vapidAuthHeader($sub['endpoint']);
@@ -264,7 +271,7 @@ function pushHandle(array $sub, array $payload, ?string &$error = null) {
     return $ch;
 }
 
-function pushResult($ch, $resp): array {
+function pushResult($ch, $resp, string $transport = 'webpush'): array {
     $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
     if ($resp === false || $resp === null) {
         return ['ok' => false, 'code' => $code, 'error' => curl_error($ch) ?: 'no response', 'gone' => false];
@@ -272,6 +279,23 @@ function pushResult($ch, $resp): array {
     if ($code >= 200 && $code < 300) {
         return ['ok' => true, 'code' => $code, 'error' => null, 'gone' => false];
     }
+
+    // APNs says why in the body, and its "this device is finished" answers are
+    // not all 410. A BadDeviceToken is usually a development build's token sent
+    // to the production host — retrying that forever would keep a dead row
+    // alive and hide the real cause behind a generic failure count.
+    if ($transport === 'apns') {
+        require_once __DIR__ . '/apns.php';
+        $body = trim((string)$resp);
+        $reason = json_decode($body, true)['reason'] ?? '';
+        return [
+            'ok'    => false,
+            'code'  => $code,
+            'gone'  => apnsIsGone($code, $body),
+            'error' => substr($reason !== '' ? $reason : ($body ?: 'HTTP ' . $code), 0, 250),
+        ];
+    }
+
     return [
         'ok'    => false,
         'code'  => $code,
@@ -365,7 +389,7 @@ function webPushSendMany(array $subs, $payload, string $kind = 'new_job',
 
         foreach ($handles as $h) {
             $resp = curl_multi_getcontent($h['ch']);
-            $record($h['sub'], pushResult($h['ch'], $resp));
+            $record($h['sub'], pushResult($h['ch'], $resp, $h['sub']['transport'] ?? 'webpush'));
             curl_multi_remove_handle($multi, $h['ch']);
             curl_close($h['ch']);
         }
@@ -415,7 +439,7 @@ function towersToAlert(array $call): array {
     // Cheap index-friendly prefilter, then exact distance below.
     $box = boundingBox($lat, $lng, MAX_SEARCH_RADIUS_MILES);
 
-    $sql = "SELECT s.id, s.account_id, s.endpoint, s.p256dh, s.auth_secret,
+    $sql = "SELECT s.id, s.account_id, s.endpoint, s.p256dh, s.auth_secret, s.transport, s.apns_env,
                    p.service_radius_miles, p.push_radius_miles, p.push_min_payout,
                    p.push_quiet_start, p.push_quiet_end, p.push_timezone,
                    p.base_lat, p.base_lng, p.is_24_7,
