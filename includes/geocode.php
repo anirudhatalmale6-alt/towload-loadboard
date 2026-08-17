@@ -28,7 +28,20 @@ function geocodeAddress(string $query): ?array {
     $query = trim(preg_replace('/\s+/', ' ', $query));
     if (mb_strlen($query) < 5) return null;
 
-    $key = trim((string)setting('google_maps_key', ''));
+    // A SERVER key, not the browser one.
+    //
+    // The key in the page is locked to the towsling.com referrer, which is
+    // exactly right for a key anyone can read out of the HTML — and Google
+    // refuses it outright for server calls: "API keys with referer
+    // restrictions cannot be used with this API." One key cannot be both, and
+    // loosening the browser key to make this work would hand a usable key to
+    // anyone who views source.
+    //
+    // So: a second key, restricted by IP to this server, never sent anywhere.
+    // Falls back to the browser key so nothing changes for an install that has
+    // not set one up — it will simply be refused, which is what it does today.
+    $key = trim((string)setting('google_server_key', ''));
+    if ($key === '') $key = trim((string)setting('google_maps_key', ''));
     if ($key === '') return null;
 
     $hash = hash('sha256', mb_strtolower($query));

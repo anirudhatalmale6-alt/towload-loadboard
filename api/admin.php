@@ -516,6 +516,7 @@ const EDITABLE_SETTINGS = [
     'tracking_enabled','tracking_ping_seconds','tracking_stale_seconds',
     'tracking_retain_days','tracking_road_factor','tracking_avg_speed_mph',
     'ios_app_url','android_app_url',
+    'google_server_key',
 ];
 
 // Keys whose VALUE must never leave the server, admin or not. The VAPID private
@@ -523,7 +524,10 @@ const EDITABLE_SETTINGS = [
 // notification to every registered truck in the country. Being behind an admin
 // login is not enough — it would sit in a browser cache, in a screenshot, and
 // in whatever a support session copies out of the panel.
-const SECRET_SETTINGS = ['vapid_private_key', 'geoip_key'];
+// google_server_key is IP-restricted to this machine and is never meant to
+// reach a browser, so it is written but never read back — same treatment as the
+// push signing key.
+const SECRET_SETTINGS = ['vapid_private_key', 'geoip_key', 'google_server_key'];
 
 if ($method === 'GET' && $action === 'settings') {
     requireAdmin();
