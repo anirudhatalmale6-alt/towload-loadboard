@@ -42,7 +42,7 @@
      iOS reads none of the manifest's display or icon fields; it needs its own
      apple-* tags, and without apple-mobile-web-app-capable the Home Screen
      icon opens a plain Safari tab — which cannot receive push at all. -->
-<link rel="manifest" href="manifest.json?v=20260818j">
+<link rel="manifest" href="manifest.json?v=20260818l">
 <meta name="theme-color" content="#0d1117">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -867,6 +867,19 @@ legend{
     </div>
     <div class="filters" id="filters"></div>
   </div>
+<style>
+.ht{display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between;
+    background:#141821;border:1px solid #232a36;border-radius:12px;padding:16px 18px;margin-bottom:14px}
+.ht-label{font-size:12px;font-weight:600;color:#8b95a7;text-transform:uppercase;letter-spacing:.04em}
+.ht-big{font-size:30px;font-weight:800;color:#2fbf71;line-height:1.15}
+.ht-sub{font-size:12px;color:#6d778a;margin-top:2px}
+.ht-stats{display:flex;gap:26px}
+.ht-stats div{text-align:center}
+.ht-stats b{display:block;font-size:19px;font-weight:800;color:#e6eaf2}
+.ht-stats span{font-size:11px;color:#6d778a}
+.ht-note{font-size:12px;color:#6d778a;margin:-6px 0 12px 2px}
+</style>
+  <div id="histTotals"></div>
   <div class="cards" id="list"></div>
   <div id="alertsPane" class="hide"></div>
   <div id="ratesPane" class="hide"></div>
@@ -982,9 +995,9 @@ legend{
   </div>
 </div>
 
-<script src="i18n.js?v=20260818j"></script>
-<script src="presence.js?v=20260818j" defer></script>
-<script src="places.js?v=20260818j"></script>
+<script src="i18n.js?v=20260818l"></script>
+<script src="presence.js?v=20260818l" defer></script>
+<script src="places.js?v=20260818l"></script>
 <script>
 const API = 'api';
 let TOKEN = localStorage.getItem('tl_token') || '';
@@ -2216,6 +2229,8 @@ async function load(){
       ? t(DATA.length === 1 ? 'o.job_within' : 'o.jobs_within', {n: DATA.length, r: res.search.radius_miles})
       : DATA.length + ' ' + t('c.jobs');
 
+  renderHistoryTotals(VIEW === 'history' ? res.totals : null, DATA.length);
+
   if(VIEW === 'history' && !DATA.length){
     document.getElementById('list').innerHTML =
       `<div class="empty"><h3>${t('o.hist_none')}</h3><p>${t('o.hist_none_sub')}</p></div>`;
@@ -2417,6 +2432,33 @@ function statusLabel(v){
    query is a LIKE scan across several columns; somebody typing a plate would
    otherwise kick off eight of them and get the answers back out of order. */
 let HIST_TIMER = null;
+/* Totals for the WHOLE filtered set, straight from the server.
+   Never summed from DATA: the list is capped at 200, so a busy quarter would
+   be added up from the first 200 jobs and read as the complete figure. The
+   row count is shown next to it so the two can never be confused. */
+function renderHistoryTotals(tot, shown){
+  const el = document.getElementById('histTotals');
+  if(!el) return;
+  if(!tot){ el.innerHTML = ''; return; }
+  const m = n => '$' + Number(n || 0).toFixed(2);
+  const capped = tot.jobs > shown
+    ? `<div class="ht-note">${t('o.ht_capped', {shown, total: tot.jobs})}</div>` : '';
+  el.innerHTML = `
+    <div class="ht">
+      <div class="ht-main">
+        <div class="ht-label">${esc(t('o.ht_earned'))}</div>
+        <div class="ht-big">${m(tot.net)}</div>
+        <div class="ht-sub">${m(tot.gross)} ${esc(t('o.ht_billed'))} · ${m(tot.fees)} ${esc(t('o.ht_fee'))}</div>
+      </div>
+      <div class="ht-stats">
+        <div><b>${tot.paid_jobs}</b><span>${esc(t('o.ht_paid'))}</span></div>
+        <div><b>${tot.goa_jobs}</b><span>GOA</span></div>
+        <div><b>${tot.canceled_jobs}</b><span>${esc(t('status.canceled'))}</span></div>
+        <div><b>${tot.jobs}</b><span>${esc(t('o.ht_total'))}</span></div>
+      </div>
+    </div>${capped}`;
+}
+
 function debouncedHistory(){
   clearTimeout(HIST_TIMER);
   HIST_TIMER = setTimeout(load, 350);
@@ -2862,9 +2904,9 @@ setInterval(tickTimers, 1000);
 <!-- After the inline script: push.js calls api(), t() and reads ME, all of
      which are declared above. Loaded before boot() runs so renderPushBanner()
      is already defined by the time boot reaches it. -->
-<script src="push.js?v=20260818j"></script>
-<script src="realtime.js?v=20260818j"></script>
-<script src="driver.js?v=20260818j"></script>
+<script src="push.js?v=20260818l"></script>
+<script src="realtime.js?v=20260818l"></script>
+<script src="driver.js?v=20260818l"></script>
 <script>if(TOKEN) boot();</script>
 </body>
 </html>

@@ -79,6 +79,19 @@ function cleanProblem($raw): ?string {
 
 // The inputs that decide a price. If any of them changed between the quote and
 // the request, the quote no longer describes this job and we re-price.
+/**
+ * The customer-facing wording for each kind of no.
+ *
+ * One function because these three are easy to conflate and each conflation is
+ * a specific lie: "not in your area" to somebody in a town we serve, or "try
+ * again in a few minutes" to somebody whose vehicle nobody nearby can tow.
+ */
+function coverageMessage(?string $reason, bool $saved): string {
+    if ($reason === 'none_available') return t('msg.none_available');
+    if ($reason === 'no_capable')     return t('msg.no_capable');
+    return $saved ? t('msg.no_coverage_saved') : t('msg.no_coverage');
+}
+
 function quoteFingerprint(array $o): string {
     return implode('|', [
         $o['service_type'], $o['vehicle_class'], number_format((float)$o['tow_miles'], 1, '.', ''),
@@ -125,6 +138,13 @@ function normaliseJobOpts(array $in, float $lat, float $lng): array {
         'has_keys'       => array_key_exists('has_keys', $in) ? !empty($in['has_keys']) : true,
         'wheels_lock'    => array_key_exists('wheels_lock', $in) ? !empty($in['wheels_lock']) : true,
         'is_underground' => !empty($in['is_underground']),
+        // Carried so the COVERAGE check can ask the same capability question
+        // the board and the push fan-out ask. Left out, a coverage check reads
+        // them as absent and counts a truck the board would then hide the job
+        // from — which is precisely how a customer gets a card hold for a job
+        // no qualified truck can see.
+        'is_ev'          => !empty($in['is_ev']),
+        'needs_flatbed'  => !empty($in['needs_flatbed']),
         'lat'            => $lat,
         'lng'            => $lng,
         'state'          => pickupState($in),
@@ -139,7 +159,10 @@ if ($action === 'quote') {
     $lng = isset($in['pickup_lng']) ? (float)$in['pickup_lng'] : null;
     if ($lat === null || $lng === null) errorResponse(t('err.need_location'));
 
-    $coverage = coverageAt($lat, $lng, pickupState($in));
+    // Normalise FIRST — coverage cannot answer "is there a truck for this job"
+    // without knowing what the job is.
+    $opts     = normaliseJobOpts($in, $lat, $lng);
+    $coverage = coverageAt($lat, $lng, pickupState($in), $opts);
 
     // No truck in range. Say so plainly and do not quote a price we cannot
     // honour — a price followed by silence is what produces a chargeback and a
@@ -154,8 +177,7 @@ if ($action === 'quote') {
             // "we are not in your area yet" would be untrue, and it is said to
             // somebody standing next to a broken car in a town we serve.
             'reason'        => $coverage['reason'],
-            'message'       => $coverage['reason'] === 'none_available'
-                                 ? t('msg.none_available') : t('msg.no_coverage'),
+            'message'       => coverageMessage($coverage['reason'], false),
         ]);
     }
 
@@ -203,20 +225,20 @@ if ($method === 'POST' && $action === 'request') {
     $lat = (float)$in['pickup_lat'];
     $lng = (float)$in['pickup_lng'];
 
-    $coverage = coverageAt($lat, $lng, pickupState($in));
+    $opts     = normaliseJobOpts($in, $lat, $lng);
+    $coverage = coverageAt($lat, $lng, pickupState($in), $opts);
     if (!$coverage['covered']) {
         // Capture the lead rather than dropping the click on the floor.
-        saveCoverageLead($in, $lat, $lng, $coverage['trucks']);
+        saveCoverageLead($in, $lat, $lng, $coverage['trucks'],
+                         $coverage['reason'], $opts['vehicle_class'] ?? null);
         successResponse([
             'covered'       => false,
             'trucks_nearby' => $coverage['trucks'],
             'reason'        => $coverage['reason'],
-            'message'       => $coverage['reason'] === 'none_available'
-                                 ? t('msg.none_available') : t('msg.no_coverage_saved'),
+            'message'       => coverageMessage($coverage['reason'], true),
         ]);
     }
 
-    $opts = normaliseJobOpts($in, $lat, $lng);
     $opts['zone'] = $coverage['zone'];
     $opts['zone_id'] = (int)$coverage['zone']['id'];
 
@@ -311,7 +333,7 @@ if ($method === 'POST' && $action === 'request') {
             ':accident' => $opts['is_accident'] ? 1 : 0,
             ':problem'  => $opts['problem'],
             ':under' => $opts['is_underground'] ? 1 : 0,
-            ':ev' => !empty($in['is_ev']) ? 1 : 0,
+            ':ev' => !empty($opts['is_ev']) ? 1 : 0,
             ':cname' => $in['customer_name'], ':cphone' => $phone,
             ':cemail' => $in['customer_email'] ?? null,
             ':offer' => money($total), ':goa' => money($goa),
@@ -488,14 +510,23 @@ if ($method === 'POST' && $action === 'lead') {
     successResponse([], t('ok.lead_saved'));
 }
 
-function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks): void {
+function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks,
+                          ?string $reason = null, ?string $vehicleClass = null): void {
     try {
         getDB()->prepare(
             "INSERT INTO coverage_leads
-                (kind, name, phone, email, service_type, pickup_address, city, state, zip,
+                (kind, name, phone, email, service_type, vehicle_class, reason,
+                 pickup_address, city, state, zip,
                  lat, lng, trucks_nearby, utm_source, lang)
-             VALUES (:k, :n, :p, :e, :s, :addr, :c, :st, :z, :lat, :lng, :tn, :utm, :lang)"
+             VALUES (:k, :n, :p, :e, :s, :vc, :rsn, :addr, :c, :st, :z, :lat, :lng, :tn, :utm, :lang)"
         )->execute([
+            // WHY it failed, and for what vehicle. Without these a saved lead
+            // reads as "somebody wanted a tow here", which is already covered.
+            // 'no_capable' + 'heavy' is a different instruction entirely: it
+            // says recruit a heavy-duty company in THIS town, and it is the
+            // only record that a paying customer was turned away for want of one.
+            ':vc'  => $vehicleClass,
+            ':rsn' => $reason,
             ':k'   => ($in['kind'] ?? 'customer') === 'tower' ? 'tower' : 'customer',
             ':n'   => $in['customer_name'] ?? $in['name'] ?? null,
             ':p'   => !empty($in['customer_phone']) ? normalizePhone($in['customer_phone'])

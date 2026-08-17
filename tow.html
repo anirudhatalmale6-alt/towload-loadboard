@@ -700,7 +700,7 @@ input::placeholder{color:#aab4c4}
      below depends on: it calls tlLang() on the first line. -->
 <script>
 (function(){
-  var v = '?v=20260818j';
+  var v = '?v=20260818l';
   document.write('<scr' + 'ipt src="i18n.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="realtime.js' + v + '"><\/scr' + 'ipt>');
   document.write('<scr' + 'ipt src="presence.js' + v + '"><\/scr' + 'ipt>');
@@ -927,10 +927,21 @@ function showNoCoverage(r){
   // are standing next to a broken car in a town we serve.
   const busy = r.reason === 'none_available';
 
-  $('noCovIco').textContent  = busy ? '🕑' : '📍';
-  $('noCovHead').textContent = busy ? t('c.busy_head') : t('c.nocov_head');
+  // 'no_capable' is a third answer and needs its own: we DO cover here, and
+  // there is no point retrying, because what is missing is not a free truck
+  // but a truck of the right size. Offering "try again in a few minutes" to
+  // somebody sitting in a semi is the cruellest of the three, because it reads
+  // as though help is coming.
+  const wrongSize = r.reason === 'no_capable';
+
+  $('noCovIco').textContent  = busy ? '🕑' : (wrongSize ? '🚛' : '📍');
+  $('noCovHead').textContent = busy ? t('c.busy_head')
+                             : (wrongSize ? t('c.nocap_head') : t('c.nocov_head'));
   $('noCovMsg').textContent  = r.message || t('c.nocov_msg');
 
+  // Take the details either way — a heavy-duty request we cannot serve is the
+  // single most useful thing to know when deciding which company to recruit
+  // next, and it is worth more than a lead from a covered area.
   $('noCovLead').classList.toggle('hide', busy);
   $('noCovRetry').classList.toggle('hide', !busy);
 

@@ -330,6 +330,18 @@ if ($method === 'POST' && $action === 'accept') {
         if (strtotime($call['expires_at']) < time()) throw new RuntimeException(t('err.job_expired'));
         if ($call['pricing_mode'] !== 'accept') throw new RuntimeException('This call is bid-only — submit a bid instead');
 
+        // The board HIDES jobs a company cannot run; hiding is not refusing.
+        // `?show_all=1` returns them with can_run:false, and nothing stopped a
+        // POST straight to this endpoint. A wheel-lift accepting a semi means a
+        // truck turns out that physically cannot do the work, while the
+        // customer waits and every other qualified company stops seeing the job.
+        $prof = $pdo->prepare("SELECT * FROM tower_profiles WHERE account_id = :a");
+        $prof->execute([':a' => $user['account_id']]);
+        $profile = $prof->fetch();
+        if (!$profile || !towerIsCapable($profile, $call)) {
+            throw new RuntimeException(t('err.not_capable'));
+        }
+
         $pdo->prepare(
             "UPDATE calls
                 SET status = 'awarded', awarded_tower_account_id = :t, awarded_amount = offer_amount,
@@ -769,27 +781,32 @@ if ($method === 'GET' && $action === 'my-calls') {
     $limit = min((int)($_GET['limit'] ?? 50), 200);
     $offset = max(0, (int)($_GET['offset'] ?? 0));
 
+    // SELECT and WHERE are kept apart so the totals below can reuse the exact
+    // same filter. Summing the rows this query returns would total ONE PAGE —
+    // a driver who filters to a month with 60 jobs in it would be shown the
+    // first 50 and no indication that is what he is looking at. A wrong total
+    // that looks right is worse than no total.
     if ($user['account_type'] === 'provider') {
-        $sql = "SELECT c.*, t.name AS tower_name, t.rating_avg AS tower_rating,
-                       (SELECT COUNT(*) FROM bids b WHERE b.call_id = c.id AND b.status = 'pending') AS bid_count
-                  FROM calls c LEFT JOIN accounts t ON c.awarded_tower_account_id = t.id
-                 WHERE c.provider_account_id = :a";
+        $select = "SELECT c.*, t.name AS tower_name, t.rating_avg AS tower_rating,
+                          (SELECT COUNT(*) FROM bids b WHERE b.call_id = c.id AND b.status = 'pending') AS bid_count
+                     FROM calls c LEFT JOIN accounts t ON c.awarded_tower_account_id = t.id";
+        $where  = " WHERE c.provider_account_id = :a";
     } else {
-        $sql = "SELECT c.*, a.name AS provider_name, a.rating_avg AS provider_rating, NULL AS bid_count
-                  FROM calls c JOIN accounts a ON c.provider_account_id = a.id
-                 WHERE c.awarded_tower_account_id = :a";
+        $select = "SELECT c.*, a.name AS provider_name, a.rating_avg AS provider_rating, NULL AS bid_count
+                     FROM calls c JOIN accounts a ON c.provider_account_id = a.id";
+        $where  = " WHERE c.awarded_tower_account_id = :a";
     }
     $params = [':a' => $user['account_id']];
 
     if ($status === 'active') {
-        $sql .= " AND c.status IN ('open','awarded','en_route','on_scene','in_progress')";
+        $where .= " AND c.status IN ('open','awarded','en_route','on_scene','in_progress')";
     } elseif ($status === 'closed') {
         // Everything finished, one way or another. A driver looking back
         // through his week does not think of "completed" and "gone on arrival"
         // as different lists — they are both jobs he turned out for.
-        $sql .= " AND c.status IN ('completed','goa','canceled','expired')";
+        $where .= " AND c.status IN ('completed','goa','canceled','expired')";
     } elseif ($status !== '') {
-        $sql .= " AND c.status = :s";
+        $where .= " AND c.status = :s";
         $params[':s'] = $status;
     }
 
@@ -801,7 +818,7 @@ if ($method === 'GET' && $action === 'my-calls') {
     // scanning at most a few thousand rows, already filtered to his account.
     $q = trim((string)($_GET['q'] ?? ''));
     if ($q !== '') {
-        $sql .= " AND (c.call_number LIKE :q OR c.pickup_address LIKE :q
+        $where .= " AND (c.call_number LIKE :q OR c.pickup_address LIKE :q
                        OR c.pickup_city LIKE :q OR c.dropoff_address LIKE :q
                        OR c.dropoff_city LIKE :q OR c.customer_name LIKE :q
                        OR c.vehicle_make LIKE :q OR c.vehicle_model LIKE :q
@@ -812,19 +829,19 @@ if ($method === 'GET' && $action === 'my-calls') {
     // Date window, inclusive. `to` is compared against the end of that day so
     // picking the same date twice returns that day's work rather than nothing.
     if (!empty($_GET['from'])) {
-        $sql .= " AND c.created_at >= :from";
+        $where .= " AND c.created_at >= :from";
         $params[':from'] = substr((string)$_GET['from'], 0, 10) . ' 00:00:00';
     }
     if (!empty($_GET['to'])) {
-        $sql .= " AND c.created_at <= :to";
+        $where .= " AND c.created_at <= :to";
         $params[':to'] = substr((string)$_GET['to'], 0, 10) . ' 23:59:59';
     }
     if (!empty($_GET['service_type'])) {
-        $sql .= " AND c.service_type = :svc";
+        $where .= " AND c.service_type = :svc";
         $params[':svc'] = (string)$_GET['service_type'];
     }
 
-    $sql .= " ORDER BY c.created_at DESC LIMIT $limit OFFSET $offset";
+    $sql = $select . $where . " ORDER BY c.created_at DESC LIMIT $limit OFFSET $offset";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -836,6 +853,9 @@ if ($method === 'GET' && $action === 'my-calls') {
         $row['tower_net'] = $c['tower_net'] !== null ? (float)$c['tower_net'] : null;
         $row['platform_fee'] = $c['platform_fee'] !== null ? (float)$c['platform_fee'] : null;
         $row['tower_name'] = $c['tower_name'] ?? null;
+        // When it finished. publicCallRow() carries created_at but not this,
+        // and a history list sorted by when the work happened needs it.
+        $row['completed_at'] = $c['completed_at'] ?? null;
         // The photo checklist rides along with each of the company's own jobs.
         // Fetching it per card afterwards would be one request per job on a
         // screen a driver refreshes constantly.
@@ -846,7 +866,56 @@ if ($method === 'GET' && $action === 'my-calls') {
         $row['bid_count'] = isset($c['bid_count']) ? (int)$c['bid_count'] : null;
         $out[] = $row;
     }
-    successResponse(['calls' => $out, 'count' => count($out)]);
+    // Totals over the WHOLE filtered set, not the page above.
+    //
+    // Only completed and GOA jobs count towards earnings: a canceled or expired
+    // job is not money, and rolling it in would show a driver a figure he can
+    // never withdraw. tower_net is read from the row rather than recomputed,
+    // so this agrees with what was actually paid.
+    // Earnings come from PAYOUTS, not from calls.tower_net.
+    //
+    // payouts is what the balance and the withdrawal button are built from, so
+    // it is the only figure a driver can reconcile against what lands in his
+    // bank. calls.tower_net is a denormalised copy that went unwritten for a
+    // while, and a history total that disagrees with the Money screen is worse
+    // than no total at all.
+    //
+    // Correlated subqueries rather than a JOIN: two payout rows against one
+    // call would double every count in the same SELECT.
+    $paid  = "(SELECT SUM(p.%s) FROM payouts p
+                WHERE p.call_id = c.id AND p.tower_account_id = c.awarded_tower_account_id)";
+    $money = $user['account_type'] === 'provider'
+        ? "SUM(CASE WHEN c.status IN ('completed','goa') THEN c.awarded_amount ELSE 0 END) AS gross,
+           0 AS net, 0 AS fees"
+        : sprintf("COALESCE(SUM(%s), 0) AS gross, COALESCE(SUM(%s), 0) AS net, COALESCE(SUM(%s), 0) AS fees",
+                  sprintf($paid, 'gross_amount'), sprintf($paid, 'net_amount'), sprintf($paid, 'platform_fee'));
+
+    $tot = $pdo->prepare(
+        "SELECT COUNT(*) AS jobs,
+                SUM(c.status IN ('completed','goa')) AS paid_jobs,
+                SUM(c.status = 'goa')      AS goa_jobs,
+                SUM(c.status = 'canceled') AS canceled_jobs,
+                $money
+           FROM calls c" . $where
+    );
+    $tot->execute($params);
+    $t = $tot->fetch() ?: [];
+
+    successResponse([
+        'calls'  => $out,
+        'count'  => count($out),
+        // count() is this page; totals.jobs is every job matching the filter.
+        // Named differently on purpose so no screen can mistake one for the other.
+        'totals' => [
+            'jobs'          => (int)($t['jobs'] ?? 0),
+            'paid_jobs'     => (int)($t['paid_jobs'] ?? 0),
+            'goa_jobs'      => (int)($t['goa_jobs'] ?? 0),
+            'canceled_jobs' => (int)($t['canceled_jobs'] ?? 0),
+            'net'           => round((float)($t['net'] ?? 0), 2),
+            'gross'         => round((float)($t['gross'] ?? 0), 2),
+            'fees'          => round((float)($t['fees'] ?? 0), 2),
+        ],
+    ]);
 }
 
 // ═══ JOB PHOTOS ══════════════════════════════════════════════════════════════

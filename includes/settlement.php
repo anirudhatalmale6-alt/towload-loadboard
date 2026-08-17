@@ -122,12 +122,28 @@ function settleCall(int $callId, string $mode, float $amount): array {
         return ['ok' => false, 'stage' => 'release', 'error' => $e->getMessage()];
     }
 
+    $gross = (float)($result['gross'] ?? $result['tower_gross'] ?? $amount);
+    $fee   = (float)($result['fee'] ?? 0);
+    $net   = (float)($result['net'] ?? $result['tower_net'] ?? 0);
+
+    // Copy the money onto the call row.
+    //
+    // payouts is the authoritative record — it is what the balance and the
+    // withdrawals are built from — but calls.tower_net / platform_fee are what
+    // every per-job display reads. This path never wrote them, so jobs settled
+    // through it showed a blank where the driver's cut should be, and any total
+    // built from those columns silently came out short.
+    $pdo->prepare(
+        "UPDATE calls SET tower_net = :n, platform_fee = :f, awarded_amount = COALESCE(awarded_amount, :g)
+          WHERE id = :id"
+    )->execute([':n' => $net, ':f' => $fee, ':g' => $gross, ':id' => $callId]);
+
     return [
         'ok'        => true,
         'settled'   => true,
-        'gross'     => (float)($result['gross'] ?? $result['tower_gross'] ?? $amount),
-        'fee'       => (float)($result['fee'] ?? 0),
-        'net'       => (float)($result['net'] ?? $result['tower_net'] ?? 0),
+        'gross'     => $gross,
+        'fee'       => $fee,
+        'net'       => $net,
         'payout_id' => $result['payout_id'] ?? null,
         'refund'    => (float)($result['provider_refund'] ?? 0),
     ];

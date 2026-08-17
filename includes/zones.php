@@ -1,5 +1,8 @@
 <?php
 require_once __DIR__ . '/helpers.php';
+// towerIsCapable() — coverage must ask the same capability question the
+// board and the push fan-out ask, from the one definition.
+require_once __DIR__ . '/matching.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  PRICING ZONES + COVERAGE
@@ -109,13 +112,18 @@ function zoneName(array $zone): string {
  * about the area, and gating coverage on capability would hide a whole market
  * behind one unusual request.
  */
-function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null): int {
+function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null,
+                             ?array $call = null): int {
     if ($lat === null || $lng === null) return 0;
     $radius = $radius ?? (float)setting('coverage_radius_miles', 35);
 
     $box = boundingBox($lat, $lng, $radius);
+    // tp.* because the capability gate needs the has_* columns, and it must ask
+    // exactly the question the board asks — towerIsCapable() reads a whole
+    // profile row. Selecting the three geometry columns and hand-checking one
+    // flag here is how coverage and the board drift apart.
     $stmt = getDB()->prepare(
-        "SELECT tp.base_lat, tp.base_lng, tp.service_radius_miles
+        "SELECT tp.*
            FROM accounts a
            JOIN tower_profiles tp ON tp.account_id = a.id
           WHERE a.account_type = 'tower'
@@ -140,7 +148,11 @@ function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null): in
         // Either we are inside their stated service radius, or they are inside
         // ours. Towers understate their radius constantly; the second test stops
         // an entire city reading as uncovered because everyone typed 15 miles.
-        if ($d <= (float)$row['service_radius_miles'] || $d <= $radius) $n++;
+        if ($d > (float)$row['service_radius_miles'] && $d > $radius) continue;
+        // Can this company actually run THIS job? A wheel-lift outfit is not
+        // coverage for a semi, however close it is parked.
+        if ($call !== null && !towerIsCapable($row, $call)) continue;
+        $n++;
     }
     return $n;
 }
@@ -152,7 +164,8 @@ function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null): in
  * A zone marked not-live overrides the truck count: it is the manual brake for
  * "we have one truck there but I am not ready to sell that city yet".
  */
-function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
+function coverageAt(?float $lat, ?float $lng, ?string $state = null,
+                    ?array $call = null): array {
     // Work the state out from the trucks when nobody told us one.
     //
     // This was a silent no-coverage bug, and a bad one. resolveZone() only
@@ -170,9 +183,13 @@ function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
         $state = stateFromNearestTower($lat, $lng);
     }
 
-    $zone   = resolveZone($lat, $lng, $state);
-    $trucks = approvedTowersNear($lat, $lng);
-    $min    = max(1, (int)setting('min_trucks_for_coverage', 1));
+    $zone = resolveZone($lat, $lng, $state);
+    $min  = max(1, (int)setting('min_trucks_for_coverage', 1));
+
+    // Trucks that can run THIS job, on duty right now. When no job shape is
+    // handed in (the admin coverage map, a bare probe) this is every approved
+    // truck on duty, exactly as before.
+    $trucks = approvedTowersNear($lat, $lng, null, $call);
 
     // Two different noes, and the customer deserves to be told which.
     //
@@ -184,24 +201,44 @@ function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
     //
     // So count the companies based here at all, separately from the ones on
     // duty right now.
-    $inArea = $trucks > 0 ? $trucks : towersInArea($lat, $lng);
+    // Capable companies BASED here, on duty or not. Separating this from the
+    // line above is what distinguishes "the right truck exists here but is off
+    // duty" from "no truck of this kind operates here at all".
+    $capableInArea = $trucks > 0 ? $trucks : towersInArea($lat, $lng, null, $call);
+
+    // Any approved company here at all, whatever it can tow. Only needed to
+    // answer the third question, so only asked when the first two came back
+    // empty.
+    $inArea = $capableInArea > 0 ? $capableInArea : towersInArea($lat, $lng);
 
     $covered = !empty($zone['is_live']) && $trucks >= $min;
     $reason  = null;
     if (!$covered) {
+        // THREE different noes now, and they are not interchangeable. A semi
+        // driver told "no trucks are free right now, try again shortly" will
+        // sit on the hard shoulder retrying for something that is never going
+        // to come, because nobody within range owns a heavy wrecker.
+        //
         // A zone that is not live is a decision Ricardo has made about that
         // market, so it counts as no coverage regardless of who is parked there.
-        $reason = (!empty($zone['is_live']) && $inArea > 0)
-                    ? 'none_available'   // we cover here; nobody is free
-                    : 'no_coverage';     // we genuinely are not here
+        if (empty($zone['is_live'])) {
+            $reason = 'no_coverage';
+        } elseif ($capableInArea > 0) {
+            $reason = 'none_available';  // right kind of truck here, none free
+        } elseif ($inArea > 0) {
+            $reason = 'no_capable';      // we cover here, but not this vehicle
+        } else {
+            $reason = 'no_coverage';     // we genuinely are not here
+        }
     }
 
     return [
-        'zone'           => $zone,
-        'trucks'         => $trucks,
-        'trucks_in_area' => $inArea,
-        'covered'        => $covered,
-        'reason'         => $reason,
+        'zone'            => $zone,
+        'trucks'          => $trucks,
+        'trucks_in_area'  => $capableInArea,
+        'any_trucks_here' => $inArea,
+        'covered'         => $covered,
+        'reason'          => $reason,
     ];
 }
 
@@ -211,13 +248,14 @@ function coverageAt(?float $lat, ?float $lng, ?string $state = null): array {
  * Same filters as approvedTowersNear minus the duty switch: this answers "do we
  * operate here", where the other answers "can somebody come right now".
  */
-function towersInArea(?float $lat, ?float $lng, ?float $radius = null): int {
+function towersInArea(?float $lat, ?float $lng, ?float $radius = null,
+                      ?array $call = null): int {
     if ($lat === null || $lng === null) return 0;
     $radius = $radius ?? (float)setting('coverage_radius_miles', 35);
 
     $box = boundingBox($lat, $lng, $radius);
     $stmt = getDB()->prepare(
-        "SELECT tp.base_lat, tp.base_lng, tp.service_radius_miles
+        "SELECT tp.*
            FROM accounts a
            JOIN tower_profiles tp ON tp.account_id = a.id
           WHERE a.account_type = 'tower'
@@ -234,7 +272,9 @@ function towersInArea(?float $lat, ?float $lng, ?float $radius = null): int {
     $n = 0;
     foreach ($stmt as $row) {
         $d = haversineMiles((float)$row['base_lat'], (float)$row['base_lng'], $lat, $lng);
-        if ($d <= (float)$row['service_radius_miles'] || $d <= $radius) $n++;
+        if ($d > (float)$row['service_radius_miles'] && $d > $radius) continue;
+        if ($call !== null && !towerIsCapable($row, $call)) continue;
+        $n++;
     }
     return $n;
 }
