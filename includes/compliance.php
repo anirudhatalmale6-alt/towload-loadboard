@@ -47,6 +47,11 @@ function docChecklist(int $accountId): array {
             'status'     => $row['status'] ?? 'missing',
             'expires_at' => $row['expires_at'] ?? null,
             'notes'      => $row['review_notes'] ?? null,
+            // Stated rather than left for each client to remember. The upload
+            // endpoint REFUSES these types without a date, so a client that
+            // keeps its own copy of the list gets a 400 the day the list here
+            // changes — and the operator sees "upload failed" with no reason.
+            'needs_expiry' => in_array($type, DOCS_NEEDING_EXPIRY, true),
         ];
     }
     return $out;

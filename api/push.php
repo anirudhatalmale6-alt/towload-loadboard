@@ -171,7 +171,7 @@ if ($method === 'POST' && $action === 'unsubscribe') {
 // ─── What is registered, and is it actually working ─────────────────────────
 if ($action === 'devices') {
     $stmt = getDB()->prepare(
-        "SELECT id, platform, is_standalone, label, is_active, fail_count,
+        "SELECT id, platform, transport, is_standalone, label, is_active, fail_count,
                 last_success_at, last_failure_at, last_error, created_at, last_seen_at
            FROM push_subscriptions
           WHERE account_id = :a
@@ -184,6 +184,11 @@ if ($action === 'devices') {
         $devices[] = [
             'id'            => (int)$d['id'],
             'platform'      => $d['platform'],
+            // 'apns' is the native app, 'webpush' is a browser. The alerts
+            // screen needs to tell the operator WHICH row is the phone in his
+            // hand, and platform alone cannot: an iPhone browsing the dashboard
+            // is 'ios' too.
+            'transport'     => $d['transport'] ?? 'webpush',
             'installed'     => (bool)$d['is_standalone'],
             'label'         => $d['label'],
             'active'        => (bool)$d['is_active'],
