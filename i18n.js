@@ -747,7 +747,95 @@ es: {
   'j.doc_expiry':        'Fecha de vencimiento de la póliza',
   'j.err_expiry':        'Ponga la fecha de vencimiento de la póliza antes de subirla.',
   'j.docs_waiting':      'Cuando estén los cuatro, su cuenta pasa a revisión. Mientras tanto puede ver el tablero, pero todavía no aceptar trabajos.',
-  'j.docs_submitted':    'Documentos completos. Su cuenta está en revisión — le avisamos apenas quede aprobada y aparezca su distintivo de verificada.'
+  'j.docs_submitted':    'Documentos completos. Su cuenta está en revisión — le avisamos apenas quede aprobada y aparezca su distintivo de verificada.',
+
+  /* ─── /how_it_works ─────────────────────────────────────────────────── */
+  'title.hw':            'Cómo funciona para empresas de grúas — TowSling',
+  'desc.hw':             'Cómo funciona TowSling para una empresa de grúas: cómo se aprueba su cuenta, cómo le llegan los trabajos, quién pone el precio, cuándo importan las fotos y cuándo llega el dinero.',
+
+  'hw.hero_1':           'Cómo funciona,',
+  'hw.hero_2':           'de principio a fin.',
+  'hw.hero_sub':         'Escrito para empresas de grúas. Qué revisamos antes de su primer trabajo, cómo le llega el trabajo, quién pone el precio y exactamente cuándo entra el dinero.',
+
+  'hw.j_h':              'De registrarse a cobrar',
+  'hw.j_lead':           'Seis pasos. La mayoría de las empresas pasa los primeros tres en una tarde; lo demás ya es trabajo.',
+
+  'hw.s1_h':             'Registre su empresa',
+  'hw.s1_p':             'Nombre de la empresa, su nombre, un teléfono y un correo. Ese es todo el formulario, y es gratis. Puede hacerlo en este sitio o dentro de la app de iPhone.',
+  'hw.s1_t':             'El teléfono que ponga es el que recibe el cliente varado apenas usted acepte su trabajo, así que use el que sí se contesta.',
+
+  'hw.s2_h':             'Apruebe su cuenta',
+  'hw.s2_p':             'Revisamos cada empresa antes de su primer trabajo. Cuatro documentos: la carta EIN del IRS, el registro estatal del negocio, un certificado de seguro de responsabilidad y la identificación o licencia del dueño. También confirma su correo y su teléfono.',
+  'hw.s2_p2':            'En cuanto sube el último documento, su empresa entra sola a la cola de revisión. No tiene que avisarle a nadie que ya está listo.',
+  'hw.s2_c':             'Al seguro le pedimos fecha de vencimiento porque el despacho se detiene cuando un certificado vence. Preferimos recordárselo antes que dejar de mandarle trabajo sin decirle.',
+
+  'hw.s3_h':             'Díganos qué remolca, y dónde',
+  'hw.s3_p':             'Marque el equipo que realmente tiene — liviano, mediano o pesado, plataforma, wheel lift, recuperación con winche, aperturas, arranques, gomas, combustible, motos, eléctricos, techo bajo. Ponga la dirección de su patio y hasta dónde está dispuesto a ir.',
+  'hw.s3_p2':            'Esta lista no es publicidad. Decide qué trabajos le llegan: un tráiler nunca se le ofrece a una empresa sin servicio pesado marcado, por muy cerca que esté la grúa.',
+
+  'hw.s4_h':             'Los trabajos le llegan a usted',
+  'hw.s4_p':             'Un cliente pide y paga desde su teléfono. Calculamos quién puede hacer ese trabajo y avisamos a todos los que califican, al mismo tiempo. La primera empresa que acepta se lo lleva.',
+  'hw.s4_p2':            'La distancia se mide desde donde está su grúa de verdad cuando su teléfono ha reportado hace poco, y desde su patio cuando no — así un chofer que deja un carro a sesenta millas de casa igual se entera del trabajo de la cuadra siguiente. Si un teléfono se queda callado, volvemos al patio. Nunca deja de recibir avisos por esto.',
+  'hw.s4_t':             'Lo demás lo controla usted: hasta qué distancia, el pago más chico por el que vale la pena despertarlo y las horas de silencio en su propia zona horaria. Fuera de servicio significa que dejamos de ofrecerle trabajo — usted todavía puede tomar uno del tablero.',
+
+  'hw.s5_h':             'Haga el trabajo',
+  'hw.s5_p':             'Ve el precio, la distancia y el vehículo antes de aceptar. Acepta y el cliente recibe su número y un mapa en vivo de su grúa acercándose.',
+  'hw.s5_p2':            'Fotografíe el vehículo antes de subirlo: las cuatro esquinas, la placa, el VIN y la entrega. Toma un minuto y es lo único que responde a un reclamo por daños tres semanas después. Le avisamos si termina sin ellas, pero no se lo impedimos.',
+  'hw.s5_c':             '¿El carro ya no estaba al llegar? Tome una foto del espacio vacío y márquelo como no encontrado. Se le paga la salida.',
+
+  'hw.s6_h':             'Cobre',
+  'hw.s6_p':             'La tarjeta del cliente se autorizó antes de que usted viera el trabajo. Cuando lo marca completado, se cobra la tarjeta y su parte entra a su saldo de TowSling. No hay factura que mandar ni a quién perseguir.',
+  'hw.s6_p2':            'Conecte su banco una vez, por Stripe, y retire cuando su saldo llegue a $25 o más.',
+
+  'hw.m_h':              'El dinero, claro',
+  'hw.m_lead':           'Un solo número, y ninguno más.',
+  'hw.m1_h':             'de cada trabajo es suyo',
+  'hw.m1_p':             'Nos quedamos con el 10%, con un mínimo de $5 en trabajos muy chicos. Esa es toda la comisión.',
+  'hw.m2_n':             '$0',
+  'hw.m2_h':             'por entrar, al mes o por contacto',
+  'hw.m2_p':             'Sin suscripción, sin cargo por contacto, sin costo de registro y nada que cancelar.',
+  'hw.m3_n':             'Prepagado',
+  'hw.m3_h':             'antes de que lo vea',
+  'hw.m3_p':             'Cada trabajo en su pantalla ya está pagado. Nunca le está dando crédito al cliente.',
+
+  'hw.free_h':           'A qué NO se está comprometiendo',
+  'hw.free_1':           'Sin exclusividad. Quédese con sus clubes, su rotación policial y sus propios clientes.',
+  'hw.free_2':           'Sin mínimo de trabajos, y sin castigo por ignorar uno.',
+  'hw.free_3':           'Sin subasta. Nunca está pujando contra otra empresa para cobrar menos.',
+  'hw.free_4':           'Sin contrato del que salirse. Póngase fuera de servicio, o borre la cuenta, cuando quiera.',
+
+  'hw.ask_h':            'Lo que sí le pedimos',
+  'hw.ask_1':            'Si acepta un trabajo, vaya. Un cliente parado en la orilla cuenta con el tiempo que usted dio.',
+  'hw.ask_2':            'Tome las fotos. Lo protegen a usted mucho más que a nosotros.',
+  'hw.ask_3':            'Mantenga su seguro al día. Dejamos de despachar a un certificado vencido.',
+  'hw.ask_4':            'Use el interruptor de servicio con honestidad. Aparecer disponible sin grúa disponible es como un cliente termina esperando a nadie.',
+
+  'hw.q_h':              'Respuestas directas',
+  'hw.q_lead':           'Las preguntas que los operadores hacen de verdad antes de registrarse.',
+  'hw.q1_h':             '¿Tengo que tomar todos los trabajos?',
+  'hw.q1_p':             'No. Ignore lo que no quiera. Nada se le asigna y no hay puntaje que lo castigue por eso.',
+  'hw.q2_h':             '¿Quién pone el precio?',
+  'hw.q2_p':             'Nosotros, y el cliente lo paga antes de que usted vea el trabajo. Usted ve exactamente cuánto le deja antes de aceptar, así que nunca negocia en la calle.',
+  'hw.q3_h':             '¿Entonces para qué me piden mis tarifas?',
+  'hw.q3_p':             'Para poner precios correctos en su zona. Sus tarifas se promedian con las de otras empresas cercanas y nunca se le muestran a ninguna. Deje en blanco lo que no haga.',
+  'hw.q4_h':             '¿Y si dos aceptamos a la vez?',
+  'hw.q4_p':             'Se lo lleva el primero. Al otro se le avisa de inmediato, ahí mismo, en vez de enterarse en la calle.',
+  'hw.q5_h':             '¿Y si nadie acepta un trabajo?',
+  'hw.q5_p':             'Vence a los veinte minutos más o menos y se libera la tarjeta del cliente — no se le cobra por una grúa que nunca llegó. Volvemos a avisar mientras sigue abierto, por si el primer aviso se pasó.',
+  'hw.q6_h':             '¿Necesito la app?',
+  'hw.q6_p':             'No. Todo funciona en el navegador, en el teléfono o en la computadora. La app de iPhone existe porque una notificación con tono de alarma es más difícil de dormir.',
+  'hw.q7_h':             '¿Cuánto tarda la aprobación?',
+  'hw.q7_p':             'Una persona revisa cada archivo, así que no es instantáneo. Puede entrar, poner sus tarifas y su cobertura mientras espera — nada de eso está bloqueado.',
+
+  'hw.cta_h':            '¿Listo para ver qué le llega?',
+  'hw.cta_p':            'Registrarse es gratis y toma unos dos minutos.',
+  'hw.cta_b':            'Registre su empresa',
+  'hw.cta_s':            '¿Ya está con nosotros? <a href="tow">Abra su tablero</a>',
+  'hw.f_join':           'Para operadores',
+  'hw.f_tow':            'Necesito una grúa',
+  'hw.f_support':        'Soporte',
+  'hw.f_terms':          'Términos',
+  'j.hw_link':           'Lea todo, paso a paso →'
 },
 
 en: {
@@ -1460,7 +1548,95 @@ en: {
   'j.doc_expiry':        'Policy expiry date',
   'j.err_expiry':        'Enter the policy expiry date before uploading.',
   'j.docs_waiting':      'Once all four are in, your account goes to review. You can browse the board meanwhile, but not accept jobs yet.',
-  'j.docs_submitted':    'All documents in. Your account is under review — we will let you know the moment it is approved and your verified badge goes live.'
+  'j.docs_submitted':    'All documents in. Your account is under review — we will let you know the moment it is approved and your verified badge goes live.',
+
+  /* ─── /how_it_works ─────────────────────────────────────────────────── */
+  'title.hw':            'How it works for towing companies — TowSling',
+  'desc.hw':             'Exactly how TowSling works for a towing company: how you get approved, how jobs reach you, who decides the price, when photos matter, and how the money arrives.',
+
+  'hw.hero_1':           'How it works,',
+  'hw.hero_2':           'start to finish.',
+  'hw.hero_sub':         'Written for towing companies. What we check before your first job, how work reaches you, who sets the price, and exactly when the money lands.',
+
+  'hw.j_h':              'From signing up to getting paid',
+  'hw.j_lead':           'Six steps. Most companies are through the first three in an afternoon, and the rest is just work.',
+
+  'hw.s1_h':             'Sign up your company',
+  'hw.s1_p':             'Company name, your name, a phone number and an email. That is the whole form, and it is free. You can do it on this site or inside the iPhone app.',
+  'hw.s1_t':             'The phone number you give is the one a stranded customer is handed the moment you accept their job, so use the one that gets answered.',
+
+  'hw.s2_h':             'Get approved',
+  'hw.s2_p':             'We check every company before its first job. Four documents: your IRS EIN letter, your state business registration, a certificate of liability insurance, and the owner\'s ID or driver\'s licence. You also confirm your email address and phone number.',
+  'hw.s2_p2':            'The moment the last document is uploaded your company moves into the review queue on its own. You do not have to tell anybody you are ready.',
+  'hw.s2_c':             'Insurance is the one we ask an expiry date for, because dispatch stops when a certificate lapses. We would rather remind you than quietly stop sending you work.',
+
+  'hw.s3_h':             'Tell us what you tow, and where',
+  'hw.s3_p':             'Tick the equipment you actually run — light, medium or heavy duty, flatbed, wheel lift, winch recovery, lockouts, jump starts, tyres, fuel, motorcycles, EV, low clearance. Set your yard address and how far you are willing to travel.',
+  'hw.s3_p2':            'This list is not marketing. It decides which jobs ever reach you: a semi is never offered to a company without heavy duty ticked, however close the truck is parked.',
+
+  'hw.s4_h':             'Jobs come to you',
+  'hw.s4_p':             'A customer books and pays on their phone. We work out who can actually do that job and alert everyone who fits, all at once. First company to accept gets it.',
+  'hw.s4_p2':            'Distance is measured from where your truck actually is when your phone has reported recently, and from your yard when it has not — so a driver dropping a car sixty miles from home still hears about the job on the next street. If a phone goes quiet, we fall back to the yard. You never stop getting alerts because of it.',
+  'hw.s4_t':             'You control the rest: how far out, the smallest payout worth waking you for, and quiet hours in your own timezone. Off duty means we stop offering you work — you can still take a job off the board yourself.',
+
+  'hw.s5_h':             'Do the job',
+  'hw.s5_p':             'You see the price, the distance and the vehicle before you accept. Accept it and the customer gets your number and a live map of your truck coming to them.',
+  'hw.s5_p2':            'Photograph the vehicle before it goes on the truck: four corners, the plate, the VIN, and the drop-off. It takes a minute and it is the only thing that answers a damage claim three weeks later. We will warn you if you finish without them, but we will not stop you.',
+  'hw.s5_c':             'Car already gone when you arrive? Take one photo of the empty space and mark it gone on arrival. You are paid for the run out.',
+
+  'hw.s6_h':             'Get paid',
+  'hw.s6_p':             'The customer\'s card was authorised before you ever saw the job. When you mark it complete the card is charged and your share lands in your TowSling balance. There is no invoice to send and nobody to chase.',
+  'hw.s6_p2':            'Connect your bank once, through Stripe, and withdraw whenever your balance is $25 or more.',
+
+  'hw.m_h':              'The money, plainly',
+  'hw.m_lead':           'One number, and no others.',
+  'hw.m1_h':             'of every job is yours',
+  'hw.m1_p':             'We keep 10%, with a $5 minimum on very small jobs. That is the entire fee.',
+  'hw.m2_n':             '$0',
+  'hw.m2_h':             'to join, monthly, or per lead',
+  'hw.m2_p':             'No subscription, no per-lead charge, no sign-up cost, and nothing to cancel.',
+  'hw.m3_n':             'Prepaid',
+  'hw.m3_h':             'before you see it',
+  'hw.m3_p':             'Every job on your screen is already paid for. You are never carrying the customer\'s credit.',
+
+  'hw.free_h':           'What you are not signing up to',
+  'hw.free_1':           'No exclusivity. Keep your motor clubs, your police rotation and your own customers.',
+  'hw.free_2':           'No minimum number of jobs, and no penalty for ignoring one.',
+  'hw.free_3':           'No auction. You are never bidding against another company to go cheaper.',
+  'hw.free_4':           'No contract to get out of. Switch yourself off duty, or delete the account, whenever you like.',
+
+  'hw.ask_h':            'What we ask of you',
+  'hw.ask_1':            'If you accept a job, turn out for it. A customer standing on a hard shoulder is counting on the ETA you gave.',
+  'hw.ask_2':            'Take the photos. They protect you far more than they protect us.',
+  'hw.ask_3':            'Keep your insurance current. We stop dispatching to a lapsed certificate.',
+  'hw.ask_4':            'Use the duty switch honestly. Being marked on duty when the truck is not available is how a customer ends up waiting for nobody.',
+
+  'hw.q_h':              'Straight answers',
+  'hw.q_lead':           'The questions operators actually ask before signing up.',
+  'hw.q1_h':             'Do I have to take every job?',
+  'hw.q1_p':             'No. Ignore anything you do not want. Nothing is assigned to you and there is no score that punishes you for it.',
+  'hw.q2_h':             'Who sets the price?',
+  'hw.q2_p':             'We do, and the customer pays it before you see the job. You see exactly what the job pays you before you accept, so you are never negotiating at the roadside.',
+  'hw.q3_h':             'Then why do you ask for my rates?',
+  'hw.q3_p':             'To price your area properly. Your rates are averaged with other companies nearby and are never shown to any of them. Leave anything you do not do blank.',
+  'hw.q4_h':             'What if two of us accept at once?',
+  'hw.q4_p':             'The first one through gets it. The other is told immediately, on the spot, rather than finding out at the kerb.',
+  'hw.q5_h':             'What if nobody accepts a job?',
+  'hw.q5_p':             'It expires after about twenty minutes and the customer\'s card is released — they are not charged for a truck that never came. We alert again while it is still open, in case the first one was missed.',
+  'hw.q6_h':             'Do I need the app?',
+  'hw.q6_p':             'No. Everything works in a browser on a phone or a desktop. The iPhone app exists because a notification with a proper alarm tone is harder to sleep through.',
+  'hw.q7_h':             'How long does approval take?',
+  'hw.q7_p':             'A person looks at every file, so it is not instant. You can sign in, set your rates and your coverage while you wait — none of that is blocked.',
+
+  'hw.cta_h':            'Ready to see what comes through?',
+  'hw.cta_p':            'Signing up is free and takes about two minutes.',
+  'hw.cta_b':            'Sign up your company',
+  'hw.cta_s':            'Already with us? <a href="tow">Open your dashboard</a>',
+  'hw.f_join':           'For operators',
+  'hw.f_tow':            'Need a tow',
+  'hw.f_support':        'Support',
+  'hw.f_terms':          'Terms',
+  'j.hw_link':           'Read the whole thing, step by step →'
 }
 };
 

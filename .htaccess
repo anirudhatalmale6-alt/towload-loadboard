@@ -4,6 +4,7 @@
 #    /                        -> tow.html            (stranded motorist)
 #    /tow                     -> index.html          (operator dashboard)
 #    /join                    -> join.html           (tow operator signup)
+#    /how_it_works            -> how_it_works.html   (long-form, for operators)
 #    /support                 -> support.html        (public support page)
 #    /connect/return|refresh  -> connect.html        (back from Stripe)
 #    /track/{token}           -> tow.html?job={token}
@@ -76,6 +77,16 @@ RewriteRule ^ - [L]
 # at the bare domain by hand.
 RewriteRule ^tow/?$                          index.html [L]
 RewriteRule ^join/?$                         join.html [L]
+
+# The long-form explanation for towing companies. Underscored because that is
+# the name Ricardo asked for and the one that will end up in adverts. The
+# hyphenated spelling is served too rather than 404ing, because somebody will
+# type it — served and not redirected, since a redirect here would need a
+# root-relative target and every other rule in this file is deliberately
+# subfolder-agnostic. The canonical tag in the page settles which one search
+# engines keep.
+RewriteRule ^how_it_works/?$                 how_it_works.html [L]
+RewriteRule ^how-it-works/?$                 how_it_works.html [L]
 RewriteRule ^track/([a-f0-9]{32})/?$         tow.html?job=$1 [L]
 
 # Terms and privacy have to be readable without an account — a tower deciding
