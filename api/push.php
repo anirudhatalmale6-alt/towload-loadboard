@@ -168,6 +168,62 @@ if ($method === 'POST' && $action === 'unsubscribe') {
     successResponse(['registered' => false], t('ok.push_off'));
 }
 
+// ─── Where this phone is ────────────────────────────────────────────────────
+//
+// So a job can be matched against where the truck actually is rather than where
+// the yard is. A driver forty miles out on the far side of a job used to get
+// nothing while the one parked at the yard got everything.
+//
+// Scoped to the caller's own account, like unsubscribe above: a device token is
+// not a secret worth trusting, and without the account in the WHERE anybody
+// holding one could move a competitor's truck around the map.
+//
+// Nothing here is a history. One row, overwritten — this answers "roughly where
+// is this phone now", and keeping a trail of every driver's movements would be
+// a different product with a different conversation attached to it.
+if ($method === 'POST' && $action === 'location') {
+    $token = strtolower(preg_replace('/[^0-9a-fA-F]/', '', (string)($in['device_token'] ?? '')));
+    if ($token === '') errorResponse('device_token is required', 422);
+
+    $hash = hash('sha256', 'apns:' . $token);
+
+    // Sanity, not security. A phone that reports 0,0 — the classic "no fix yet"
+    // answer — would otherwise be matched against jobs in the Gulf of Guinea
+    // and silently stop seeing the ones outside its own window.
+    $lat = isset($in['lat']) ? (float)$in['lat'] : null;
+    $lng = isset($in['lng']) ? (float)$in['lng'] : null;
+    if ($lat === null || $lng === null) errorResponse('lat and lng are required', 422);
+    if (abs($lat) > 90 || abs($lng) > 180 || (abs($lat) < 0.0001 && abs($lng) < 0.0001)) {
+        errorResponse('Location out of range', 422);
+    }
+
+    $sets = "last_lat = :lat, last_lng = :lng, last_location_at = NOW(),
+             location_accuracy_m = :acc, last_seen_at = NOW()";
+    $bind = [
+        ':lat' => $lat,
+        ':lng' => $lng,
+        ':acc' => isset($in['accuracy_m']) ? (int)$in['accuracy_m'] : null,
+        ':h'   => $hash,
+        ':a'   => $accountId,
+    ];
+    // Sent as its own field so the switch works from any screen, and left alone
+    // entirely when the app does not mention it.
+    if (array_key_exists('use_device_location', $in)) {
+        $sets .= ", use_device_location = :use";
+        $bind[':use'] = !empty($in['use_device_location']) ? 1 : 0;
+    }
+
+    $stmt = getDB()->prepare(
+        "UPDATE push_subscriptions SET $sets WHERE endpoint_hash = :h AND account_id = :a"
+    );
+    $stmt->execute($bind);
+
+    // A device that is not registered yet is not an error worth shouting about
+    // — the app registers on sign-in and may simply not have got there. Say so
+    // plainly so the app can retry rather than treating it as a failure.
+    successResponse(['stored' => $stmt->rowCount() > 0]);
+}
+
 // ─── What is registered, and is it actually working ─────────────────────────
 if ($action === 'devices') {
     $stmt = getDB()->prepare(

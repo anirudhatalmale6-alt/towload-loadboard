@@ -440,6 +440,15 @@ function towersToAlert(array $call): array {
     $box = boundingBox($lat, $lng, MAX_SEARCH_RADIUS_MILES);
 
     $sql = "SELECT s.id, s.account_id, s.endpoint, s.p256dh, s.auth_secret, s.transport, s.apns_env,
+                   s.last_lat, s.last_lng, s.last_location_at, s.use_device_location,
+                   -- Answered by MySQL, not by PHP. time() and NOW() are two
+                   -- different clocks in two different timezones unless somebody
+                   -- has made them agree, and comparing across them would age
+                   -- every fix by the offset -- silently trusting stale
+                   -- positions, or silently discarding good ones, depending on
+                   -- which way the server happens to be set.
+                   (s.last_location_at IS NOT NULL
+                    AND s.last_location_at > DATE_SUB(NOW(), INTERVAL :fresh3 MINUTE)) AS location_fresh,
                    p.service_radius_miles, p.push_radius_miles, p.push_min_payout,
                    p.push_quiet_start, p.push_quiet_end, p.push_timezone,
                    p.base_lat, p.base_lng, p.is_24_7,
@@ -473,13 +482,32 @@ function towersToAlert(array $call): array {
                      AND a.email_verified_value = a.email
                      AND a.phone_verified_at IS NOT NULL
                      AND a.phone_verified_value = a.phone))
-               AND p.base_lat BETWEEN :minlat AND :maxlat
-               AND p.base_lng BETWEEN :minlng AND :maxlng";
+               -- EITHER the yard or the phone may be the thing that is near.
+               -- Prefiltering on the yard alone was the whole bug: a driver
+               -- forty miles out on the right side of a job was thrown away
+               -- here, before distance was ever calculated.
+               AND (
+                     (p.base_lat BETWEEN :minlat AND :maxlat
+                      AND p.base_lng BETWEEN :minlng AND :maxlng)
+                  OR (s.use_device_location = 1
+                      AND s.last_lat BETWEEN :minlat2 AND :maxlat2
+                      AND s.last_lng BETWEEN :minlng2 AND :maxlng2
+                      AND s.last_location_at > DATE_SUB(NOW(), INTERVAL :fresh MINUTE))
+                   )";
+
+    // How old a position may be and still be believed. A truck can cross a city
+    // in this time, so it is deliberately not hours: a stale fix that keeps
+    // being trusted is worse than no fix, because the fallback below is
+    // correct-if-pessimistic while a stale one is simply wrong.
+    $freshMin = max(1, (int)setting('push_location_max_age_minutes', 45));
 
     $stmt = getDB()->prepare($sql);
     $stmt->execute([
         ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
         ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
+        ':minlat2' => $box['min_lat'], ':maxlat2' => $box['max_lat'],
+        ':minlng2' => $box['min_lng'], ':maxlng2' => $box['max_lng'],
+        ':fresh' => $freshMin, ':fresh3' => $freshMin,
         ':need_contact' => (string)setting('require_verification_to_accept', '1') === '1' ? 1 : 0,
     ]);
 
@@ -496,8 +524,39 @@ function towersToAlert(array $call): array {
                     : (int)$row['service_radius_miles'];
         if ($radius <= 0) continue;
 
-        $miles = haversineMiles($lat, $lng, (float)$row['base_lat'], (float)$row['base_lng']);
+        // ─── Where is this truck? ────────────────────────────────────────────
+        //
+        // The phone if it has said recently, the yard otherwise. NEVER neither:
+        // a driver whose app was killed, whose signal dropped, or who never
+        // granted location permission must keep getting alerts from the yard.
+        // Going quiet is the one outcome this whole feature cannot produce,
+        // because it looks exactly like there being no work about.
+        //
+        // Freshness is re-checked rather than assumed: the WHERE clause admits a
+        // row on EITHER match, so a device with a stale fix arrives here having
+        // qualified on its yard. location_fresh comes back from MySQL so both
+        // tests are answered by the same clock.
+        $useDevice = !empty($row['use_device_location'])
+                  && $row['last_lat'] !== null && $row['last_lng'] !== null
+                  && !empty($row['location_fresh']);
+
+        if ($useDevice) {
+            $fromLat = (float)$row['last_lat'];
+            $fromLng = (float)$row['last_lng'];
+        } elseif ($row['base_lat'] !== null && $row['base_lng'] !== null) {
+            $fromLat = (float)$row['base_lat'];
+            $fromLng = (float)$row['base_lng'];
+        } else {
+            continue;                       // nothing to measure from at all
+        }
+
+        $miles = haversineMiles($lat, $lng, $fromLat, $fromLng);
         if ($miles > $radius) continue;
+
+        // Carried through so the notification can say "4.2 mi away" honestly,
+        // and so a support question about why somebody was or was not alerted
+        // has an answer.
+        $row['measured_from'] = $useDevice ? 'device' : 'yard';
 
         if ($net < (float)$row['push_min_payout']) continue;
         if (!towerIsCapable($row, $call)) continue;
