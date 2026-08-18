@@ -963,15 +963,23 @@ if ($method === 'POST' && $action === 'photo') {
             ->execute([':c' => $callId, ':t' => $type]);
     }
 
+    // Taken here, or picked out of the library. Whitelisted rather than
+    // trusted: this is the field that says how much the photograph is worth as
+    // evidence, so a client that sends anything else is recorded as 'unknown'
+    // rather than being believed.
+    $source = (string)($_POST['source'] ?? 'unknown');
+    if (!in_array($source, ['camera', 'library'], true)) $source = 'unknown';
+
     $pdo->prepare(
         "INSERT INTO call_photos
-            (call_id, account_id, uploaded_by_user_id, photo_type, file_url,
+            (call_id, account_id, uploaded_by_user_id, photo_type, source, file_url,
              stored_path, mime_type, file_size, note, lat, lng, ip_address,
              accuracy_m, taken_at)
-         VALUES (:c, :a, :u, :t, '', :p, :m, :sz, :n, :lat, :lng, :ip, :acc, NOW())"
+         VALUES (:c, :a, :u, :t, :src, '', :p, :m, :sz, :n, :lat, :lng, :ip, :acc, NOW())"
     )->execute([
         ':c' => $callId, ':a' => $user['account_id'], ':u' => $user['id'],
-        ':t' => $type, ':p' => $stored['path'], ':m' => $stored['mime'],
+        ':t' => $type, ':src' => $source,
+        ':p' => $stored['path'], ':m' => $stored['mime'],
         ':sz' => $stored['size'],
         ':n' => isset($_POST['note']) ? mb_substr((string)$_POST['note'], 0, 255) : null,
         // Where and from what connection. The coordinates come from the phone

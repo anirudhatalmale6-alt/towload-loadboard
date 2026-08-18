@@ -126,7 +126,7 @@ function photoState(int $callId): array {
  */
 function photoList(int $callId): array {
     $stmt = getDB()->prepare(
-        "SELECT id, photo_type, note, taken_at, created_at, mime_type
+        "SELECT id, photo_type, source, note, taken_at, created_at, mime_type
            FROM call_photos WHERE call_id = :c ORDER BY id ASC"
     );
     $stmt->execute([':c' => $callId]);
@@ -137,6 +137,10 @@ function photoList(int $callId): array {
             'id'         => (int)$r['id'],
             'photo_type' => $r['photo_type'],
             'label'      => photoLabel($r['photo_type']),
+            // 'camera', 'library' or 'unknown'. Carried through to whoever is
+            // looking at the evidence rather than kept as an internal detail —
+            // the difference is the whole point of storing it.
+            'source'     => $r['source'] ?? 'unknown',
             'note'       => $r['note'],
             'taken_at'   => $r['taken_at'] ?: $r['created_at'],
             'url'        => 'api/calls/photo?id=' . (int)$r['id'],
