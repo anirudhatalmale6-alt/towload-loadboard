@@ -256,10 +256,13 @@ function customerQuoteView(array $quote, string $service = 'tow'): array {
         $includes[] = $miles > 0
             ? t('inc.miles', ['n' => trimNum($miles)])
             : t('inc.tow');
+        // Hook-up only means something when there is something to hook up to.
+        // On a lockout or a fuel run it reads as a fee somebody is reassuring
+        // you about, for a service that never had one.
+        $includes[] = t('inc.hookup');
     } else {
         $includes[] = t('inc.service');
     }
-    $includes[] = t('inc.hookup');
     $includes[] = t('inc.allin');
 
     return [

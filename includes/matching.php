@@ -23,16 +23,37 @@ function requiredCapabilities(array $call): array {
         case 'fuel_delivery':  $caps[] = 'has_fuel_delivery'; break;
         case 'winch_recovery': $caps[] = 'has_winch_recovery'; break;
     }
-    switch ($call['vehicle_class'] ?? 'light') {
-        case 'medium':     $caps[] = 'has_medium_duty'; break;
-        case 'heavy':      $caps[] = 'has_heavy_duty'; break;
-        case 'motorcycle': $caps[] = 'has_motorcycle'; break;
-        default:           $caps[] = 'has_light_duty';
+    // ─── Does the SIZE of the vehicle matter for this job? ───────────────────
+    //
+    // Only where the truck lifts, drags or carries it. Jump-starting a box van
+    // takes the same jump pack as jump-starting a hatchback, and a locksmith
+    // tool does not care what it is opening — demanding a medium-duty WRECKER
+    // to unlock a van is how a customer is told "we cannot tow that size here
+    // yet" for a job that needs no towing at all.
+    //
+    // A flat tyre and a winch-out DO scale: a semi wheel is not changed with a
+    // trolley jack and pulling an RV out of a ditch is not a light-duty job.
+    $liftsTheVehicle = in_array($call['service_type'] ?? 'tow',
+                                ['tow', 'tire_change', 'winch_recovery'], true);
+
+    if ($liftsTheVehicle) {
+        switch ($call['vehicle_class'] ?? 'light') {
+            case 'medium':     $caps[] = 'has_medium_duty'; break;
+            case 'heavy':      $caps[] = 'has_heavy_duty'; break;
+            case 'motorcycle': $caps[] = 'has_motorcycle'; break;
+            default:           $caps[] = 'has_light_duty';
+        }
+        // A car that won't roll has to go on a flatbed regardless of what was
+        // ticked. Only relevant when something is being carried.
+        if (!empty($call['needs_flatbed']) || empty($call['wheels_lock'])) $caps[] = 'has_flatbed';
+        // EV certification is about getting one onto a truck without dragging
+        // the drive wheels. Delivering fuel to one is not a thing, and jumping
+        // its 12V battery is an ordinary jump start.
+        if (!empty($call['is_ev']))          $caps[] = 'has_ev_certified';
+        // Low clearance is about the TRUCK fitting into the car park. A service
+        // van gets in where a rollback does not.
+        if (!empty($call['is_underground'])) $caps[] = 'has_lowclearance';
     }
-    // A car that won't roll has to go on a flatbed regardless of what was ticked.
-    if (!empty($call['needs_flatbed']) || empty($call['wheels_lock'])) $caps[] = 'has_flatbed';
-    if (!empty($call['is_ev']))          $caps[] = 'has_ev_certified';
-    if (!empty($call['is_underground'])) $caps[] = 'has_lowclearance';
 
     return array_values(array_unique($caps));
 }

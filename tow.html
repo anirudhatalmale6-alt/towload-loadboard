@@ -1672,12 +1672,19 @@ async function pollMap(){
   try { r = await api('/tracking/feed?token=' + S.token); } catch(e){ return; }
   if(!r || !r.success || !r.tracking_enabled) return;
 
-  // No truck position means nothing honest to draw. Hide rather than show an
-  // empty map or a last-known marker with no timestamp attached to it.
+  // No truck position yet — the driver has been assigned but has not set off,
+  // so his phone has sent nothing. There is still something honest to show:
+  // where the customer is. Hiding the map entirely meant a customer who had
+  // just booked, and who is watching this screen precisely because he is
+  // stranded, saw no map at all and assumed it was broken.
+  //
+  // A last-known truck marker with no timestamp would be dishonest. The
+  // customer's own pin is not.
   if(!r.truck){
-    $('mapWrap').classList.remove('on');
     MAP.lastEta = null;
-    MAP.pickup = null;
+    MAP.pickup = r.pickup || MAP.pickup;
+    if(MAP.pickup) drawPickupOnly(MAP.pickup.lat, MAP.pickup.lng);
+    else $('mapWrap').classList.remove('on');
     return;
   }
 
@@ -1734,6 +1741,31 @@ async function drawTruck(lat, lng, etaMinutes, stale){
     MAP.fitted = true;
   }
 
+}
+
+/* The map before the truck has moved.
+   Shows where the customer is and says so, instead of a blank space. The
+   moment a real position arrives drawTruck takes over and adds the truck, so
+   this never has to be undone. */
+async function drawPickupOnly(lat, lng){
+  $('mapWrap').classList.add('on');
+
+  const eta = $('mapEta');
+  eta.classList.remove('stale');
+  eta.textContent = t('c.map_waiting');
+
+  const m = await ensureMap(lat, lng);
+  if(!m) return;
+
+  if(!MAP.pin){
+    MAP.pin = new MAP.api.Marker({
+      map: m, position: {lat, lng},
+      icon: svgIcon(PIN_ICON, 20), zIndex: 900, optimized: false,
+    });
+  }
+  // Deliberately NOT setting MAP.fitted. When the truck appears, drawTruck
+  // still needs to fit both points; marking it fitted here would leave the
+  // customer zoomed on themselves with the truck off screen.
 }
 
 function paintEta(etaMinutes, stale){

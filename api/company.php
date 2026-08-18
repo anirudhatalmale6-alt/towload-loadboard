@@ -83,6 +83,18 @@ if ($method === 'GET' && ($action === 'overview' || $action === '')) {
     $row = $stmt->fetch();
     if (!$row) errorResponse(t('err.account_not_found'), 404);
 
+    // Numbers as NUMBERS. base_lat/base_lng are DECIMAL columns and PDO hands
+    // them back as strings, so json_encode emitted "27.2772854" with quotes.
+    // A typed client decoding that into a Double throws, and because one throw
+    // fails the WHOLE object, the entire screen died with "something went
+    // wrong" — but only for a company that had actually set a yard, which is
+    // why it looked account-specific rather than like a bug.
+    $row['base_lat'] = $row['base_lat'] !== null ? (float)$row['base_lat'] : null;
+    $row['base_lng'] = $row['base_lng'] !== null ? (float)$row['base_lng'] : null;
+    $row['service_radius_miles'] = $row['service_radius_miles'] !== null
+        ? (int)$row['service_radius_miles'] : null;
+    $row['trucks_count'] = $row['trucks_count'] !== null ? (int)$row['trucks_count'] : null;
+
     // The raw verified values are internal — the client only needs to know
     // whether the CURRENT address and number have been confirmed.
     $row['email_verified'] = verifiedFor($row, 'email');

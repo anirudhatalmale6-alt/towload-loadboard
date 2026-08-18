@@ -57,4 +57,62 @@ if (($_GET['action'] ?? '') === 'geocode') {
     successResponse($hit);
 }
 
+// ═══ ADDRESS SUGGESTIONS ═════════════════════════════════════════════════════
+// Type-ahead for the native app, which cannot use the browser key.
+//
+// The key in the page is locked to the towsling.com REFERRER. An iPhone app
+// sends no referrer, so that key is refused outright — and loosening it to make
+// the app work would hand a usable key to anyone who views source on the
+// website. The server key is locked to this machine's IP instead, so the call
+// is made from here and the key never leaves the building.
+//
+// Only the descriptions come back. Resolving the one the operator taps is the
+// existing /api/geo/geocode call, so there is one geocoding path with one cache
+// rather than two that can disagree about where an address is.
+if (($_GET['action'] ?? '') === 'suggest') {
+    requireAuth();          // operators only; this costs money per keystroke
+
+    $q = trim(preg_replace('/\s+/', ' ', (string)($_GET['q'] ?? '')));
+    // Below three characters every request is a different guess at the same
+    // street and none of them are useful. Answered as an empty list rather than
+    // an error so the field simply shows nothing while somebody is still typing.
+    if (mb_strlen($q) < 3) successResponse(['suggestions' => []]);
+
+    $key = trim((string)setting('google_server_key', ''));
+    if ($key === '') $key = trim((string)setting('google_maps_key', ''));
+    if ($key === '') successResponse(['suggestions' => [], 'reason' => 'no_key']);
+
+    $url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?'
+         . http_build_query([
+             'input'      => $q,
+             'components' => 'country:us',
+             // Street addresses, not restaurants. An operator setting a yard
+             // wants "1200 NW 27th Ave", not the business currently in it.
+             'types'      => 'address',
+             'key'        => $key,
+         ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 6]);
+    $body = curl_exec($ch);
+    curl_close($ch);
+
+    $out = [];
+    $data = $body !== false ? json_decode($body, true) : null;
+    $status = $data['status'] ?? 'REQUEST_FAILED';
+    if ($status === 'OK') {
+        foreach (($data['predictions'] ?? []) as $p) {
+            if (!empty($p['description'])) $out[] = $p['description'];
+            if (count($out) >= 6) break;
+        }
+    } elseif ($status !== 'ZERO_RESULTS') {
+        // A key or billing problem here is otherwise invisible — the field just
+        // stops suggesting and everybody assumes they typed it wrong.
+        error_log('[geo] places autocomplete: ' . $status
+                  . ' ' . ($data['error_message'] ?? ''));
+    }
+
+    successResponse(['suggestions' => $out]);
+}
+
 errorResponse('Unknown action', 404);
