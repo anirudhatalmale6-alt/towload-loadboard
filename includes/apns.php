@@ -108,10 +108,30 @@ function apnsHandle(array $sub, array $payload, ?string &$error = null) {
     $title = (string)($payload['title'] ?? 'New job');
     $body  = (string)($payload['body'] ?? '');
 
+    // The alarm tone, not the default two-note blip.
+    //
+    // A tow request is worth about twenty minutes and a driver may be under a
+    // truck when it lands, so the sound has to last long enough to be noticed.
+    // alarm_tone.wav is 27.7 seconds — Apple's hard ceiling for a notification
+    // sound is 30, and a file over that is silently ignored in favour of the
+    // default, so this is as long as iOS will allow.
+    //
+    // The file must be in the app bundle under exactly this name. If it is
+    // missing iOS falls back to the default sound rather than going silent, so
+    // an older build still alerts, just briefly.
+    $soundName = (string)setting('apns_sound', 'alarm_tone.wav');
+    $sound = ($soundName === '' || $soundName === 'default')
+        ? 'default'
+        // The dictionary form rather than a bare string, so the volume is ours
+        // to set. 'critical' stays 0 — a critical alert overrides the ringer
+        // switch and Do Not Disturb, and Apple only grants that entitlement on
+        // application.
+        : ['critical' => 0, 'name' => $soundName, 'volume' => 1.0];
+
     $aps = [
         'aps' => [
             'alert' => ['title' => $title, 'body' => $body],
-            'sound' => 'default',
+            'sound' => $sound,
             // The badge is the count of jobs waiting, when the caller knows it.
             // Left off entirely rather than sent as 0, which would CLEAR a badge
             // the driver has not dealt with yet.

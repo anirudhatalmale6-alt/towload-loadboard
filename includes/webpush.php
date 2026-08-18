@@ -558,7 +558,7 @@ function inQuietHours(array $profile): bool {
  * someone who may be driving, in the few seconds before they decide whether to
  * pull over. Money and distance first, because that is the whole decision.
  */
-function pushNewJob(int $callId): array {
+function pushNewJob(int $callId, bool $reminder = false): array {
     $none = ['sent' => 0, 'failed' => 0, 'devices' => 0];
     if ((string)setting('push_enabled', '1') !== '1') return $none + ['skipped' => 'disabled'];
 
@@ -581,7 +581,12 @@ function pushNewJob(int $callId): array {
     $payload = [
         'kind'    => 'new_job',
         'call_id' => (int)$call['id'],
-        'title'   => '$' . number_format($call['tower_net_estimate'], 0) . ' · ' . $service,
+        // A reminder says so. The same words arriving twice reads as a bug and
+        // gets ignored; "still open" tells the driver it is the same job and
+        // that nobody has taken it yet, which is the part that might change
+        // his mind.
+        'title'   => ($reminder ? 'Still open · ' : '')
+                   . '$' . number_format($call['tower_net_estimate'], 0) . ' · ' . $service,
         'body'    => trim($area . ($miles ? ' · ' . $miles : '')),
         // Relative — see the note in api/push.php. The service worker
         // resolves it against its own scope.
@@ -598,6 +603,17 @@ function pushNewJob(int $callId): array {
         $p['body'] = trim($p['body'] . ' · ' . $sub['distance_miles'] . ' mi away');
         return $p;
     }, 'new_job', $callId);
+
+    // Stamped whether this was the first alert or a reminder, so the sweep
+    // times the next one from when a phone last actually rang rather than from
+    // when the job was created.
+    try {
+        getDB()->prepare("UPDATE calls SET last_alert_at = NOW() WHERE id = :id")
+               ->execute([':id' => $callId]);
+    } catch (Throwable $e) {
+        // Never let bookkeeping sink an alert that has already gone out.
+        error_log('[push] could not stamp last_alert_at for ' . $callId . ': ' . $e->getMessage());
+    }
 
     return ['sent' => $r['sent'], 'failed' => $r['failed'], 'devices' => count($subs)];
 }

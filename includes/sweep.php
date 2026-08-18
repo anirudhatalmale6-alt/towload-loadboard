@@ -3,6 +3,11 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/escrow.php';
 require_once __DIR__ . '/realtime.php';
 require_once __DIR__ . '/stripe_connect.php';
+// pushNewJob(), for the reminder pass. Both callers of the sweep happened to
+// have pulled this in already, so leaving it out worked right up until
+// something else called runSweep() — and then it is a fatal, inside a sweep,
+// in the middle of expiring calls and releasing card authorisations.
+require_once __DIR__ . '/webpush.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  THE SWEEP
@@ -156,5 +161,65 @@ function runSweep(): array {
         }
     }
 
-    return ['expired' => $expired, 'abandoned' => $abandoned];
+    return ['expired'   => $expired,
+            'abandoned' => $abandoned,
+            'reminded'  => remindOpenJobs()];
+}
+
+/**
+ * Alert again about jobs still sitting open with nobody on them.
+ *
+ * One notification is one chance. A driver under a truck, on the phone, or
+ * three minutes from his van misses it and the job expires with trucks in range
+ * that would happily have taken it.
+ *
+ * Bounded on purpose. Reminders that keep coming are how an operator turns
+ * notifications off for good, and then he misses every job rather than one.
+ * Two by default, and only while the job is genuinely still available.
+ *
+ * Timing granularity is the sweep interval (default 5 minutes), so
+ * push_repeat_after_seconds is a floor rather than a schedule.
+ */
+function remindOpenJobs(): int {
+    if ((string)setting('push_enabled', '1') !== '1') return 0;
+    if ((string)setting('push_repeat_enabled', '1') !== '1') return 0;
+
+    $maxRounds = max(0, (int)setting('push_repeat_max', 2));
+    if ($maxRounds === 0) return 0;
+    $afterSec  = max(60, (int)setting('push_repeat_after_seconds', 240));
+
+    $pdo = getDB();
+    $stmt = $pdo->prepare(
+        // expires_at > NOW() matters as much as status: a job in its last few
+        // seconds does not need waking anybody up, because nobody could get
+        // there and the sweep above is about to expire it anyway.
+        "SELECT id FROM calls
+          WHERE status = 'open'
+            AND expires_at > NOW()
+            AND alert_rounds < :max
+            AND COALESCE(last_alert_at, created_at) < DATE_SUB(NOW(), INTERVAL :sec SECOND)
+          ORDER BY id ASC
+          LIMIT 50"
+    );
+    $stmt->execute([':max' => $maxRounds, ':sec' => $afterSec]);
+
+    $reminded = 0;
+    foreach ($stmt->fetchAll() as $row) {
+        $callId = (int)$row['id'];
+        try {
+            // Counted BEFORE sending. If the push half-fails and throws, the
+            // round is still spent — the alternative is a job that retries the
+            // same broken send on every sweep for the rest of its life.
+            $pdo->prepare("UPDATE calls SET alert_rounds = alert_rounds + 1 WHERE id = :id")
+                ->execute([':id' => $callId]);
+
+            // pushNewJob re-reads the call and refuses if it is no longer open,
+            // so a job taken between the SELECT and here sends nothing.
+            $r = pushNewJob($callId, true);
+            if (($r['sent'] ?? 0) > 0) $reminded++;
+        } catch (Throwable $e) {
+            error_log('[sweep] could not remind on call ' . $callId . ': ' . $e->getMessage());
+        }
+    }
+    return $reminded;
 }
