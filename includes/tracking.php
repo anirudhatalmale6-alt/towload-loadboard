@@ -164,6 +164,33 @@ function recordTruckLocation(array $call, int $accountId, ?int $userId, array $i
         ':rec' => $recordedAt,
     ]);
 
+    // ── The same fix, for matching the NEXT job ─────────────────────────────
+    //
+    // A driver dropping a car sixty miles from his yard is exactly the person
+    // who should be offered the job on the next street, and while he is on a
+    // job this endpoint already knows precisely where he is. Reusing it costs
+    // nothing: no extra permission, no extra battery, no extra request.
+    //
+    // Only the devices belonging to the driver actually doing the job, and only
+    // where the operator has left the switch on. Written after the crumb above
+    // so a failure here can never lose the trail the customer is watching.
+    if ($moveMarker && $userId) {
+        try {
+            $pdo->prepare(
+                "UPDATE push_subscriptions
+                    SET last_lat = :lat, last_lng = :lng, last_location_at = NOW(),
+                        location_accuracy_m = :acc
+                  WHERE account_id = :a AND user_id = :u
+                    AND is_active = 1 AND use_device_location = 1"
+            )->execute([
+                ':lat' => $lat, ':lng' => $lng, ':acc' => $accuracy,
+                ':a' => $accountId, ':u' => $userId,
+            ]);
+        } catch (Throwable $e) {
+            error_log('[tracking] could not carry position to push device: ' . $e->getMessage());
+        }
+    }
+
     if (!$moveMarker) {
         return ['ok' => true, 'moved' => false, 'ignored' => $reject, 'eta' => null];
     }

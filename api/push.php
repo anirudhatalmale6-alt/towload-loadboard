@@ -182,10 +182,21 @@ if ($method === 'POST' && $action === 'unsubscribe') {
 // is this phone now", and keeping a trail of every driver's movements would be
 // a different product with a different conversation attached to it.
 if ($method === 'POST' && $action === 'location') {
-    $token = strtolower(preg_replace('/[^0-9a-fA-F]/', '', (string)($in['device_token'] ?? '')));
-    if ($token === '') errorResponse('device_token is required', 422);
+    // Either kind of device. The phone identifies itself by its APNs token, a
+    // browser by its push endpoint URL — the same two things they registered
+    // with. Hashed the same way each was hashed at registration, because the
+    // hash is the key and getting the prefix wrong here silently updates
+    // nothing and reports success.
+    $token    = strtolower(preg_replace('/[^0-9a-fA-F]/', '', (string)($in['device_token'] ?? '')));
+    $endpoint = trim((string)($in['endpoint'] ?? ''));
 
-    $hash = hash('sha256', 'apns:' . $token);
+    if ($token !== '') {
+        $hash = hash('sha256', 'apns:' . $token);
+    } elseif ($endpoint !== '') {
+        $hash = hash('sha256', $endpoint);
+    } else {
+        errorResponse('device_token or endpoint is required', 422);
+    }
 
     // Sanity, not security. A phone that reports 0,0 — the classic "no fix yet"
     // answer — would otherwise be matched against jobs in the Gulf of Guinea

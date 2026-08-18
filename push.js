@@ -112,6 +112,9 @@ const TLPush = (() => {
   }
 
   async function disable() {
+    // Stop reporting before the subscription goes away, or the watch keeps
+    // firing against an endpoint the server no longer has a row for.
+    stopLocation();
     if (!reg) reg = await navigator.serviceWorker.getRegistration('./');
     const sub = reg && await reg.pushManager.getSubscription();
     if (sub) {
@@ -126,7 +129,77 @@ const TLPush = (() => {
     return api('/push/test', { method: 'POST' });
   }
 
-  return { state, enable, disable, test, registerWorker, isIOS, isStandalone, platform };
+  // ─── Where this machine is ────────────────────────────────────────────────
+  //
+  // So a dispatcher on a laptop in the truck, or an operator working from a
+  // phone browser rather than the app, is matched against where he actually is
+  // instead of the yard. Exactly the same field the native app fills in.
+  //
+  // watchPosition rather than a timer around getCurrentPosition: the browser
+  // only reports when the machine has actually moved, which on a desktop that
+  // never moves means one fix and then silence, at no ongoing cost.
+  //
+  // A browser location is often a wifi lookup rather than GPS, so anything the
+  // browser is not reasonably confident about is dropped. A 5km-accurate fix
+  // would put a truck on the wrong side of a city and quietly change which
+  // jobs it hears about.
+  let watchId = null;
+  let lastSentAt = 0;
+  const MIN_INTERVAL_MS = 120000;
+
+  async function sendLocation(pos, endpoint) {
+    if (!pos || !pos.coords) return;
+    const acc = pos.coords.accuracy;
+    if (!(acc > 0) || acc > 2000) return;
+    if (Date.now() - lastSentAt < MIN_INTERVAL_MS) return;
+    lastSentAt = Date.now();
+    try {
+      await api('/push/location', {
+        method: 'POST',
+        body: JSON.stringify({
+          endpoint: endpoint,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy_m: Math.round(acc),
+        }),
+      });
+    } catch (e) {
+      // Never surfaced. Failing to report costs nothing immediately — the
+      // server falls back to the yard — and an error box about it on a
+      // dispatch screen would be worse than the problem.
+      lastSentAt = 0;
+    }
+  }
+
+  /**
+   * Start reporting. Safe to call repeatedly; only ever one watch.
+   * Does nothing at all without a push subscription, because the subscription
+   * endpoint is what identifies which device row to update.
+   */
+  async function startLocation() {
+    if (watchId !== null || !navigator.geolocation) return false;
+    if (!reg) reg = await navigator.serviceWorker.getRegistration('./');
+    const sub = reg && await reg.pushManager.getSubscription();
+    if (!sub) return false;
+
+    const endpoint = sub.endpoint;
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => { sendLocation(pos, endpoint); },
+      () => { /* refused or unavailable: the yard still covers us */ },
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 30000 }
+    );
+    return true;
+  }
+
+  function stopLocation() {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+    }
+  }
+
+  return { state, enable, disable, test, registerWorker, isIOS, isStandalone, platform,
+           startLocation, stopLocation };
 })();
 
 /* ─── UI ────────────────────────────────────────────────────────────────── */
@@ -243,6 +316,8 @@ async function doEnablePush(btn) {
   btn.textContent = t('p.enabling');
   try {
     await TLPush.enable();
+    // Now there is a subscription to attach a position to.
+    TLPush.startLocation().catch(() => {});
     await renderPushBanner();
     if (document.getElementById('alertsPane')) await renderAlertsPane();
   } catch (e) {
@@ -440,7 +515,14 @@ async function saveAlertPrefs(btn) {
 // also what makes the app open offline, and having it already installed makes
 // the enable tap a single fast step rather than a spinner.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => TLPush.registerWorker());
+  window.addEventListener('load', async () => {
+    await TLPush.registerWorker();
+    // Report where this machine is, but only for somebody already subscribed —
+    // startLocation() checks that itself and does nothing otherwise. The
+    // browser shows its own permission prompt, and refusing it costs nothing:
+    // the yard still covers this company exactly as before.
+    TLPush.startLocation().catch(() => {});
+  });
 
   // The worker asks for this after a push service rotates a subscription.
   navigator.serviceWorker.addEventListener('message', (e) => {

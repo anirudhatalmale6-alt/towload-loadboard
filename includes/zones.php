@@ -105,25 +105,65 @@ function zoneName(array $zone): string {
 // ─── COVERAGE ────────────────────────────────────────────────────────────────
 
 /**
- * How many approved, active towing companies are based within range of a point.
+ * How many approved, active towing companies can reach a point right now.
  *
- * Deliberately does NOT filter on capability. A customer asking for a heavy
- * wreck in a town with only light-duty trucks still deserves a straight answer
- * about the area, and gating coverage on capability would hide a whole market
- * behind one unusual request.
+ * Counts a company if EITHER its yard is in range OR one of its devices has
+ * reported a recent position in range. A truck dropping a car sixty miles from
+ * its own yard is real coverage for the street it is standing on, and before
+ * this it counted for nothing.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * A UNION, NEVER A REPLACEMENT. This is the whole safety property.
+ *
+ * Coverage decides whether a stranded motorist is allowed to ask for a tow at
+ * all. Had live positions REPLACED yards, coverage would flicker minute to
+ * minute — "no trucks near you" at 3am because a phone was asleep, from a
+ * company that would gladly have come. Because a fresh device can only ADD to
+ * the count, a phone that goes quiet costs nobody anything: the yard is still
+ * there underneath, exactly as before.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * Freshness is tighter here than for alerting. An alert is an offer somebody
+ * may ignore; coverage is the platform telling a customer help is available and
+ * then taking their card details. A twenty-minute-old position is a truck that
+ * may be thirty miles further down the interstate.
+ *
+ * Deliberately does NOT filter on capability at the company level for the area
+ * question. A customer asking for a heavy wreck in a town with only light-duty
+ * trucks still deserves a straight answer about the area, and gating coverage on
+ * capability would hide a whole market behind one unusual request.
  */
 function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null,
                              ?array $call = null): int {
     if ($lat === null || $lng === null) return 0;
     $radius = $radius ?? (float)setting('coverage_radius_miles', 35);
+    $freshMin = max(1, (int)setting('coverage_location_max_age_minutes', 20));
 
     $box = boundingBox($lat, $lng, $radius);
     // tp.* because the capability gate needs the has_* columns, and it must ask
     // exactly the question the board asks — towerIsCapable() reads a whole
     // profile row. Selecting the three geometry columns and hand-checking one
     // flag here is how coverage and the board drift apart.
+    //
+    // The device position comes back as its own two columns rather than being
+    // COALESCEd over the yard: both are needed below, because a company may
+    // qualify on either and the count must not double up.
     $stmt = getDB()->prepare(
-        "SELECT tp.*
+        "SELECT tp.*,
+                (SELECT s.last_lat FROM push_subscriptions s
+                  WHERE s.account_id = tp.account_id AND s.is_active = 1
+                    AND s.use_device_location = 1
+                    AND s.last_lat BETWEEN :dminlat AND :dmaxlat
+                    AND s.last_lng BETWEEN :dminlng AND :dmaxlng
+                    AND s.last_location_at > DATE_SUB(NOW(), INTERVAL :fresh MINUTE)
+                  ORDER BY s.last_location_at DESC LIMIT 1) AS dev_lat,
+                (SELECT s.last_lng FROM push_subscriptions s
+                  WHERE s.account_id = tp.account_id AND s.is_active = 1
+                    AND s.use_device_location = 1
+                    AND s.last_lat BETWEEN :dminlat2 AND :dmaxlat2
+                    AND s.last_lng BETWEEN :dminlng2 AND :dmaxlng2
+                    AND s.last_location_at > DATE_SUB(NOW(), INTERVAL :fresh2 MINUTE)
+                  ORDER BY s.last_location_at DESC LIMIT 1) AS dev_lng
            FROM accounts a
            JOIN tower_profiles tp ON tp.account_id = a.id
           WHERE a.account_type = 'tower'
@@ -134,17 +174,52 @@ function approvedTowersNear(?float $lat, ?float $lng, ?float $radius = null,
             -- customer's card gets authorised at 3am for a job nobody has any
             -- intention of turning out for.
             AND tp.is_available = 1
-            AND tp.base_lat BETWEEN :minlat AND :maxlat
-            AND tp.base_lng BETWEEN :minlng AND :maxlng"
+            -- Near by yard, OR with a truck reported near right now.
+            AND (
+                  (tp.base_lat BETWEEN :minlat AND :maxlat
+                   AND tp.base_lng BETWEEN :minlng AND :maxlng)
+               OR EXISTS (SELECT 1 FROM push_subscriptions s2
+                           WHERE s2.account_id = tp.account_id AND s2.is_active = 1
+                             AND s2.use_device_location = 1
+                             AND s2.last_lat BETWEEN :eminlat AND :emaxlat
+                             AND s2.last_lng BETWEEN :eminlng AND :emaxlng
+                             AND s2.last_location_at > DATE_SUB(NOW(), INTERVAL :fresh3 MINUTE))
+                )"
     );
-    $stmt->execute([
+    $bind = [
         ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
         ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
-    ]);
+    ];
+    // The same box, under the names each subquery uses. PDO with
+    // ATTR_EMULATE_PREPARES off will not let one placeholder be reused.
+    foreach ([['dminlat','dmaxlat','dminlng','dmaxlng'],
+              ['dminlat2','dmaxlat2','dminlng2','dmaxlng2'],
+              ['eminlat','emaxlat','eminlng','emaxlng']] as $names) {
+        $bind[':' . $names[0]] = $box['min_lat'];
+        $bind[':' . $names[1]] = $box['max_lat'];
+        $bind[':' . $names[2]] = $box['min_lng'];
+        $bind[':' . $names[3]] = $box['max_lng'];
+    }
+    $bind[':fresh'] = $freshMin;
+    $bind[':fresh2'] = $freshMin;
+    $bind[':fresh3'] = $freshMin;
+    $stmt->execute($bind);
 
     $n = 0;
     foreach ($stmt as $row) {
-        $d = haversineMiles((float)$row['base_lat'], (float)$row['base_lng'], $lat, $lng);
+        // The nearer of the two, because either one being in range is what
+        // makes this company coverage. Measuring only the yard would throw away
+        // the very truck that qualified the row.
+        $d = null;
+        if ($row['base_lat'] !== null && $row['base_lng'] !== null) {
+            $d = haversineMiles((float)$row['base_lat'], (float)$row['base_lng'], $lat, $lng);
+        }
+        if ($row['dev_lat'] !== null && $row['dev_lng'] !== null) {
+            $dDev = haversineMiles((float)$row['dev_lat'], (float)$row['dev_lng'], $lat, $lng);
+            $d = $d === null ? $dDev : min($d, $dDev);
+        }
+        if ($d === null) continue;
+
         // Either we are inside their stated service radius, or they are inside
         // ours. Towers understate their radius constantly; the second test stops
         // an entire city reading as uncovered because everyone typed 15 miles.
