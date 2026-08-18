@@ -102,6 +102,7 @@ li{margin-bottom:4px}
 </style>
 </head>
 <body>
+<?php $navAudience = 'customer'; require __DIR__ . '/includes/site-header.php'; ?>
 <div class="card" id="card">
   <img class="mark" src="assets/logo-96.png?v=1" alt="" width="44" height="38">
   <div class="spin"></div>
@@ -190,5 +191,6 @@ async function resume(){
 
 run();
 </script>
+<?php require __DIR__ . '/includes/site-footer.php'; ?>
 </body>
 </html>

@@ -123,11 +123,7 @@ mark.todo{
 </head>
 <body>
 
-<div class="top">
-  <a class="brand" href="tow">TowSling</a>
-  <div class="sp"></div>
-  <button onclick="tlToggle()" id="langBtn">English</button>
-</div>
+<?php $navAudience = 'customer'; require __DIR__ . '/includes/site-header.php'; ?>
 
 <div class="tabs" id="tabs"></div>
 
@@ -191,5 +187,6 @@ window.tlToggle = function(){ _toggle(); load(); };
 
 load();
 </script>
+<?php require __DIR__ . '/includes/site-footer.php'; ?>
 </body>
 </html>

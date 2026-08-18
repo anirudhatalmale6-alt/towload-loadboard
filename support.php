@@ -137,11 +137,7 @@ input::placeholder,textarea::placeholder{color:#aab4c4}
 </head>
 <body>
 
-<div class="top">
-  <a class="brand" href="./"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</a>
-  <button class="lang" id="langBtn" onclick="tlToggle()">English</button>
-</div>
-
+<?php $navAudience = 'customer'; require __DIR__ . '/includes/site-header.php'; ?>
 <div class="wrap">
   <h1 data-i18n="sup.h">Support</h1>
   <p class="lead" data-i18n="sup.lead">Tell us what happened and we will reply by email. You do not need an account.</p>
@@ -199,13 +195,7 @@ input::placeholder,textarea::placeholder{color:#aab4c4}
   </div>
 </div>
 
-<div class="foot">
-  <a href="./" data-i18n="sup.f_home">Request a tow</a> ·
-  <a href="terms" data-i18n="sup.f_terms">Terms</a> ·
-  <a href="privacy" data-i18n="sup.f_privacy">Privacy</a><br>
-  <span data-i18n="foot.licensed">Licensed, insured, document-verified companies only</span>
-</div>
-
+<?php require __DIR__ . '/includes/site-footer.php'; ?>
 <script src="i18n.js?v=20260816w"></script>
 <script src="presence.js?v=20260816w" defer></script>
 <script>

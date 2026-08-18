@@ -187,11 +187,7 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
 </head>
 <body>
 
-<div class="top">
-  <div class="brand"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</div>
-  <button id="langBtn" onclick="tlToggle()" style="margin-left:auto;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13.5px;font-weight:700;color:var(--ink-2);margin-right:12px">English</button>
-  <a class="login" href="tow" data-i18n="nav.operator_login">Operator login →</a>
-</div>
+<?php $navAudience = 'operator'; require __DIR__ . '/includes/site-header.php'; ?>
 
 <!-- The confirmation card is moved in here once signup succeeds. It used to
      stay where the form was, at the very bottom of a long marketing page, and
@@ -334,10 +330,9 @@ legend{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--i
   </div>
 </div>
 
-<div class="foot">TowSling · <span data-i18n="foot.licensed">Licensed, insured, document-verified companies only</span></div>
-
-<script src="i18n.js?v=20260818n"></script>
-<script src="presence.js?v=20260818n" defer></script>
+<?php require __DIR__ . '/includes/site-footer.php'; ?>
+<script src="i18n.js?v=20260818p"></script>
+<script src="presence.js?v=20260818p" defer></script>
 <script>
 const API = 'api';
 

@@ -156,12 +156,7 @@ a{color:var(--accent)}
 </head>
 <body>
 
-<div class="top">
-  <a class="brand" href="join"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</a>
-  <button id="langBtn" onclick="tlToggle()" style="margin-left:auto;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:13.5px;font-weight:700;color:var(--ink-2);margin-right:12px">English</button>
-  <a class="login" href="tow" data-i18n="nav.operator_login">Operator login →</a>
-</div>
-
+<?php $navAudience = 'operator'; require __DIR__ . '/includes/site-header.php'; ?>
 <div class="hero">
   <h1><span data-i18n="hw.hero_1">How it works,</span> <em data-i18n="hw.hero_2">start to finish.</em></h1>
   <p data-i18n="hw.hero_sub">Written for towing companies. What we check before your first job, how work reaches you, who sets the price, and exactly when the money lands.</p>
@@ -319,15 +314,10 @@ a{color:var(--accent)}
   <div class="small" data-i18n-html="hw.cta_s">Already with us? <a href="tow">Open your dashboard</a></div>
 </div>
 
-<div class="foot">
-  <a href="join" data-i18n="hw.f_join">For operators</a>
-  <a href="/" data-i18n="hw.f_tow">Need a tow</a>
-  <a href="support" data-i18n="hw.f_support">Support</a>
-  <a href="terms" data-i18n="hw.f_terms">Terms</a>
-  <div style="margin-top:10px">© TowSling</div>
+<?php require __DIR__ . '/includes/site-footer.php'; ?>
 </div>
 
-<script src="i18n.js?v=20260818n"></script>
-<script src="presence.js?v=20260818n" defer></script>
+<script src="i18n.js?v=20260818p"></script>
+<script src="presence.js?v=20260818p" defer></script>
 </body>
 </html>

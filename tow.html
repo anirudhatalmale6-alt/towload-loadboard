@@ -479,7 +479,10 @@ input::placeholder{color:#aab4c4}
 <body>
 
 <div class="top">
-  <div class="brand"><img class="mark" src="assets/logo-96.png?v=1" alt="" width="35" height="30">TowSling</div>
+  <!-- A link, like every other page. "./" and not "/" on purpose: on
+       /track/{token} the <base> set above resolves this to the app root, so the
+       logo on a customer's receipt takes them home instead of to /track/. -->
+  <a class="brand" href="./" style="text-decoration:none;color:inherit"><img class="mark" src="assets/logo-96.png?v=1" alt="TowSling" width="35" height="30">TowSling</a>
   <div class="live" id="liveBadge"><span class="dot"></span><span id="liveTxt" data-i18n="c.drivers_available">Drivers available</span></div>
   <button id="langBtn" onclick="tlToggle()" style="margin-left:12px;background:var(--wash);border:1px solid var(--line);border-radius:8px;padding:6px 11px;font-size:13px;font-weight:700;color:var(--ink-2)">English</button>
 </div>
@@ -558,7 +561,10 @@ input::placeholder{color:#aab4c4}
         <label data-i18n="c.make_model">Year, make and model</label>
         <input id="vehicle" data-i18n-ph="c.ph_vehicle" placeholder="e.g. 2019 Honda Accord">
       </div>
-      <div class="f">
+      <!-- Tow only. Whether the wheels turn decides flatbed vs wheel lift and
+           carries a surcharge; on a jump start or a lockout the truck is not
+           lifting anything, so the question has no answer worth having. -->
+      <div class="f" id="wheelsWrap">
         <label data-i18n="c.q_wheels">Do the wheels roll?</label>
         <div class="yn" data-yn="wheels">
           <button class="on" data-v="1" data-i18n="c.yes">Yes</button><button data-v="0" data-i18n="c.no">No</button>
@@ -570,7 +576,7 @@ input::placeholder{color:#aab4c4}
            is it cooked, is it wrecked — was not being asked at all.
            Accident is still one of the answers, and picking it applies the
            same surcharge and raises the same flag on the board as before. -->
-      <div class="f">
+      <div class="f" id="problemWrap">
         <label for="problem" data-i18n="c.q_problem">What is wrong with it?</label>
         <select id="problem">
           <option value=""             data-i18n="c.pr_pick">Choose one…</option>
@@ -761,10 +767,33 @@ $('svcOpts').addEventListener('click', e => {
   const b = e.target.closest('.opt'); if(!b) return;
   $('svcOpts').querySelectorAll('.opt').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); S.svc = b.dataset.svc;
-  // Only a tow needs a destination — asking a locked-out driver where to take
-  // their car is a question that makes the product feel broken.
-  $('dropWrap').classList.toggle('hide', S.svc !== 'tow');
+  towOnlyFields();
 });
+
+// Three questions that only a tow has an answer to.
+//
+// Asking a locked-out driver where to take the car, whether the wheels turn,
+// and what is wrong with the engine is three chances to feel like the product
+// was not built for the thing he actually needs.
+//
+// The values are RESET as well as hidden. Somebody who starts a tow, picks
+// "accident" and "wheels do not roll", then changes to Locked out would
+// otherwise carry both surcharges into a job where a man turns up with a
+// slim jim — the fields are invisible, so nothing on screen would explain the
+// price.
+function towOnlyFields(){
+  const isTow = S.svc === 'tow';
+  ['dropWrap','wheelsWrap','problemWrap'].forEach(id => {
+    const el = $(id); if(el) el.classList.toggle('hide', !isTow);
+  });
+  if(!isTow){
+    S.problem = ''; if($('problem')) $('problem').value = '';
+    S.wheels = 1;
+    document.querySelectorAll('[data-yn="wheels"] button').forEach(x => {
+      x.classList.toggle('on', x.dataset.v === '1');
+    });
+  }
+}
 document.querySelectorAll('[data-cls]').forEach(b => b.onclick = () => {
   b.parentElement.querySelectorAll('.opt').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); S.cls = b.dataset.cls;
@@ -871,8 +900,18 @@ async function getQuote(){
   // Read it here rather than on a change event. The quote and the confirm both
   // send this value and they have to agree — the signed quote is fingerprinted
   // on it, and a mismatch silently re-prices the job.
-  S.problem = $('problem').value;
-  if(!S.problem){ $('problem').focus(); return err(t('c.err_problem')); }
+  //
+  // Required on a tow, and ONLY on a tow. The field is hidden for a jump start
+  // or a lockout, and demanding it anyway refuses the quote and calls focus()
+  // on an invisible select — the customer gets an error about a question that
+  // is not on his screen and cannot be answered. That is a dead end, not a
+  // validation.
+  if(S.svc === 'tow'){
+    S.problem = $('problem').value;
+    if(!S.problem){ $('problem').focus(); return err(t('c.err_problem')); }
+  } else {
+    S.problem = '';
+  }
 
   // Typed an address and never tapped a suggestion: look it up, rather than
   // refusing — or worse, quoting against wherever they happened to be before.
@@ -903,8 +942,15 @@ async function getQuote(){
   const body = {
     service_type:S.svc, vehicle_class:S.cls,
     pickup_lat:pk.lat, pickup_lng:pk.lng,
-    problem:S.problem || null, wheels_lock:!!S.wheels, has_keys:true
+    has_keys:true
   };
+  // Sent only on a tow. The server treats an ABSENT wheels_lock as "the
+  // customer was never asked" and prices it clean; sending a value we hid from
+  // the screen would be inventing an answer on his behalf.
+  if(S.svc === 'tow'){
+    body.problem = S.problem || null;
+    body.wheels_lock = !!S.wheels;
+  }
   // The drop-off can be priced properly now that it carries real coordinates.
   // Quoting without it and then booking with it would show one price and
   // charge another, so both calls have to see the same destination.
@@ -1042,7 +1088,7 @@ async function submitRequest(){
     pickup_state: pk.state || null,
     pickup_zip:   pk.zip   || null,
     customer_name:name, customer_phone:phone, customer_email:$('cEmail').value.trim(),
-    problem:S.problem || null, wheels_lock:!!S.wheels, has_keys:true,
+    has_keys:true,
     accept_terms:true,
     // Locks in the price they were actually shown. Without this the job would
     // be re-priced at confirm time and could come back higher than the number
@@ -1050,6 +1096,13 @@ async function submitRequest(){
     quote_token:(S.quote && S.quote.quote_token) || null,
     utm_source:new URLSearchParams(location.search).get('utm_source') || 'direct'
   };
+  // Same rule as the quote: only a tow answers these, and the quote the
+  // customer accepted was priced without them. Sending them here and not there
+  // would show one price and book another.
+  if(S.svc === 'tow'){
+    body.problem = S.problem || null;
+    body.wheels_lock = !!S.wheels;
+  }
   const v = $('vehicle').value.trim().split(' ');
   if(v.length){ body.vehicle_year=v[0]||null; body.vehicle_make=v[1]||null; body.vehicle_model=v.slice(2).join(' ')||null; }
   // Real coordinates now, from the suggestion the customer picked. This used to
