@@ -106,7 +106,8 @@ function requestWithdrawal(int $accountId): array {
         // The call's charge id comes along for the ride: each job is transferred
         // against the charge that paid for it.
         $sel = $pdo->prepare(
-            "SELECT p.id, p.net_amount, p.call_id, c.stripe_charge_id
+            "SELECT p.id, p.net_amount, p.call_id, p.attempt_no, p.stripe_transfer_id,
+                    c.stripe_charge_id
                FROM payouts p
                LEFT JOIN calls c ON c.id = p.call_id
               WHERE p.tower_account_id = :a AND p.status = 'pending' AND p.withdrawal_id IS NULL
@@ -150,9 +151,40 @@ function requestWithdrawal(int $accountId): array {
     $paid = 0.0; $failed = []; $transferIds = [];
 
     foreach ($rows as $r) {
+        // A payout that has been tried before might already be sent: Stripe can
+        // have created the transfer and we can have lost the answer. Ask Stripe
+        // before spending money again. Only on a retry — the first attempt has
+        // nothing to find and does not deserve the extra round trip.
+        if ((int)$r['attempt_no'] > 0 && empty($r['stripe_transfer_id'])) {
+            $existing = payoutAlreadyTransferred((int)$r['id']);
+            if ($existing === null) {
+                // Could not reach Stripe to check. Refusing is the safe answer;
+                // sending and hoping is how somebody gets paid twice.
+                $failed[] = t('err.wd_check_failed');
+                $pdo->prepare("UPDATE payouts SET withdrawal_id = NULL, failure_reason = :r WHERE id = :id")
+                    ->execute([':r' => 'Could not confirm with Stripe whether this was already sent',
+                               ':id' => $r['id']]);
+                continue;
+            }
+            if ($existing !== []) {
+                // Already gone. Record it as paid rather than sending twice.
+                $paid += (float)$r['net_amount'];
+                $transferIds[] = $existing['id'] ?? null;
+                $pdo->prepare("UPDATE payouts SET status='paid', paid_at=NOW(),
+                                      stripe_transfer_id=:t, failure_reason=NULL
+                                WHERE id = :id")
+                    ->execute([':t' => $existing['id'] ?? null, ':id' => $r['id']]);
+                continue;
+            }
+        }
+
+        $attempt = (int)$r['attempt_no'] + 1;
+        $pdo->prepare("UPDATE payouts SET attempt_no = :n WHERE id = :id")
+            ->execute([':n' => $attempt, ':id' => $r['id']]);
+
         $res = stripeTransferToTower(
             (int)$r['id'], $stripeAccountId, (float)$r['net_amount'],
-            (int)$r['call_id'], $r['stripe_charge_id'] ?: null, $withdrawalId
+            (int)$r['call_id'], $r['stripe_charge_id'] ?: null, $withdrawalId, $attempt
         );
 
         if (!empty($res['ok'])) {
@@ -195,9 +227,19 @@ function requestWithdrawal(int $accountId): array {
             ':id'  => $withdrawalId,
         ]);
 
+    // 'amount' is what LEFT. 'requested' is what the button offered. When they
+    // differ the caller has to say so — "$49.50 is on its way" under a balance
+    // reading $678.19, with six jobs silently bounced back, is a screen that
+    // reads as success and is not one.
     return [
-        'ok' => true, 'withdrawal_id' => $withdrawalId, 'amount' => $paid,
-        'jobs_sent' => count($transferIds), 'jobs_failed' => count($failed),
+        'ok'            => true,
+        'withdrawal_id' => $withdrawalId,
+        'amount'        => $paid,
+        'requested'     => $total,
+        'held_back'     => round($total - $paid, 2),
+        'jobs_sent'     => count($transferIds),
+        'jobs_failed'   => count($failed),
+        'failure_reason'=> $failed[0] ?? null,
     ];
 }
 

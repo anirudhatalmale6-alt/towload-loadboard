@@ -211,19 +211,23 @@ function stripeCreateCustomer(array $account): array {
  */
 function stripeTransferToTower(int $payoutId, string $stripeAccountId, float $netAmount,
                               int $callId, ?string $sourceCharge = null,
-                              ?int $withdrawalId = null): array {
+                              ?int $withdrawalId = null, int $attempt = 1): array {
     $params = [
         'amount'      => (int)round($netAmount * 100),
         'currency'    => 'usd',
         'destination' => $stripeAccountId,
         'description' => 'Call #' . $callId . ' payout',
+        // Constant for the life of this payout, whatever attempt we are on.
+        // Everything varying was moved out — see the idempotency note below.
+        'transfer_group' => 'payout_' . $payoutId,
         'metadata[towload_payout_id]' => (string)$payoutId,
         'metadata[towload_call_id]'   => (string)$callId,
     ];
-    // So a reversal can find the withdrawal this job was part of. Without it
-    // the webhook can only see the payout, and a reversed transfer would leave
-    // the withdrawal still reading "paid".
-    if ($withdrawalId) $params['metadata[towsling_withdrawal_id]'] = (string)$withdrawalId;
+    // The withdrawal this job went out under is NOT sent to Stripe. It used to
+    // be, as metadata, so a reversal webhook could find it — but it changes on
+    // every retry, and see below for what that cost. The webhook now reads
+    // payouts.withdrawal_id instead, which is the same fact from the row that
+    // owns it.
 
     // Earmark the transfer against the charge that paid for this job.
     //
@@ -245,8 +249,52 @@ function stripeTransferToTower(int $payoutId, string $stripeAccountId, float $ne
     // single charge behind it.
     if ($sourceCharge) $params['source_transaction'] = $sourceCharge;
 
+    // ─── Why the key has an attempt number in it ────────────────────────────
+    //
+    // It used to be plain 'payout_<id>', with a withdrawal id riding along in
+    // the metadata. The withdrawal id changes every time somebody presses the
+    // button, so the SECOND attempt at any payout sent the same key with
+    // different parameters and Stripe refused it:
+    //
+    //   "Keys for idempotent requests can only be used with the same
+    //    parameters they were first used with. Try using a key other than
+    //    'payout_18'."
+    //
+    // Which made a first failure permanent. The job could never be retried,
+    // the real reason for the original failure was overwritten by this one,
+    // and the money sat in the balance looking withdrawable forever.
+    //
+    // Now the key names the attempt, and every parameter above is constant for
+    // a given payout — so a key can never be reused with different parameters
+    // again. A network retry inside one attempt still collapses to one
+    // transfer, which is the thing an idempotency key is actually for.
+    //
+    // Stripe expires keys after 24h anyway, so this was never the last line of
+    // defence against paying twice. That is withdrawalTransferAlreadyExists()
+    // plus the stripe_transfer_id check in withdraw().
     return stripeRequest('POST', '/transfers', $params,
-        ['idempotency_key' => 'payout_' . $payoutId]);
+        ['idempotency_key' => 'payout_' . $payoutId . '_try' . max(1, $attempt)]);
+}
+
+/**
+ * Has this payout already been transferred, whatever our own row says?
+ *
+ * The dangerous case for retrying is not "Stripe said no" — it is "Stripe said
+ * yes and we never heard it". The row then reads failed while the money is
+ * gone, and a retry would send it a second time. transfer_group is constant
+ * per payout, so this asks Stripe directly rather than trusting our own record.
+ */
+function payoutAlreadyTransferred(int $payoutId): ?array {
+    $res = stripeRequest('GET', '/transfers', [
+        'transfer_group' => 'payout_' . $payoutId,
+        'limit'          => 10,
+    ]);
+    if (empty($res['ok'])) return null;          // cannot tell — caller decides
+    foreach (($res['data']['data'] ?? []) as $t) {
+        if (!empty($t['reversed'])) continue;    // reversed = genuinely not paid
+        return $t;
+    }
+    return [];                                   // asked, and there is none
 }
 
 // ─── WEBHOOK SIGNATURE ───────────────────────────────────────────────────────

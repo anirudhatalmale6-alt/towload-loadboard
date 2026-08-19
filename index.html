@@ -1525,7 +1525,13 @@ async function doWithdraw(){
   }
   await renderMoneyPane();
   const m2 = document.getElementById('wdMsg');
-  if(m2){ m2.textContent = r.message || ''; m2.style.color = 'var(--green)'; }
+  // Amber, not green, when only part of it went. A half-failed withdrawal
+  // printed in success green reads as "done" — which is exactly how somebody
+  // believes a $678 balance reached their bank when $49 did.
+  if(m2){
+    m2.textContent = r.message || '';
+    m2.style.color = r.partial ? 'var(--amber, #b45309)' : 'var(--green)';
+  }
 }
 
 async function connectBank(){
