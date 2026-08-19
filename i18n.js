@@ -276,6 +276,7 @@ es: {
   'c.bar_on_way':        'Su grúa viene en camino',
   'c.bar_here':          'Su grúa ya llegó',
   'c.map_approx':        'Posición aproximada',
+  'c.map_follow':        'Seguir la grúa',
   'c.map_waiting':       'Esperando a que la grúa salga',
 
   /* operator board */
@@ -1112,6 +1113,7 @@ en: {
   'c.bar_on_way':        'Your truck is on the way',
   'c.bar_here':          'Your truck has arrived',
   'c.map_approx':        'Approximate position',
+  'c.map_follow':        'Follow the truck',
   'c.map_waiting':       'Waiting for your truck to set off',
 
   'o.available_jobs':    'Available jobs',

@@ -305,6 +305,17 @@ input::placeholder{color:#aab4c4}
 .map-eta.stale{background:rgba(90,80,20,.94)}
 /* Sits under the ETA, quieter than it. The number is the thing the customer
    came for; the caveat must be readable without competing with it. */
+/* Offered only after the customer has taken the map over. Bottom-centre so it
+   never sits under the ETA badge or the zoom control, both of which are pinned
+   to the top. */
+.map-follow{
+  position:absolute;left:50%;bottom:12px;transform:translateX(-50%);
+  background:rgba(11,18,32,.94);color:#fff;border:0;border-radius:99px;
+  padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer;
+  box-shadow:0 4px 16px rgba(0,0,0,.3);backdrop-filter:blur(6px);
+  z-index:5;white-space:nowrap;
+}
+.map-follow:active{transform:translateX(-50%) scale(.97)}
 .map-eta .approx{
   display:block;font-size:10.5px;font-weight:600;opacity:.72;
   letter-spacing:.2px;margin-top:2px;
@@ -754,6 +765,8 @@ input::placeholder{color:#aab4c4}
     <div id="mapWrap">
       <div id="map"></div>
       <div class="map-eta" id="mapEta"></div>
+      <button type="button" class="map-follow hide" id="mapFollow"
+              onclick="resumeFollowing()" data-i18n="c.map_follow">Follow the truck</button>
     </div>
     <div id="driverBox"></div>
     <div id="reviewBox"></div>
@@ -1784,7 +1797,10 @@ function paintArrival(r, done){
    live. */
 const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null,
               fitted:false, pickup:null, loading:null, api:null,
-              progress:null, pinUrl:null };
+              progress:null, pinUrl:null,
+              // Whether the camera still follows the truck. Starts true and is
+              // only ever turned off by the customer touching the map.
+              follow:true, programmatic:false, mode:null };
 
 /* The markers are SVG data URIs rather than styled HTML.
    Google's HTML marker (AdvancedMarkerElement) needs a Map ID provisioned in
@@ -1886,6 +1902,13 @@ async function ensureMap(lat, lng){
         { featureType:'poi.business',     stylers:[{visibility:'off'}] },
       ],
     });
+
+    // Any real gesture hands control to the customer. dragstart only fires for
+    // a user drag, so it needs no guard; zoom_changed fires for our own camera
+    // moves too, which is what MAP.programmatic is for.
+    MAP.map.addListener('dragstart',    () => stopFollowing());
+    MAP.map.addListener('zoom_changed', () => stopFollowing());
+
     return MAP.map;
   })();
   return MAP.loading;
@@ -1964,21 +1987,151 @@ async function drawTruck(lat, lng, etaMinutes, stale, approximate){
     });
   }
 
-  // Fit both once. Refitting on every update fights the customer every time
-  // they try to pan, which is maddening on a phone.
-  if(!MAP.fitted && MAP.pin){
-    const b = new MAP.api.LatLngBounds();
-    b.extend({lat, lng});
-    b.extend({lat: MAP.pickup.lat, lng: MAP.pickup.lng});
-    m.fitBounds(b, 45);
+  keepInFrame({lat, lng});
+}
+
+/* ── keeping the truck on screen ────────────────────────────────────────────
+
+   The map used to fit both points ONCE and then never move again, so on a long
+   approach the marker simply walked off the edge and the customer was left
+   watching an empty street.
+
+   The opposite — recentring on every update — is worse on a phone: it snatches
+   the map back the instant anybody tries to look somewhere, which is exactly
+   why it was written as a one-off in the first place.
+
+   So: follow by default, and stop the moment the customer touches the map.
+   A button brings it back. Nothing here ever moves the map while they are
+   reading it. */
+
+function insetBounds(b, frac){
+  const ne = b.getNorthEast(), sw = b.getSouthWest();
+  const dLat = (ne.lat() - sw.lat()) * frac;
+  const dLng = (ne.lng() - sw.lng()) * frac;
+  return new MAP.api.LatLngBounds(
+    {lat: sw.lat() + dLat, lng: sw.lng() + dLng},
+    {lat: ne.lat() - dLat, lng: ne.lng() - dLng}
+  );
+}
+
+/* Our own camera moves fire the same events a user gesture does, so they are
+   flagged and the flag is cleared once the map settles. Without this the first
+   fitBounds would immediately be read as "the customer panned" and following
+   would switch itself off before the truck had moved once. */
+function mapMoveProgrammatically(fn){
+  MAP.programmatic = true;
+  fn();
+  MAP.api.event.addListenerOnce(MAP.map, 'idle', () => { MAP.programmatic = false; });
+}
+
+function fitFrame(b){
+  mapMoveProgrammatically(() => {
+    MAP.map.fitBounds(b, 45);
     // fitBounds on two points a few streets apart zooms in far enough to lose
     // all context, so cap it the way the Leaflet version's maxZoom did.
-    MAP.api.event.addListenerOnce(m, 'idle', () => {
-      if(m.getZoom() > 16) m.setZoom(16);
+    MAP.api.event.addListenerOnce(MAP.map, 'idle', () => {
+      if(MAP.map.getZoom() > 16) MAP.map.setZoom(16);
     });
+  });
+}
+
+/* Straight-line miles. Only ever used to choose a camera mode, so the crow
+   flying over a bay rather than round it does not matter here. */
+function milesBetween(a, b){
+  const R = 3958.8, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const s1 = Math.sin(dLat/2), s2 = Math.sin(dLng/2);
+  const h = s1*s1 + Math.cos(a.lat*rad) * Math.cos(b.lat*rad) * s2*s2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/* Close enough that showing the truck AND the customer together is still
+   readable. Beyond this the two are framed so far apart that the truck is a
+   dot creeping across a static picture — which is the thing that reads as a
+   map that does not move. */
+const FRAME_BOTH_MILES = 2.5;
+/* Street level. Close enough to see which road he is on, wide enough that a
+   turn does not throw him off the screen between updates. */
+const FOLLOW_ZOOM = 15;
+
+function keepInFrame(pos){
+  if(!MAP.map || !MAP.api) return;
+  const pickup = MAP.pickup ? {lat: MAP.pickup.lat, lng: MAP.pickup.lng} : null;
+  const near = pickup ? milesBetween(pos, pickup) <= FRAME_BOTH_MILES : false;
+
+  const both = new MAP.api.LatLngBounds();
+  both.extend(pos);
+  if(pickup) both.extend(pickup);
+
+  // First paint: frame both if they are close, otherwise start on the truck.
+  if(!MAP.fitted && MAP.pin){
+    if(near) fitFrame(both);
+    else mapMoveProgrammatically(() => { MAP.map.setCenter(pos); MAP.map.setZoom(FOLLOW_ZOOM); });
     MAP.fitted = true;
+    return;
+  }
+  if(!MAP.fitted || !MAP.follow) return;
+
+  // ── Still a long way out: travel WITH him ────────────────────────────────
+  //
+  // The camera rides the truck at street level, so the map itself moves the
+  // whole way in. Fitting both points instead would be technically correct and
+  // useless: on a forty mile approach it zooms out until the truck is a pixel
+  // that appears not to move at all.
+  if(!near){
+    mapMoveProgrammatically(() => {
+      MAP.map.panTo(pos);
+      // Only forced on the way IN to this mode, never on every update — a
+      // customer who pinched out has already turned following off, and
+      // restating the zoom each time would undo a legitimate zoom otherwise.
+      if(MAP.mode !== 'truck'){ MAP.map.setZoom(FOLLOW_ZOOM); MAP.mode = 'truck'; }
+    });
+    return;
   }
 
+  // ── Close in: show them both, so the customer can see him arriving ───────
+  if(MAP.mode !== 'both'){
+    fitFrame(both);
+    MAP.mode = 'both';
+    return;
+  }
+
+  // Already framing both. Nudge only when something nears an edge — moving the
+  // camera on every position would make it twitch continuously while the truck
+  // crosses the middle of the screen, which reads as broken rather than live.
+  const view = MAP.map.getBounds();
+  if(!view) return;
+  const safe = insetBounds(view, 0.16);
+  if(safe.contains(pos) && (!pickup || safe.contains(pickup))) return;
+
+  const span = view.toSpan(), need = both.toSpan();
+  if(need.lat() < span.lat() * 0.8 && need.lng() < span.lng() * 0.8){
+    mapMoveProgrammatically(() => MAP.map.panToBounds(both, 45));
+  } else {
+    fitFrame(both);
+  }
+}
+
+/* The customer took the wheel. Stop moving the map under them and offer it
+   back — never take it back on our own. */
+function stopFollowing(){
+  if(MAP.programmatic || !MAP.follow) return;
+  MAP.follow = false;
+  const btn = $('mapFollow');
+  if(btn) btn.classList.remove('hide');
+}
+
+function resumeFollowing(){
+  MAP.follow = true;
+  const btn = $('mapFollow');
+  if(btn) btn.classList.add('hide');
+  if(!MAP.truck) return;
+  // Forget which mode we were in so the camera is composed from scratch.
+  // Nudging from wherever they had panned to leaves the truck technically on
+  // screen and stuck in a corner, which is not what "follow" was asked for.
+  MAP.mode = null;
+  const p = MAP.truck.getPosition();
+  keepInFrame({lat: p.lat(), lng: p.lng()});
 }
 
 /* The map before the truck has moved.
