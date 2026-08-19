@@ -1384,7 +1384,19 @@ function setPollRates(status, map){
   if(status !== POLL_MS){ POLL_MS = status; clearInterval(pollTimer); pollTimer = setInterval(poll, POLL_MS); }
   if(map !== MAP_MS){     MAP_MS = map;     clearInterval(mapTimer);  mapTimer  = setInterval(pollMap, MAP_MS); }
 }
-function onRealtimeUp(){   setPollRates(45000, 60000); }
+/* The socket makes things instant; the POLL is what makes them certain.
+
+   The map floor stays deliberately short even with a healthy socket. A
+   connected socket is not the same as a socket that has anything to say: it
+   only carries events for the paths that publish them, so anything that moves
+   the truck by another route is invisible to it until the next poll. At 60s
+   that was a frozen map on the one screen we call live tracking — the operator
+   reported it as "it only updates when I reload", and reloading is just a poll
+   you performed by hand.
+
+   The status poll can afford 45s: job.changed is published from every place a
+   job's status changes, so the socket really does cover it. */
+function onRealtimeUp(){   setPollRates(45000, 20000); }
 function onRealtimeDown(){ setPollRates(6000, 8000); }
 
 function startTracking(){

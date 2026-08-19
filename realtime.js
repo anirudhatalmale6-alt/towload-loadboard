@@ -7,9 +7,15 @@
    that drops, lies, or never connects at all costs one polling interval and
    nothing else.
 
-   The polling timers stay exactly as they are. This makes them feel instant;
-   it does not replace them. A realtime layer that the product DEPENDS on is a
-   single point of failure sitting between a stranded customer and a truck.
+   Polling is never turned off. It IS slowed while the socket looks healthy —
+   see onRealtimeUp — and that slowdown is the dangerous part: a connected
+   socket is not a socket with anything to say. It only carries the events
+   somebody remembered to publish, so any path that changes state without
+   publishing becomes invisible for a whole polling interval. Keep the floor
+   short enough that such a gap is an inconvenience rather than a frozen screen.
+
+   A realtime layer the product DEPENDS on is a single point of failure sitting
+   between a stranded customer and a truck.
    ══════════════════════════════════════════════════════════════════════════ */
 
 const TLRealtime = (() => {

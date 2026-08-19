@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/realtime.php';
+require_once __DIR__ . '/../includes/tracking.php';
 require_once __DIR__ . '/../includes/webpush.php';
 require_once __DIR__ . '/../includes/notify.php';   // settingWrite()
 
@@ -228,6 +230,41 @@ if ($method === 'POST' && $action === 'location') {
         "UPDATE push_subscriptions SET $sets WHERE endpoint_hash = :h AND account_id = :a"
     );
     $stmt->execute($bind);
+
+    // ── Push it to anyone watching this driver arrive ───────────────────────
+    //
+    // Until now the ONLY thing that emitted truck.moved was /tracking/ping, so
+    // a customer whose driver is on a build without per-job tracking sat on a
+    // connected, permanently silent socket. The page slows its map poll right
+    // down while the socket looks healthy, so the marker only caught up on the
+    // next poll — or, as the operator put it, "it updates when I reload".
+    //
+    // Publishes customerTrackingView() rather than the raw lat/lng that just
+    // arrived: that function decides which of the two positions the customer is
+    // allowed to see and how stale it is, and a socket that bypasses it would
+    // put a marker on screen the feed then contradicts on its next poll.
+    if ($stmt->rowCount() > 0) {
+        try {
+            $live = getDB()->prepare(
+                "SELECT * FROM calls
+                  WHERE awarded_tower_account_id = :a
+                    AND status IN ('awarded','en_route','on_scene','in_progress')"
+            );
+            $live->execute([':a' => $accountId]);
+            foreach ($live->fetchAll() as $call) {
+                if (empty($call['tracking_token'])) continue;
+                $view = customerTrackingView($call);
+                if (!$view) continue;
+                rtTruckMoved($call['tracking_token'],
+                             (float)$view['lat'], (float)$view['lng'],
+                             $view['eta_minutes'] ?? null);
+            }
+        } catch (Throwable $e) {
+            // Never let the notification sink the position write. The poll is
+            // still there and will carry it.
+            error_log('[push] could not publish coarse move: ' . $e->getMessage());
+        }
+    }
 
     // A device that is not registered yet is not an error worth shouting about
     // — the app registers on sign-in and may simply not have got there. Say so
