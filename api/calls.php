@@ -155,15 +155,49 @@ if ($method === 'GET' && $action === 'board') {
     $profile = $stmt->fetch();
     if (!$profile) errorResponse('Tower profile not found', 404);
 
-    $lat = isset($_GET['lat']) ? (float)$_GET['lat'] : (float)$profile['base_lat'];
-    $lng = isset($_GET['lng']) ? (float)$_GET['lng'] : (float)$profile['base_lng'];
-    if (!$lat || !$lng) {
-        errorResponse('Set your base location in your profile so we can show you nearby calls');
+    // ─── Where is this company? ──────────────────────────────────────────────
+    //
+    // Two places, not one: the yard, and whichever truck last reported in. A
+    // job counts as near if EITHER is near it.
+    //
+    // Measuring from the yard alone was the bug the alerts had already been
+    // fixed for and this had not. A driver 98 miles from his yard and 4 miles
+    // from a job got the buzz in his pocket and then an empty board, because
+    // the two ends of the same feature were measuring from different points.
+    //
+    // An explicit lat/lng from the caller overrides both — that is somebody
+    // dragging the map to look at another area on purpose, and second-guessing
+    // it with the yard would put back jobs they just panned away from.
+    $explicit = isset($_GET['lat']) && isset($_GET['lng'])
+                && (float)$_GET['lat'] && (float)$_GET['lng'];
+
+    $yardLat = (float)$profile['base_lat'] ?: null;
+    $yardLng = (float)$profile['base_lng'] ?: null;
+    $device  = $explicit ? null : freshDevicePosition((int)$user['account_id']);
+
+    if ($explicit) {
+        $origins = [['lat' => (float)$_GET['lat'], 'lng' => (float)$_GET['lng'], 'from' => 'map']];
+    } else {
+        $origins = [];
+        if ($yardLat && $yardLng) $origins[] = ['lat' => $yardLat, 'lng' => $yardLng, 'from' => 'yard'];
+        if ($device) $origins[] = ['lat' => $device['lat'], 'lng' => $device['lng'], 'from' => 'truck'];
     }
 
-    $radius = isset($_GET['radius'])
-        ? (float)$_GET['radius']
-        : (float)$profile['service_radius_miles'];
+    if (!$origins) {
+        // Reachable for a company that has not set its yard yet and has no
+        // phone reporting. Say both ways out, not just the one.
+        errorResponse('Set your yard address in My company — or turn on location in the app — so we can show you nearby jobs');
+    }
+
+    if (isset($_GET['radius'])) {
+        $radius = (float)$_GET['radius'];
+    } else {
+        // Never smaller than the distance we are willing to WAKE HIM for.
+        // Alerting on a job the board then hides is the same bug in a
+        // different disguise.
+        $radius = max((float)$profile['service_radius_miles'],
+                      (float)($profile['push_radius_miles'] ?? 0));
+    }
     $radius = max(1, min($radius, MAX_SEARCH_RADIUS_MILES));
 
     // No cron on this host. The board is the busiest authenticated page in the
@@ -172,7 +206,20 @@ if ($method === 'GET' && $action === 'board') {
     // nobody took. Rate-limited inside; costs nothing when it is not due.
     runSweepIfDue();
 
-    $box = boundingBox($lat, $lng, $radius);
+    // The union of a box around each origin. Still index-friendly, still
+    // followed by an exact distance test below — it only widens what the
+    // cheap prefilter lets through, and a job that passes the box but is
+    // genuinely far from both origins is dropped by the haversine.
+    $box = null;
+    foreach ($origins as $o) {
+        $b = boundingBox($o['lat'], $o['lng'], $radius);
+        $box = $box === null ? $b : [
+            'min_lat' => min($box['min_lat'], $b['min_lat']),
+            'max_lat' => max($box['max_lat'], $b['max_lat']),
+            'min_lng' => min($box['min_lng'], $b['min_lng']),
+            'max_lng' => max($box['max_lng'], $b['max_lng']),
+        ];
+    }
 
     // Bounding box first (uses the index), exact distance after. Doing it the
     // other way round means a full table scan on every board refresh.
@@ -207,8 +254,15 @@ if ($method === 'GET' && $action === 'board') {
 
     $out = [];
     foreach ($stmt->fetchAll() as $c) {
-        $distance = haversineMiles($lat, $lng, (float)$c['pickup_lat'], (float)$c['pickup_lng']);
-        if ($distance > $radius) continue;
+        // The nearer of yard and truck — one shared rule, in matching.php.
+        $near = towerDistanceToJob(
+            $explicit ? $origins[0]['lat'] : $yardLat,
+            $explicit ? $origins[0]['lng'] : $yardLng,
+            $device,
+            (float)$c['pickup_lat'], (float)$c['pickup_lng']
+        );
+        if ($near === null || $near['miles'] > $radius) continue;
+        $distance = $near['miles'];
 
         // Capability gate — don't show what they can't run.
         $capable = true;
@@ -219,6 +273,10 @@ if ($method === 'GET' && $action === 'board') {
 
         $row = publicCallRow($c);
         $row['distance_miles'] = round($distance, 1);
+        // Which position answered. "4.2 mi away" means something different when
+        // it is measured from the truck the driver is sitting in than from a
+        // yard he is two hours from, and he is about to commit to an ETA on it.
+        $row['distance_from']  = $explicit ? 'map' : $near['from'];
         $row['bid_count']      = (int)$c['bid_count'];
         $row['already_bid']    = !empty($c['my_bid_id']);
         $row['can_run']        = $capable;
@@ -236,7 +294,16 @@ if ($method === 'GET' && $action === 'board') {
     successResponse([
         'calls' => $out,
         'count' => count($out),
-        'search' => ['lat' => $lat, 'lng' => $lng, 'radius_miles' => $radius],
+        'search' => [
+            // Kept for older clients: the primary origin, as before.
+            'lat' => $origins[0]['lat'],
+            'lng' => $origins[0]['lng'],
+            'radius_miles' => $radius,
+            // What was actually searched from, so a support question about a
+            // missing job can be answered without a database session.
+            'origins'      => $origins,
+            'truck_seen_minutes_ago' => $device['age_minutes'] ?? null,
+        ],
         'can_accept' => $verification['ok'],
         'blocked_reason' => $verification['ok'] ? null : $verification['reason'],
         'verification' => $verification,

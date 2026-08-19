@@ -2395,7 +2395,7 @@ function render(){
         </details>` : ''}
       </div>
       <div class="c-side">
-        ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">${t('o.miles')}</span></div>` : ''}
+        ${c.distance_miles != null ? `<div class="dist">${c.distance_miles}<br><span style="color:var(--ink-faint);font-weight:400">${c.distance_from === 'truck' ? t('o.miles_truck') : c.distance_from === 'yard' ? t('o.miles_yard') : t('o.miles')}</span></div>` : ''}
         ${open ? `<div class="timer ${tcls}" data-deadline="${Date.now() + secs * 1000}"><div class="t">${mins}:${ss}</div><div class="l">${t('o.left')}</div></div>` : ''}
         <div class="pay">
           <div class="amt">${money(c.offer_amount)}</div>

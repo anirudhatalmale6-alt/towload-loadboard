@@ -65,6 +65,72 @@ function towerIsCapable(array $profile, array $call): bool {
     return true;
 }
 
+/**
+ * The most recent believable position reported by one of this company's phones,
+ * or null.
+ *
+ * Freshness is asked of MySQL, not of PHP: time() and NOW() are two clocks in
+ * two timezones unless somebody has made them agree, and comparing across them
+ * ages every fix by the offset.
+ */
+function freshDevicePosition(int $accountId, ?int $maxAgeMinutes = null): ?array {
+    $fresh = max(1, (int)($maxAgeMinutes
+                          ?? setting('push_location_max_age_minutes', 45)));
+    $stmt = getDB()->prepare(
+        "SELECT last_lat, last_lng,
+                TIMESTAMPDIFF(MINUTE, last_location_at, NOW()) AS age_minutes
+           FROM push_subscriptions
+          WHERE account_id = :a
+            AND is_active = 1
+            AND use_device_location = 1
+            AND last_lat IS NOT NULL AND last_lng IS NOT NULL
+            AND last_location_at > DATE_SUB(NOW(), INTERVAL :fresh MINUTE)
+          ORDER BY last_location_at DESC
+          LIMIT 1"
+    );
+    $stmt->execute([':a' => $accountId, ':fresh' => $fresh]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+    return [
+        'lat' => (float)$row['last_lat'],
+        'lng' => (float)$row['last_lng'],
+        'age_minutes' => (int)$row['age_minutes'],
+    ];
+}
+
+/**
+ * How far a company is from a job, and which of its two positions answered.
+ *
+ * A company is near a job if EITHER its yard is near it or one of its trucks is
+ * near it right now. Not "the truck if we know where it is, the yard otherwise"
+ * — that trades one blind spot for another, hiding the job round the corner
+ * from the yard whenever a driver happens to be out on a long drop.
+ *
+ * Every part of the product that asks "how far is this company from this job"
+ * must ask it here. The alert path measured from the truck and the board
+ * measured from the yard, so a phone rang for a job 4 miles away and the board
+ * — 98 miles from the yard — showed nothing. An alert for a job the operator
+ * cannot then find is worse than no alert: it reads as a broken product.
+ *
+ * Returns null only when we have neither position.
+ */
+function towerDistanceToJob(?float $yardLat, ?float $yardLng, ?array $device,
+                            float $jobLat, float $jobLng): ?array {
+    $best = null;
+
+    if ($yardLat && $yardLng) {
+        $best = ['miles' => haversineMiles($yardLat, $yardLng, $jobLat, $jobLng),
+                 'from'  => 'yard'];
+    }
+    if ($device !== null) {
+        $d = haversineMiles($device['lat'], $device['lng'], $jobLat, $jobLng);
+        if ($best === null || $d < $best['miles']) {
+            $best = ['miles' => $d, 'from' => 'truck'];
+        }
+    }
+    return $best;
+}
+
 /** Has this channel been confirmed, for the value currently on the account? */
 function verifiedFor(array $account, string $channel): bool {
     $at      = $account[$channel . '_verified_at'] ?? null;
