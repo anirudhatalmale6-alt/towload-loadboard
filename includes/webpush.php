@@ -486,6 +486,14 @@ function towersToAlert(array $call): array {
                -- Prefiltering on the yard alone was the whole bug: a driver
                -- forty miles out on the right side of a job was thrown away
                -- here, before distance was ever calculated.
+               -- Never wake a company for the job it just handed back. The
+               -- board hides it, the accept endpoint refuses it, and buzzing
+               -- a driver at 3am for work he has already declined is exactly
+               -- the wrong alert that gets notifications switched off at the
+               -- OS level, where we can neither see it nor undo it.
+               AND NOT EXISTS (SELECT 1 FROM call_releases cr
+                                WHERE cr.call_id = :released_call
+                                  AND cr.tower_account_id = s.account_id)
                AND (
                      (p.base_lat BETWEEN :minlat AND :maxlat
                       AND p.base_lng BETWEEN :minlng AND :maxlng)
@@ -508,6 +516,7 @@ function towersToAlert(array $call): array {
         ':minlat2' => $box['min_lat'], ':maxlat2' => $box['max_lat'],
         ':minlng2' => $box['min_lng'], ':maxlng2' => $box['max_lng'],
         ':fresh' => $freshMin, ':fresh3' => $freshMin,
+        ':released_call' => (int)($call['id'] ?? 0),
         ':need_contact' => (string)setting('require_verification_to_accept', '1') === '1' ? 1 : 0,
     ]);
 
@@ -536,27 +545,39 @@ function towersToAlert(array $call): array {
         // row on EITHER match, so a device with a stale fix arrives here having
         // qualified on its yard. location_fresh comes back from MySQL so both
         // tests are answered by the same clock.
-        $useDevice = !empty($row['use_device_location'])
+        // The NEARER of the two, never one INSTEAD of the other — the same
+        // rule the board applies, from the same function, so the two ends of
+        // this feature can no longer disagree about how far away a company is.
+        //
+        // This used to prefer the phone whenever it had a fresh fix, and fall
+        // back to the yard only when it did not. That is silence-shaped: an
+        // owner who drives home in his own car leaves a fresh fix forty miles
+        // out, and his yard — with the truck still in it, a quarter of a mile
+        // from the job — was never measured at all. The alert simply never
+        // came, and nothing anywhere said why.
+        //
+        // Taking the minimum can only ever ADD reach. A phone that is wrong,
+        // stale or absent costs nothing, because the yard is still there.
+        $fresh = (!empty($row['use_device_location'])
                   && $row['last_lat'] !== null && $row['last_lng'] !== null
-                  && !empty($row['location_fresh']);
+                  && !empty($row['location_fresh']))
+               ? ['lat' => (float)$row['last_lat'], 'lng' => (float)$row['last_lng']]
+               : null;
 
-        if ($useDevice) {
-            $fromLat = (float)$row['last_lat'];
-            $fromLng = (float)$row['last_lng'];
-        } elseif ($row['base_lat'] !== null && $row['base_lng'] !== null) {
-            $fromLat = (float)$row['base_lat'];
-            $fromLng = (float)$row['base_lng'];
-        } else {
-            continue;                       // nothing to measure from at all
-        }
+        $near = towerDistanceToJob(
+            $row['base_lat'] !== null ? (float)$row['base_lat'] : null,
+            $row['base_lng'] !== null ? (float)$row['base_lng'] : null,
+            $fresh, $lat, $lng
+        );
+        if ($near === null) continue;       // nothing to measure from at all
 
-        $miles = haversineMiles($lat, $lng, $fromLat, $fromLng);
+        $miles = $near['miles'];
         if ($miles > $radius) continue;
 
         // Carried through so the notification can say "4.2 mi away" honestly,
         // and so a support question about why somebody was or was not alerted
         // has an answer.
-        $row['measured_from'] = $useDevice ? 'device' : 'yard';
+        $row['measured_from'] = $near['from'] === 'truck' ? 'device' : 'yard';
 
         if ($net < (float)$row['push_min_payout']) continue;
         if (!towerIsCapable($row, $call)) continue;

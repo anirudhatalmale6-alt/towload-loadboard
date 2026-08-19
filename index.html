@@ -491,6 +491,22 @@ html[lang="es"] .dist{
 /* ── forms / modal ─────────────────────────────────────────────── */
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+
+/* ── The ETA chips and the promise that comes with them ──────────────────── */
+.eta-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:-4px 0 12px}
+.eta-chip{
+  padding:11px 6px;border-radius:9px;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);font:700 14px/1 inherit;
+  cursor:pointer;text-align:center;
+}
+.eta-chip:hover{border-color:var(--accent)}
+.eta-chip.on{border-color:var(--accent);border-width:2px;padding:10px 5px;
+  background:rgba(210,153,34,.14);color:var(--accent)}
+.eta-honest{
+  background:rgba(210,153,34,.09);border:1px solid rgba(210,153,34,.28);
+  border-radius:9px;padding:11px 13px;margin-bottom:14px;
+  color:#e3b341;font-size:12.5px;line-height:1.5;
+}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:5px;font-weight:600}
 .f input,.f select{
@@ -1032,8 +1048,17 @@ legend{
       <div id="actSummary" style="margin-bottom:18px"></div>
       <div class="grid2">
         <div class="f" id="bidAmtWrap"><label>Your bid</label><input id="actAmount" type="number" oninput="renderActNet()"></div>
-        <div class="f"><label data-i18n="o.eta_min">ETA (minutes)</label><input id="actEta" type="number" value="20"></div>
+        <div class="f"><label data-i18n="o.eta_min">ETA (minutes)</label><input id="actEta" type="number" value="20" oninput="syncEtaChips()"></div>
       </div>
+      <!-- Taps, not typing. This is filled in on a phone in a yard, and the
+           six numbers that get used cover almost every job. The field stays,
+           because "I am 70 minutes out" is a real answer and a fixed list
+           would force it into a lie. -->
+      <div class="eta-chips" id="etaChips"></div>
+      <!-- The consequence, stated where the number is chosen rather than in a
+           terms page. An operator who quotes 10 minutes to win a job he cannot
+           reach in 40 is not reading this anywhere else. -->
+      <div class="eta-honest" data-i18n="o.eta_honest">Specify honest ETA times. Your customer is allowed to CANCEL the call after your ETA has passed, and a GOA will not be charged.</div>
       <div class="f" id="bidNoteWrap"><label>Note to the provider</label><input id="actNote" placeholder="Flatbed available now"></div>
       <div id="actNet" class="notice ok"></div>
       <div id="actErr" class="notice err hide"></div>
@@ -1041,6 +1066,29 @@ legend{
     <div class="modal-f">
       <button class="btn ghost" onclick="closeAct()" data-i18n="o.cancel">Cancel</button>
       <button class="btn go" id="actGo" onclick="submitAct()" data-i18n="o.accept">Accept</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ HAND A JOB BACK ═══
+     Its own modal rather than a confirm(): the operator needs to be told what
+     happens to the customer and that he cannot take this job again, and a
+     browser confirm cannot carry that without becoming a wall of text nobody
+     reads. -->
+<div class="modal-bg" id="relModal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-h"><h2 data-i18n="o.release_h">Hand this job back</h2><button class="x" onclick="closeRelease()">&times;</button></div>
+    <div class="modal-b">
+      <div class="notice warn" data-i18n="o.release_note">The job goes straight back on the board and other companies are alerted. The customer is charged nothing, and you will not be able to take this job again.</div>
+      <div class="f">
+        <label data-i18n="o.release_why">What happened? Your customer does not see this.</label>
+        <input id="relReason" maxlength="300" placeholder="Truck broke down">
+      </div>
+      <div id="relErr" class="notice err hide"></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn ghost" onclick="closeRelease()" data-i18n="o.cancel">Cancel</button>
+      <button class="btn go" id="relGo" onclick="submitRelease()" data-i18n="o.release_go">Hand the job back</button>
     </div>
   </div>
 </div>
@@ -2563,6 +2611,13 @@ function render(){
                was there. -->
           ${isTower && ['en_route','on_scene'].includes(c.status)
             ? `<button class="btn ghost" onclick="claimGOA(${c.id})">${t('o.goa')}</button>` : ''}
+          <!-- The way out. Offered right up to the moment the vehicle is on
+               the truck, and not after: from in_progress there is nothing to
+               hand back, because the car is already moving. Kept last and
+               quiet — this is the button for a broken truck, not a button
+               anybody should reach for by accident. -->
+          ${isTower && ['awarded','en_route','on_scene'].includes(c.status)
+            ? `<button class="btn ghost" onclick="openRelease(${c.id})">${t('o.release')}</button>` : ''}
           ${!isTower && open ? `<button class="btn ghost" onclick="cancelCall(${c.id})">${t('o.cancel')}</button>` : ''}
         </div>
       </div>
@@ -2986,10 +3041,68 @@ function openAct(id, mode){
   document.getElementById('bidNoteWrap').style.display = mode === 'bid' ? '' : 'none';
   document.getElementById('actAmount').value = c.offer_amount;
   document.getElementById('actErr').classList.add('hide');
+  // Rebuilt each time rather than once at load: the labels come from t(), and
+  // the language can have been switched since.
+  renderEtaChips();
   renderActNet();
   document.getElementById('actModal').classList.add('on');
 }
 function closeAct(){ document.getElementById('actModal').classList.remove('on'); }
+
+/* ── Handing a job back ────────────────────────────────────────────────────
+   A truck that will not start at 2am used to have no way out of an accepted
+   job except driving one that could not go, or leaving a stranded customer
+   watching a countdown for nothing. */
+let REL_ID = null;
+function openRelease(id){
+  REL_ID = id;
+  document.getElementById('relReason').value = '';
+  document.getElementById('relErr').classList.add('hide');
+  document.getElementById('relModal').classList.add('on');
+}
+function closeRelease(){ document.getElementById('relModal').classList.remove('on'); }
+
+async function submitRelease(){
+  const err = document.getElementById('relErr'); err.classList.add('hide');
+  const go  = document.getElementById('relGo');
+  // Disabled for the round trip. Two presses is two releases of the same job,
+  // and the second one arrives at a job this company no longer owns.
+  go.disabled = true;
+  const r = await api('/calls/release', {method:'POST', body:JSON.stringify({
+    call_id: REL_ID, reason: document.getElementById('relReason').value || null })});
+  go.disabled = false;
+  if(!r.success){ err.textContent = r.error; err.classList.remove('hide'); return; }
+  closeRelease();
+  // The server's sentence, not a fixed one — it says how many times this
+  // company has done it in the last month once that number starts to matter.
+  alert(r.message);
+  load();
+}
+
+/* ── ETA presets ───────────────────────────────────────────────────────────
+   Six taps and a field. 60 reads as "1 hr" rather than "60 min" because that
+   is how a dispatcher says it, and because an hour is the number an operator
+   should be reaching for on a long run instead of quoting 30 and hoping. */
+const ETA_OPTIONS = [10, 15, 20, 30, 45, 60];
+
+function renderEtaChips(){
+  document.getElementById('etaChips').innerHTML = ETA_OPTIONS.map(m =>
+    `<button type="button" class="eta-chip" data-eta="${m}" onclick="pickEta(${m})">${
+       m === 60 ? t('o.eta_1hr') : t('o.mins', {n: m})}</button>`).join('');
+  syncEtaChips();
+}
+function pickEta(m){
+  document.getElementById('actEta').value = m;
+  syncEtaChips();
+}
+/* Typing 25 must un-highlight the 20 chip. A chip left lit next to a field
+   showing a different number is the control telling the operator something
+   untrue about what he is about to promise. */
+function syncEtaChips(){
+  const v = Number(document.getElementById('actEta').value);
+  document.querySelectorAll('#etaChips .eta-chip').forEach(b =>
+    b.classList.toggle('on', Number(b.dataset.eta) === v));
+}
 function renderActNet(){
   const c = DATA.find(x => x.id === ACT.id);
   const amt = ACT.mode === 'bid' ? Number(document.getElementById('actAmount').value||0) : c.offer_amount;

@@ -1621,7 +1621,6 @@ async function poll(){
     return closeAndGoHome(r.status_text, r.status === 'canceled' ? 'ok' : 'info');
   }
 
-  $('trkBig').textContent = r.status_text;
   const done = ['completed','goa','canceled','expired'].includes(r.status);
 
   // The spinner belongs to ONE state: still looking for a truck. The moment a
@@ -1631,6 +1630,17 @@ async function poll(){
   const searching = r.status === 'open';
   $('trkSpin').classList.toggle('hide', done || !searching);
 
+  // ── The company that was coming has handed the job back ──────────────────
+  //
+  // This is a different screen from "finding you a truck", even though the
+  // job's status is the identical 'open'. This customer was given a company
+  // name, a phone number and a countdown, and all three have just vanished.
+  // Reverting silently to the first-search wording reads as the page having
+  // forgotten them, which is the moment somebody stops waiting and rings a
+  // competitor. Say what happened, then say what is being done about it.
+  const requeued = searching && !!r.requeued;
+  $('trkBig').textContent = requeued ? t('c.requeued') : r.status_text;
+
   // Kept so the MAP timer can repaint the bar the moment progress arrives.
   // The bar's number comes from the tracking feed and its painter runs on the
   // status poll -- two timers, and on a fresh load the painter always ran
@@ -1638,6 +1648,19 @@ async function poll(){
   LAST_TRACK = r;
   paintArrival(r, done);
   $('cancelBtn').classList.toggle('hide', done);
+
+  // What the cancel button will actually do, in the button.
+  //
+  // "Cancel this request" is the same six words whether it costs nothing or
+  // costs the call-out fee, and whether the company blew its own ETA half an
+  // hour ago. The server sends the fee it will charge; this prints it. A
+  // customer past a broken promise gets told they can walk away free, which
+  // they otherwise have no way of knowing.
+  const fee = r.cancel || {};
+  $('cancelBtn').textContent = fee.free_reason === 'eta_missed'
+      ? t('c.cancel_free_eta')
+      : fee.fee > 0 ? t('c.cancel_fee', {amount: money(fee.fee)})
+                    : t('c.cancel_req');
   // The live ETA wins when there is one. r.eta_minutes is what the driver
   // typed at accept time and never changes, so it is only the stand-in until
   // the first real position lands.
@@ -1648,6 +1671,8 @@ async function poll(){
   const arrived = ['on_scene','in_progress','completed','goa'].includes(r.status);
   $('trkSm').textContent = arrived
       ? (r.status === 'completed' ? t('c.thanks') : '')
+      : requeued
+      ? t('c.requeued_sub')
       : r.status === 'open'
       ? t('c.finding_sub')
       : etaLine(r, liveEta);
@@ -1658,6 +1683,7 @@ async function poll(){
   // first marker drawn is the generic truck.
   MAP.pinUrl = (r.tower && r.tower.pin_url) ? r.tower.pin_url : null;
   applyTruckIcon();
+  paintWaitingBadge();
 
   $('driverBox').innerHTML = r.tower ? `
     <div class="driver">
@@ -1673,6 +1699,11 @@ async function poll(){
       </div>
       <a href="tel:${esc(r.tower.phone)}">${t('c.call')}</a>
     </div>` : '';
+
+  // The reviews panel belongs to a company that is no longer on this job.
+  // Left open it would sit under "Finding you another driver" showing five
+  // stars for the company that just walked away.
+  if(!r.tower && REVIEWS_OPEN){ REVIEWS_OPEN = false; $('reviewBox').innerHTML = ''; }
 
   renderRating(r);
 
@@ -1941,6 +1972,14 @@ async function pollMap(){
   // customer's own pin is not.
   if(!r.truck){
     MAP.lastEta = null;
+    // The marker has to GO, not just stop moving.
+    //
+    // The feed stops sending a truck when there is no longer one to send: the
+    // company handed the job back, or every position we had aged out. Leaving
+    // the old marker sitting there is the most convincing lie this screen can
+    // tell — a truck frozen at the last place it was, on a map with no
+    // timestamp, for a customer whose driver is not coming at all.
+    clearTruckMarker();
     MAP.pickup = r.pickup || MAP.pickup;
     if(MAP.pickup) drawPickupOnly(MAP.pickup.lat, MAP.pickup.lng);
     else $('mapWrap').classList.remove('on');
@@ -2138,12 +2177,39 @@ function resumeFollowing(){
    Shows where the customer is and says so, instead of a blank space. The
    moment a real position arrives drawTruck takes over and adds the truck, so
    this never has to be undone. */
+/* Take the truck off the map and put the camera back to a state that will
+   re-frame cleanly if a second company takes the job. MAP.fitted is reset
+   because the next truck to appear needs both points framed again — leaving it
+   set would drop the new driver onto a map still centred on the last one. */
+/* The badge on a map with no truck on it yet.
+   "Waiting for your truck to set off" is only true when there IS a truck. On a
+   job with nobody assigned — a first search, or one whose company has just
+   handed it back — it sat there contradicting the headline directly above it.
+
+   Called from BOTH pollers, for the same reason applyTruckIcon is: the fact it
+   depends on (is a company assigned) arrives on the status poll, and the badge
+   is drawn by the map poll. Whichever ran first decided the wording, and on a
+   fresh load that is always the map poll, with nothing known yet. */
+function paintWaitingBadge(){
+  if(MAP.truck) return;                       // a real position wins, always
+  const eta = $('mapEta');
+  eta.classList.remove('stale');
+  eta.textContent = (LAST_TRACK && LAST_TRACK.tower)
+      ? t('c.map_waiting') : t('c.map_no_driver');
+}
+
+function clearTruckMarker(){
+  if(MAP.truck){ MAP.truck.setMap(null); MAP.truck = null; }
+  MAP.fitted = false;
+  MAP.mode = null;
+  MAP.progress = null;
+  MAP.pinUrl = null;
+}
+
 async function drawPickupOnly(lat, lng){
   $('mapWrap').classList.add('on');
 
-  const eta = $('mapEta');
-  eta.classList.remove('stale');
-  eta.textContent = t('c.map_waiting');
+  paintWaitingBadge();
 
   const m = await ensureMap(lat, lng);
   if(!m) return;
@@ -2192,7 +2258,15 @@ function closeAndGoHome(message, tone){
 }
 
 async function cancelJob(){
-  if(!confirm(t('c.cancel_confirm'))) return;
+  // The confirmation names the price. "Are you sure?" over a $75 call-out fee
+  // and over nothing at all cannot be the same sentence — and past a broken
+  // ETA the customer is being told, at the one moment it matters, that leaving
+  // costs them nothing.
+  const fee = (LAST_TRACK && LAST_TRACK.cancel) || {};
+  const ask = fee.free_reason === 'eta_missed' ? t('c.cancel_confirm_eta')
+            : fee.fee > 0 ? t('c.cancel_confirm_fee', {amount: money(fee.fee)})
+            : t('c.cancel_confirm');
+  if(!confirm(ask)) return;
   const r = await api('/consumer/cancel', {method:'POST', body:JSON.stringify({token:S.token})});
   if(!r.success){ alert(r.error); return poll(); }
 

@@ -136,6 +136,25 @@ function escrowAssignTower(int $callId, int $towerAccountId): void {
 }
 
 /**
+ * The tower let the job go. Detach it and leave the money exactly where it is.
+ *
+ * The hold is NOT released. It belongs to the customer's card and the job it
+ * was taken for is still live — it has simply gone back on the board looking
+ * for somebody else. Refunding here and re-authorising on the next accept
+ * would put a second hold on a stranded person's card within minutes of the
+ * first, which is precisely the pattern a bank blocks.
+ *
+ * Leaving tower_account_id pointing at the company that walked away is the
+ * quiet failure this prevents: every payout and settlement query keys off it,
+ * so the next completion would credit the wrong company.
+ */
+function escrowUnassignTower(int $callId): void {
+    getDB()->prepare(
+        "UPDATE escrow_holds SET tower_account_id = NULL WHERE call_id = :c AND status = 'held'"
+    )->execute([':c' => $callId]);
+}
+
+/**
  * Job completed. Held funds leave the provider for good; the tower is credited
  * the amount minus our fee, and a payout row is queued for Stripe transfer.
  */

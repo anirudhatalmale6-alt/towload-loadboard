@@ -13,6 +13,8 @@ require_once __DIR__ . '/../includes/photos.php';
 // nothing was pulling in adminauth.
 require_once __DIR__ . '/../includes/adminauth.php';
 require_once __DIR__ . '/../includes/geocode.php';   // requestIp()
+require_once __DIR__ . '/../includes/release.php';
+require_once __DIR__ . '/../includes/webpush.php';   // pushNewJobAfterResponse()
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -231,10 +233,15 @@ if ($method === 'GET' && $action === 'board') {
              WHERE c.status = 'open'
                AND c.expires_at > NOW()
                AND c.pickup_lat BETWEEN :minlat AND :maxlat
-               AND c.pickup_lng BETWEEN :minlng AND :maxlng";
+               AND c.pickup_lng BETWEEN :minlng AND :maxlng
+               -- Not the job this company just handed back. Showing it would
+               -- put a job he has already declined at the top of his board
+               -- every refresh, and taking it again is refused anyway.
+               AND NOT EXISTS (SELECT 1 FROM call_releases cr
+                                WHERE cr.call_id = c.id AND cr.tower_account_id = :me2)";
 
     $params = [
-        ':me' => $user['account_id'],
+        ':me' => $user['account_id'], ':me2' => $user['account_id'],
         ':minlat' => $box['min_lat'], ':maxlat' => $box['max_lat'],
         ':minlng' => $box['min_lng'], ':maxlng' => $box['max_lng'],
     ];
@@ -409,6 +416,16 @@ if ($method === 'POST' && $action === 'accept') {
             throw new RuntimeException(t('err.not_capable'));
         }
 
+        // A company that has already handed this job back does not get it
+        // again. Not a punishment — an accept/release loop is how one company
+        // holds a job off every other company's board indefinitely, and the
+        // person paying for that loop is sitting on a hard shoulder. The board
+        // hides these too, but hiding is not refusing: this endpoint takes a
+        // call_id and nothing stopped a POST for a job never in the response.
+        if (towerHasReleased($callId, (int)$user['account_id'])) {
+            throw new RuntimeException(t('err.already_released'));
+        }
+
         // How far the truck was when it said yes. Written once, here, and never
         // updated -- it is the fixed point the customer's arrival bar measures
         // against. Measured with the same yard-or-truck rule the board uses, so
@@ -575,6 +592,52 @@ if ($method === 'POST' && $action === 'status') {
         $call['call_number'] . ' — ' . $labels[$status], $user['account_name'], $callId);
 
     successResponse(['status' => $status], t('ok.status_updated'));
+}
+
+// ═══ RELEASE — the tower can no longer go ════════════════════════════════════
+//
+// The way out that did not exist. A broken truck, a driver who read the
+// address wrong, a job that turns out to be a vehicle this company cannot
+// lift: before this, all of them ended with a customer watching a countdown
+// for a truck that was never coming.
+//
+// It puts the job straight back on the board and wakes every other company
+// nearby. The customer is charged nothing, their card hold is untouched, and
+// their tracking link keeps working through the second search.
+if ($method === 'POST' && $action === 'release') {
+    $user = requireAuth();
+    requireAccountType($user, 'tower');
+    $in = jsonInput();
+    $callId = (int)($in['call_id'] ?? 0);
+    if (!$callId) errorResponse('call_id is required');
+
+    if ((string)setting('tower_release_enabled', '1') !== '1') {
+        errorResponse('Handing jobs back is turned off. Call support.', 403);
+    }
+
+    $r = releaseCallToBoard($callId, (int)$user['account_id'], (int)$user['id'],
+                            $in['reason'] ?? null);
+    if (!$r['ok']) errorResponse($r['error'], $r['code']);
+
+    // Wake the other companies AFTER the response has gone. The driver who
+    // just pressed the button is holding a phone at the roadside; a fan-out to
+    // sixty devices is not something he should be watching a spinner for, and
+    // the job is already back on the board without it.
+    pushNewJobAfterResponse($callId);
+
+    // Told the number, not judged by it. Somebody who has handed back three
+    // jobs this month may have had a terrible month — but seeing the count is
+    // what stops the fourth being casual.
+    $count = towerReleaseCount((int)$user['account_id']);
+    $flag  = $count >= max(1, (int)setting('release_review_threshold', 3));
+
+    successResponse([
+        'call_id'        => $callId,
+        'releases_30d'   => $count,
+        'under_review'   => $flag,
+    ], $flag
+        ? 'Job handed back. That is ' . $count . ' in the last 30 days — too many and your account gets reviewed.'
+        : 'Job handed back. It is being offered to other companies now.');
 }
 
 // ═══ COMPLETE (tower) ════════════════════════════════════════════════════════

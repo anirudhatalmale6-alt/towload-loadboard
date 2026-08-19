@@ -12,6 +12,7 @@ require_once __DIR__ . '/../includes/webpush.php';
 require_once __DIR__ . '/../includes/realtime.php';
 require_once __DIR__ . '/../includes/ratings.php';
 require_once __DIR__ . '/../includes/sweep.php';
+require_once __DIR__ . '/../includes/promise.php';
 setCorsHeaders();
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -572,29 +573,41 @@ if ($action === 'track') {
     $call = $stmt->fetch();
     if (!$call) errorResponse(t('err.job_not_found'), 404);
 
+    // Only what has happened since the last company handed the job back.
+    //
+    // Without this cut the timeline keeps the previous driver's ticks: a
+    // customer whose company just cancelled sees "Driver assigned ✓" and
+    // "Driver on the way ✓" sitting above the words "finding you another
+    // driver". 'posted' is always kept — that is their own booking, and it did
+    // happen.
+    //
+    // Cut by ROW ID, not by timestamp. call_events.created_at is a DATETIME
+    // with one-second resolution, and accept → en route → release inside the
+    // same second is not hypothetical: it is exactly what a company does when
+    // it takes a job by mistake. A `created_at >= released_at` filter let every
+    // one of those events straight back through, and the ticks reappeared.
     $stmt = getDB()->prepare(
         "SELECT event_type, detail, created_at FROM call_events
           WHERE call_id = :c AND event_type IN ('posted','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired')
-          ORDER BY created_at ASC"
+            AND (event_type = 'posted'
+                 OR id > COALESCE((SELECT MAX(e2.id) FROM call_events e2
+                                    WHERE e2.call_id = :c2 AND e2.event_type = 'released'), 0))
+          ORDER BY created_at ASC, id ASC"
     );
-    $stmt->execute([':c' => $call['id']]);
+    $stmt->execute([':c' => $call['id'], ':c2' => $call['id']]);
 
     $friendly = [];
     foreach (['draft','open','awarded','en_route','on_scene','in_progress','completed','goa','canceled','expired'] as $st) {
         $friendly[$st] = t('status.' . $st);
     }
 
-    $promisedRemaining = null;
-    if ($call['awarded_at'] !== null && $call['awarded_eta_minutes'] !== null) {
-        $q = getDB()->prepare(
-            "SELECT TIMESTAMPDIFF(SECOND, NOW(),
-                     DATE_ADD(:aw, INTERVAL :eta MINUTE)) AS secs"
-        );
-        $q->execute([':aw' => $call['awarded_at'], ':eta' => (int)$call['awarded_eta_minutes']]);
-        $secs = $q->fetch();
-        // Rounded up, so 30 seconds left reads as "1 minute" rather than "0".
-        if ($secs !== false) $promisedRemaining = (int)ceil(((int)$secs['secs']) / 60);
-    }
+    $promise = etaPromise($call);
+    $promisedRemaining = $promise['minutes_remaining'];
+
+    // What cancelling costs right now, decided by the server. The button on
+    // the page says what it will do, and it can only say that honestly if the
+    // number comes from the same function that will charge it.
+    $cancel = customerCancelFee($call);
 
     // A customer who closed the tab on the card screen and came back to their
     // link must land back on that card screen — not on "Finding you a truck"
@@ -643,8 +656,34 @@ if ($action === 'track') {
         // counting back up. A live GPS ETA still beats this whenever there is
         // one — this is the fallback for a driver who is not sharing location.
         'eta_promised_remaining' => $promisedRemaining,
+        // The promise was broken, and it stays broken even after a late truck
+        // arrives. This is what unlocks the free cancel, so the page never has
+        // to work it out from the countdown going negative.
+        'eta_missed'    => $promise['missed'],
         'awarded_at'    => $call['awarded_at'],
         'expires_at'    => $call['expires_at'],
+
+        // ── The search that had already succeeded and then collapsed ────────
+        //
+        // A job that is 'open' having once been awarded is not the same screen
+        // as a job that is 'open' for the first time. The customer was told a
+        // company was coming and given a name, a phone number and a countdown;
+        // "Finding you a truck" appearing again with no explanation reads as
+        // the page having forgotten, which is the moment they ring a
+        // competitor. Only sent while the search is actually running again.
+        'requeued' => ($call['status'] === 'open' && (int)$call['released_count'] > 0) ? [
+            'released_at' => $call['released_at'],
+            'times'       => (int)$call['released_count'],
+        ] : null,
+
+        // What the cancel button will actually do. free_reason is 'eta_missed'
+        // once the company has blown the ETA it set itself — the customer owes
+        // nothing from that minute on, whether or not the truck later turns up.
+        'cancel' => [
+            'fee'         => $cancel['amount'],
+            'free'        => $cancel['amount'] <= 0,
+            'free_reason' => $cancel['free_reason'],
+        ],
         // The driver's number only appears once someone is actually coming, and
         // the verified badge is what makes handing over a car to a stranger
         // feel survivable.
@@ -718,14 +757,20 @@ if ($method === 'POST' && $action === 'cancel') {
         errorResponse(t('err.job_closed'), 409);
     }
 
-    // Free to cancel until a driver is rolling. After that the tower has burned
-    // fuel and time, so the call-out fee applies.
-    $charged = 0.0;
+    // Free until a driver is rolling — after that the tower has burned fuel and
+    // time, so the call-out fee applies — and free again the moment that tower
+    // blows the ETA it set for itself.
+    //
+    // Decided here, by the server, from the same function the tracking screen
+    // quoted. Reading a fee the browser sent, or recomputing it a second way in
+    // this handler, is how the number on the button and the number on the card
+    // statement come to disagree.
+    $decision = customerCancelFee($call);
+    $charged  = $decision['amount'];
+
     $pdo->beginTransaction();
     try {
-        if (in_array($call['status'], ['en_route','on_scene','in_progress'], true)
-            && $call['awarded_tower_account_id']) {
-            $charged = (float)$call['goa_amount'];
+        if ($charged > 0) {
             escrowPartialRelease((int)$call['id'], $charged, 'Customer cancelled after dispatch');
             if ($call['stripe_payment_intent_id']) {
                 stripeCapturePayment($call['stripe_payment_intent_id'], $charged);
@@ -741,16 +786,32 @@ if ($method === 'POST' && $action === 'cancel') {
                 ->execute([':id' => $call['id']]);
         }
 
-        $pdo->prepare("UPDATE calls SET status = 'canceled', canceled_at = NOW(), cancel_reason = 'Cancelled by customer' WHERE id = :id")
-            ->execute([':id' => $call['id']]);
-        logCallEvent((int)$call['id'], 'canceled', 'Cancelled by customer');
+        // Why it was free is written down, not inferred later. Three weeks on,
+        // "cancelled, no fee" and "cancelled past a promised 15-minute ETA the
+        // truck was 40 minutes into" are the same row unless this says so, and
+        // the second one is the only answer to a company disputing it.
+        $why = $decision['free_reason'] === 'eta_missed'
+             ? 'Cancelled by customer — promised ETA of ' . (int)$call['awarded_eta_minutes']
+               . ' min had passed, no fee charged'
+             : 'Cancelled by customer';
+        $pdo->prepare("UPDATE calls SET status = 'canceled', canceled_at = NOW(), cancel_reason = :r WHERE id = :id")
+            ->execute([':r' => $why, ':id' => $call['id']]);
+        logCallEvent((int)$call['id'], 'canceled', $why);
 
         if ($call['awarded_tower_account_id']) {
             rtJobChanged((int)$call['id'], $call['tracking_token'] ?? null,
                          (int)$call['awarded_tower_account_id'], 'canceled');
+            // The operator is told the reason too. "Cancelled, $0" with no
+            // explanation is what a company escalates; "you promised 15 and
+            // they waited past it" is what changes the next ETA they type.
             notify((int)$call['awarded_tower_account_id'], 'call_canceled',
                 $call['call_number'] . ' cancelled by the customer',
-                $charged > 0 ? '$' . money($charged) . ' has been credited to you.' : '',
+                $charged > 0
+                    ? '$' . money($charged) . ' has been credited to you.'
+                    : ($decision['free_reason'] === 'eta_missed'
+                        ? 'Your ' . (int)$call['awarded_eta_minutes'] . ' minute ETA had passed, '
+                          . 'so no call-out fee was charged.'
+                        : ''),
                 (int)$call['id']);
         }
         $pdo->commit();
@@ -761,9 +822,12 @@ if ($method === 'POST' && $action === 'cancel') {
 
     successResponse([
         'charged' => money($charged),
+        'free_reason' => $decision['free_reason'],
         'message' => $charged > 0
             ? t('msg.canceled_fee', ['amount' => money($charged)])
-            : t('msg.canceled_free'),
+            : ($decision['free_reason'] === 'eta_missed'
+                ? t('msg.canceled_eta_missed')
+                : t('msg.canceled_free')),
     ], t('ok.job_canceled'));
 }
 

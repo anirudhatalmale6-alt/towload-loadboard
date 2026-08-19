@@ -95,6 +95,7 @@ function i18nCatalogue(): array {
         'err.job_not_found'       => 'No encontramos ese trabajo.',
         'err.not_capable'       => 'Este trabajo requiere equipo que no figura en su perfil. Actualice su equipo disponible si puede realizarlo.',
         'err.job_taken'           => 'Otra grúa ya tomó este trabajo.',
+        'err.already_released'    => 'Ya devolvió este trabajo al tablero. Otra empresa debe tomarlo.',
         'err.job_expired'         => 'Este trabajo ya venció.',
         'err.job_closed'          => 'Este trabajo ya está cerrado.',
         'err.job_done'            => 'Este trabajo ya fue completado.',
@@ -269,6 +270,7 @@ function i18nCatalogue(): array {
         // cancel outcomes
         'msg.canceled_free'       => 'Cancelado. No se le ha cobrado nada.',
         'msg.canceled_fee'        => 'Cancelado. Se aplica una tarifa de salida de ${amount} porque la grúa ya iba en camino.',
+        'msg.canceled_eta_missed' => 'Cancelado sin cargo. El tiempo de llegada que prometió la grúa ya había pasado.',
 
         // pricing breakdown — the customer reads these to judge the price
         'price.base'        => 'Tarifa base del servicio',
@@ -437,6 +439,7 @@ function i18nCatalogue(): array {
         'err.job_not_found'       => 'We could not find that job.',
         'err.not_capable'       => 'This job needs equipment that is not listed on your profile. Update your equipment if you can run it.',
         'err.job_taken'           => 'Another operator has already taken this job.',
+        'err.already_released'    => 'You handed this job back. Another company needs to take it now.',
         'err.job_expired'         => 'This job has expired.',
         'err.job_closed'          => 'This job is already closed.',
         'err.job_done'            => 'This job is already completed.',
@@ -608,6 +611,7 @@ function i18nCatalogue(): array {
 
         'msg.canceled_free'       => 'Canceled. You have not been charged.',
         'msg.canceled_fee'        => 'Canceled. A ${amount} call-out fee applies because a driver was already on the way.',
+        'msg.canceled_eta_missed' => 'Canceled free of charge. The ETA the towing company promised had already passed.',
 
         'price.base'        => 'Base service fee',
         'price.hook'        => 'Hook-up',
