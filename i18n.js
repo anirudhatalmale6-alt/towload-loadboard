@@ -268,6 +268,7 @@ es: {
   'c.map_min':           'min de distancia',
   'c.map_close':         'La grúa está muy cerca',
   'c.map_updating':      'Actualizando ubicación…',
+  'c.map_approx':        'Posición aproximada',
   'c.map_waiting':       'Esperando a que la grúa salga',
 
   /* operator board */
@@ -1084,6 +1085,7 @@ en: {
   'c.map_min':           'min away',
   'c.map_close':         'Your truck is very close',
   'c.map_updating':      'Updating location…',
+  'c.map_approx':        'Approximate position',
   'c.map_waiting':       'Waiting for your truck to set off',
 
   'o.available_jobs':    'Available jobs',

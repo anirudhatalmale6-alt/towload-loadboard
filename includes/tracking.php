@@ -14,10 +14,20 @@ require_once __DIR__ . '/helpers.php';
 //  away, they stop believing the screen and start phoning.
 //
 //  ── The rule that governs this whole file ────────────────────────────────
-//  A driver's position is accepted ONLY while he is on a live job, and only
-//  for that job. Not before accepting, not after completing, never in general.
-//  There is deliberately nowhere in the schema to store "where is this driver
-//  now" outside a job, so the question cannot be answered even by accident.
+//  A driver's position is SHOWN to a customer ONLY while he is on a live job,
+//  and only to the customer of that job. Not before accepting, not after
+//  completing, never in general.
+//
+//  That rule used to be enforced by there being nowhere else to look: the only
+//  driver position in the schema was calls.truck_lat, which exists per job.
+//  That is no longer true — push_subscriptions.last_lat now holds a coarse
+//  position so jobs can be matched against the truck rather than the yard.
+//
+//  So the rule is now enforced by this file rather than by the schema, and it
+//  is enforced in exactly one place: customerTrackingView(). Whichever source
+//  a coordinate comes from, it is released only for a TRACKABLE status, only
+//  for the account that accepted that job, and only with its true age
+//  attached. Do not read either position anywhere else on a customer path.
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Statuses during which a truck is genuinely moving toward or working a job.
@@ -239,12 +249,59 @@ function recordTruckLocation(array $call, int $accountId, ?int $userId, array $i
 function customerTrackingView(array $call): ?array {
     if (!trackingEnabled())                                     return null;
     if (!in_array($call['status'], TRACKABLE_STATUSES, true))   return null;
-    if ($call['truck_lat'] === null || $call['truck_updated_at'] === null) return null;
+
+    // ── Second best, when the driver's app is not sending per-job pings ─────
+    //
+    // The per-second trail comes from the app calling /tracking/ping. A driver
+    // on the web dashboard, or on an app build older than that feature, sends
+    // nothing here at all — and the customer got a map with no truck on it,
+    // which reads as "nobody is coming".
+    //
+    // His phone is nevertheless reporting a coarse position for job matching,
+    // roughly every couple of minutes. It is the same truck. Showing it, with
+    // its real age attached and clearly labelled approximate, is far better
+    // than an empty map — and the moment a real ping arrives, the branch above
+    // wins and this is never consulted again.
+    //
+    // Deliberately NOT merged into one "best position": the two differ by an
+    // order of magnitude in both accuracy and freshness, and averaging them
+    // would produce a number that is true of neither. One or the other, whole.
+    //
+    // WHICH one is decided by age, not by rank. Preferring the precise source
+    // whenever it exists at all is the trap: a driver whose app is killed, or
+    // who only granted When In Use and has switched to Maps, stops pinging
+    // while his phone carries on reporting the coarse position perfectly well.
+    // Ranking would pin the customer's map to a precise fix from nine minutes
+    // ago and never look at the fresh one sitting beside it.
+    $coarse = coarseTrackingView($call);
+
+    if ($call['truck_lat'] === null || $call['truck_updated_at'] === null) {
+        return $coarse;
+    }
 
     $age = time() - strtotime($call['truck_updated_at']);
     $stale = $age > (int)setting('tracking_stale_seconds', 90);
 
+    // Fall back only once the precise channel has actually GONE QUIET, never
+    // on a plain "which timestamp is larger".
+    //
+    // A raw age comparison flaps, and it flaps on one GPS reading: recording a
+    // ping also refreshes the coarse row (see recordTruckLocation, which reuses
+    // the fix for matching the next job), so the coarse copy is a second newer
+    // than the precise one it was cloned from and wins. The customer's map then
+    // flickers "Approximate position" on and off every few seconds while the
+    // truck is being tracked perfectly.
+    //
+    // Requiring the precise fix to be stale first makes the handover need a
+    // real 90-second silence, which is a driver who has genuinely stopped
+    // pinging rather than arithmetic noise.
+    if ($stale && $coarse !== null && $coarse['age_seconds'] < $age) {
+        return $coarse;
+    }
+
     return [
+        'source'      => 'live',
+        'approximate' => false,
         'lat'         => (float)$call['truck_lat'],
         'lng'         => (float)$call['truck_lng'],
         'heading'     => $call['truck_heading'] !== null ? (int)$call['truck_heading'] : null,
@@ -257,6 +314,80 @@ function customerTrackingView(array $call): ?array {
         'eta_minutes' => $stale ? null : ($call['eta_live_minutes'] !== null ? (int)$call['eta_live_minutes'] : null),
         'eta_meters'  => $stale ? null : ($call['eta_live_meters'] !== null ? (int)$call['eta_live_meters'] : null),
         // Which way the marker should be heading, so the map can label it.
+        'target'      => ($call['status'] === 'in_progress'
+                          && $call['dropoff_lat'] !== null) ? 'dropoff' : 'pickup',
+    ];
+}
+
+/**
+ * The coarse position of the phone belonging to the company that took this job.
+ *
+ * Only ever reached from customerTrackingView(), which has already established
+ * that this job is live and that this is its customer. Read the rule at the top
+ * of this file before calling it from anywhere else — the answer is don't.
+ */
+function coarseTrackingView(array $call): ?array {
+    if ((string)setting('tracking_coarse_fallback', '1') !== '1') return null;
+    $tower = (int)($call['awarded_tower_account_id'] ?? 0);
+    if (!$tower) return null;
+
+    // Significant-change fires roughly every 500m or 5 minutes, and the app
+    // throttles to one send every 2 minutes on top of that. Judging those
+    // against the 90-second threshold meant for per-second pings would mark
+    // every single one stale, so the marker would never once look live.
+    $maxAge = max(60, (int)setting('tracking_coarse_max_age_seconds', 900));
+
+    $stmt = getDB()->prepare(
+        "SELECT last_lat, last_lng, location_accuracy_m,
+                TIMESTAMPDIFF(SECOND, last_location_at, NOW()) AS age_seconds
+           FROM push_subscriptions
+          WHERE account_id = :a
+            AND is_active = 1
+            -- The driver's own switch. Turning device location off must stop
+            -- this too, or the switch is a lie.
+            AND use_device_location = 1
+            AND last_lat IS NOT NULL AND last_lng IS NOT NULL
+            AND last_location_at > DATE_SUB(NOW(), INTERVAL :age SECOND)
+          ORDER BY last_location_at DESC
+          LIMIT 1"
+    );
+    $stmt->execute([':a' => $tower, ':age' => $maxAge]);
+    $row = $stmt->fetch();
+    if (!$row) return null;
+
+    $lat = (float)$row['last_lat'];
+    $lng = (float)$row['last_lng'];
+    $age = (int)$row['age_seconds'];
+
+    $target = ['lat' => (float)$call['pickup_lat'], 'lng' => (float)$call['pickup_lng']];
+    if ($call['status'] === 'in_progress'
+        && $call['dropoff_lat'] !== null && $call['dropoff_lng'] !== null) {
+        $target = ['lat' => (float)$call['dropoff_lat'], 'lng' => (float)$call['dropoff_lng']];
+    }
+    // No instantaneous speed to blend — a coarse fix carries none — so this is
+    // the assumed-average ETA and nothing better. Marked approximate for that
+    // reason as much as for the position.
+    $eta = ($target['lat'] || $target['lng'])
+             ? estimateEta($lat, $lng, $target['lat'], $target['lng'], null)
+             : null;
+
+    $stale = $age > (int)setting('tracking_coarse_stale_seconds', 420);
+
+    return [
+        'source'      => 'device',
+        // The page says "approximate" on the strength of this. A customer told
+        // the position is rough will forgive it being rough; one shown a
+        // confident marker that is 400m out will not.
+        'approximate' => true,
+        'lat'         => $lat,
+        'lng'         => $lng,
+        'heading'     => null,
+        'speed_mph'   => null,
+        'accuracy_m'  => $row['location_accuracy_m'] !== null ? (int)$row['location_accuracy_m'] : null,
+        'age_seconds' => $age,
+        'stale'       => $stale,
+        'eta_minutes' => $stale ? null : ($eta['minutes'] ?? null),
+        'eta_meters'  => $stale ? null : ($eta['meters'] ?? null),
         'target'      => ($call['status'] === 'in_progress'
                           && $call['dropoff_lat'] !== null) ? 'dropoff' : 'pickup',
     ];

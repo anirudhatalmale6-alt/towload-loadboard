@@ -303,6 +303,12 @@ input::placeholder{color:#aab4c4}
 }
 .map-eta b{font-size:17px;font-weight:800;letter-spacing:-.3px}
 .map-eta.stale{background:rgba(90,80,20,.94)}
+/* Sits under the ETA, quieter than it. The number is the thing the customer
+   came for; the caveat must be readable without competing with it. */
+.map-eta .approx{
+  display:block;font-size:10.5px;font-weight:600;opacity:.72;
+  letter-spacing:.2px;margin-top:2px;
+}
 .truck-dot{
   width:34px;height:34px;border-radius:50%;
   background:var(--accent);border:3px solid #fff;
@@ -1334,7 +1340,7 @@ function startTracking(){
       'truck.moved': (d) => {
         if(!d || typeof d.lat !== 'number') return;
         MAP.lastEta = d.eta_minutes ?? MAP.lastEta;
-        drawTruck(d.lat, d.lng, d.eta_minutes, false);
+        drawTruck(d.lat, d.lng, d.eta_minutes, false, false);
       },
       // Anything else is a nudge — refetch and let the server decide.
       'job.changed': () => { poll(); pollMap(); },
@@ -1689,13 +1695,13 @@ async function pollMap(){
   }
 
   MAP.pickup = r.pickup || MAP.pickup;
-  drawTruck(r.truck.lat, r.truck.lng, r.truck.eta_minutes, !!r.truck.stale);
+  drawTruck(r.truck.lat, r.truck.lng, r.truck.eta_minutes, !!r.truck.stale, !!r.truck.approximate);
 }
 
 /* Draws the marker and the badge. Shared by the poll and by the realtime
    event, so a position arriving over the socket cannot render differently
    from one that arrived over HTTP a second later. */
-async function drawTruck(lat, lng, etaMinutes, stale){
+async function drawTruck(lat, lng, etaMinutes, stale, approximate){
   const wrap = $('mapWrap');
   // Shown before the map exists so the container has a real height by the time
   // Google measures it. A map built inside a display:none div renders its
@@ -1705,7 +1711,7 @@ async function drawTruck(lat, lng, etaMinutes, stale){
   // The badge does not wait for the map. If the key is missing or Google is
   // blocked, the customer still gets the ETA — losing the picture is a
   // downgrade, losing the number is a broken screen.
-  paintEta(etaMinutes, stale);
+  paintEta(etaMinutes, stale, approximate);
 
   const m = await ensureMap(lat, lng);
   if(!m) return;
@@ -1768,7 +1774,7 @@ async function drawPickupOnly(lat, lng){
   // customer zoomed on themselves with the truck off screen.
 }
 
-function paintEta(etaMinutes, stale){
+function paintEta(etaMinutes, stale, approximate){
   MAP.lastEta = stale ? null : etaMinutes;
 
   const eta = $('mapEta');
@@ -1776,6 +1782,12 @@ function paintEta(etaMinutes, stale){
   eta.innerHTML = stale
     ? t('c.map_updating')
     : (etaMinutes ? '<b>' + etaMinutes + '</b> ' + t('c.map_min') : t('c.map_close'));
+
+  // Say so when the marker is the driver's coarse position rather than a
+  // per-second ping. A customer told the position is rough forgives it being
+  // rough; one shown a confident marker 400m off the truck does not, and
+  // stops believing the ETA beside it too.
+  if(approximate && !stale) eta.innerHTML += '<span class="approx">' + t('c.map_approx') + '</span>';
 }
 
 /* Back to the booking form, carrying the server's own sentence about what
