@@ -182,6 +182,23 @@ function haversineMiles(float $lat1, float $lng1, float $lat2, float $lng2): flo
 }
 
 // Bounding box for the cheap index-using prefilter before the exact haversine.
+/**
+ * Turn a stored relative path into a URL a client can actually fetch.
+ *
+ * The website resolves "assets/logos/x.png" against itself and is fine. The
+ * iOS app is not served from anywhere, so a relative path there resolves
+ * against nothing and the image silently fails to load — which looks exactly
+ * like "the logo did not upload".
+ *
+ * Anything already absolute is passed straight through, so this is safe to
+ * apply twice and safe to apply to a column that might already hold a URL.
+ */
+function absoluteUrl(?string $relative): ?string {
+    if (!$relative) return null;
+    if (preg_match('#^(https?:)?//#i', $relative)) return $relative;
+    return rtrim(APP_URL, '/') . '/' . ltrim($relative, '/');
+}
+
 function boundingBox(float $lat, float $lng, float $miles): array {
     $latDelta = $miles / 69.0;
     $cos = cos(deg2rad($lat));

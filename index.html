@@ -690,6 +690,31 @@ legend{
   color:var(--ink);border:1px solid var(--line);outline:none}
 .cf input:focus,.cf select:focus{border-color:var(--accent)}
 .caps{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin:10px 0 14px}
+
+/* ── company logo ── */
+.logo-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.logo-prev{
+  width:84px;height:84px;border-radius:14px;background:#fff;flex-shrink:0;
+  border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;
+}
+.logo-prev img{width:100%;height:100%;object-fit:contain;display:block}
+.logo-prev.empty{background:var(--accent);color:#fff;font-size:32px;font-weight:800}
+.logo-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* ── reviews ── */
+.rvhead{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.rvavg{font-size:30px;font-weight:800;letter-spacing:-.6px}
+.rvbars{margin-bottom:14px;max-width:320px}
+.rvbar{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3);margin:3px 0}
+.rvbar .n{width:32px;flex-shrink:0}
+.rvbar .t{flex:1;height:6px;background:var(--line);border-radius:99px;overflow:hidden}
+.rvbar .f{height:100%;background:var(--accent);border-radius:99px}
+.rvbar .c{width:28px;text-align:right;flex-shrink:0}
+.rvitem{border-top:1px solid var(--line);padding:11px 0}
+.rvs{font-size:13px;color:var(--accent);font-weight:700}
+.rvs .dim{color:var(--line)}
+.rvw{font-size:14px;margin-top:3px;line-height:1.45}
+.rvm{font-size:12px;color:var(--ink-3);margin-top:3px;text-transform:capitalize}
 .cap{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
 .cap input{accent-color:var(--accent)}
 .pane-h .cnt{font-size:12px;color:var(--ink-faint);font-weight:600;margin-left:6px}
@@ -1584,6 +1609,35 @@ async function renderCompanyPane(){
     </div>
 
     <div class="pane">
+      <div class="pane-h"><h3>${t('co.logo_h')}</h3></div>
+      <div class="pane-b">
+        <p class="push-fine">${t('co.logo_sub')}</p>
+        <div class="logo-row">
+          <div class="logo-prev${c.logo_url ? '' : ' empty'}" id="logoPrev">
+            ${c.logo_url ? `<img src="${esc(c.logo_url)}" alt="">`
+                         : `<span>${esc((c.name||'?').charAt(0))}</span>`}
+          </div>
+          <div class="logo-act">
+            <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden
+                   onchange="uploadLogo()">
+            <button class="btn ghost" onclick="document.getElementById('logoFile').click()">
+              ${c.logo_url ? t('co.logo_replace') : t('co.logo_pick')}</button>
+            ${c.logo_url ? `<button class="btn ghost danger" onclick="removeLogo()">${t('co.logo_remove')}</button>` : ''}
+            <div class="push-fine" id="logoMsg"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pane">
+      <div class="pane-h"><h3>${t('co.reviews_h')}
+        <span class="cnt">${c.rating_count || 0}</span></h3></div>
+      <div class="pane-b" id="revPane">
+        <div class="empty">${t('o.loading')}</div>
+      </div>
+    </div>
+
+    <div class="pane">
       <div class="pane-h"><h3>${t('co.verify_h')}</h3></div>
       <div class="pane-b">${verifyPanelHTML(r.verification, c)}</div>
     </div>
@@ -1637,7 +1691,98 @@ async function renderCompanyPane(){
     </div>`;
 
   loadMyTickets();
+  loadMyReviews();
   wireBasePicker();
+}
+
+/* ── company logo ────────────────────────────────────────────────
+   Shown to a stranded customer beside the company name and dropped on the map
+   they are watching, so it is worth a company getting it right. */
+async function uploadLogo(){
+  const input = document.getElementById('logoFile');
+  const msg   = document.getElementById('logoMsg');
+  const file  = input && input.files && input.files[0];
+  if(!file) return;
+
+  msg.textContent = t('co.logo_saving');
+  // FormData, not JSON: this goes through the same multipart path the document
+  // uploads use, and api() sets a JSON content-type that would break it.
+  const fd = new FormData();
+  fd.append('file', file);
+
+  let r;
+  try {
+    const res = await fetch(API + '/company/logo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + TOKEN },
+      body: fd,
+    });
+    r = await res.json();
+  } catch(e){ r = {success:false, error:t('co.logo_failed')}; }
+
+  // Cleared either way, so picking the SAME file again after a failure still
+  // fires a change event. Without this a retry does nothing and looks frozen.
+  input.value = '';
+
+  if(!r || !r.success){ msg.textContent = r && r.error ? r.error : t('co.logo_failed'); return; }
+  msg.textContent = '';
+  renderCompanyPane();
+}
+
+async function removeLogo(){
+  if(!confirm(t('co.logo_remove_confirm'))) return;
+  const r = await api('/company/logo-remove', {method:'POST', body:'{}'});
+  const msg = document.getElementById('logoMsg');
+  if(!r.success){ if(msg) msg.textContent = r.error || ''; return; }
+  renderCompanyPane();
+}
+
+/* ── reviews left for this company ───────────────────────────────
+   Read-only and deliberately unfiltered. An operator who can hide his own bad
+   reviews has a rating that means nothing, and the average on the board is
+   computed from the same rows either way. */
+async function loadMyReviews(){
+  const box = document.getElementById('revPane');
+  if(!box) return;
+
+  const r = await api('/company/reviews?limit=50');
+  if(!r.success){ box.innerHTML = `<div class="empty">${esc(r.error||'')}</div>`; return; }
+
+  const total = r.company.rating_count || 0;
+  if(!total){
+    box.innerHTML = `<p class="push-fine">${t('co.rev_none')}</p>`;
+    return;
+  }
+
+  const bars = [5,4,3,2,1].map(n => {
+    const c = (r.breakdown && r.breakdown[n]) || 0;
+    return `<div class="rvbar"><span class="n">${n} ★</span>
+              <span class="t"><span class="f" style="width:${total ? Math.round(c/total*100) : 0}%"></span></span>
+              <span class="c">${c}</span></div>`;
+  }).join('');
+
+  const written = (r.reviews || []).filter(x => x.comment);
+  box.innerHTML = `
+    <div class="rvhead">
+      <span class="rvavg">${(r.company.rating_avg||0).toFixed(1)}</span>
+      <span class="push-fine">${total} ${t('co.rev_count')}</span>
+    </div>
+    <div class="rvbars">${bars}</div>
+    ${written.length
+      ? written.map(x => `
+          <div class="rvitem">
+            <div class="rvs">${'★'.repeat(x.stars)}<span class="dim">${'★'.repeat(5-x.stars)}</span></div>
+            <div class="rvw">${esc(x.comment)}</div>
+            <div class="rvm">${[x.area?esc(x.area):'', x.service_type?esc(x.service_type.replace(/_/g,' ')):'',
+                                 fmtRevDate(x.created_at)].filter(Boolean).join(' · ')}</div>
+          </div>`).join('')
+      : `<p class="push-fine">${t('co.rev_no_words', {n: total})}</p>`}`;
+}
+
+function fmtRevDate(ts){
+  if(!ts) return '';
+  const d = new Date(String(ts).replace(' ','T'));
+  return isNaN(d) ? '' : d.toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
 }
 
 /* ── support ─────────────────────────────────────────────────── */

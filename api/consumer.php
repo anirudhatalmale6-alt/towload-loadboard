@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
+require_once __DIR__ . '/../includes/branding.php';
 require_once __DIR__ . '/../includes/escrow.php';
 require_once __DIR__ . '/../includes/pricing.php';
 require_once __DIR__ . '/../includes/zones.php';
@@ -562,7 +563,8 @@ if ($action === 'track') {
     $stmt = getDB()->prepare(
         "SELECT c.*, t.name AS tower_name, t.phone AS tower_phone, t.rating_avg AS tower_rating,
                 t.jobs_completed AS tower_jobs, t.verification_status AS tower_status,
-                t.verified_at AS tower_verified_at
+                t.verified_at AS tower_verified_at, t.rating_count AS tower_rating_count,
+                t.logo_url AS tower_logo
            FROM calls c LEFT JOIN accounts t ON c.awarded_tower_account_id = t.id
           WHERE c.tracking_token = :tok"
     );
@@ -653,6 +655,23 @@ if ($action === 'track') {
             'jobs'     => (int)$call['tower_jobs'],
             'verified' => $call['tower_status'] === 'approved',
             'verified_since' => $call['tower_verified_at'],
+            'rating_count'   => (int)$call['tower_rating_count'],
+            // How many reviews the reviews screen can actually SHOW, counted
+            // from the ratings table rather than the denormalised counter on
+            // the account. The two disagree wherever a counter was seeded or
+            // edited directly, and the customer card must not offer to open a
+            // list that turns out to be empty -- an advertised "2 reviews" that
+            // opens on nothing is worse than never having offered the link.
+            'reviews_available' => (int)(function () use ($call) {
+                $s = getDB()->prepare("SELECT COUNT(*) FROM ratings WHERE rated_account_id = :a");
+                $s->execute([':a' => $call['awarded_tower_account_id']]);
+                return $s->fetchColumn();
+            })(),
+            // The company's own mark, shown beside its name and dropped on the
+            // map. Null for most companies, and the screen must look finished
+            // without one -- a logo is the exception, not the layout.
+            'logo_url'       => absoluteUrl($call['tower_logo']),
+            'pin_url'        => absoluteUrl(logoPinUrl($call['tower_logo'])),
         ] : null,
         // Rating only ever appears on a finished job, and only inside the
         // window — asking someone to rate a truck that has not arrived yet is

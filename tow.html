@@ -438,11 +438,67 @@ input::placeholder{color:#aab4c4}
   width:46px;height:46px;border-radius:50%;background:var(--accent);color:#fff;
   display:grid;place-items:center;font-weight:800;font-size:17px;flex-shrink:0;
 }
+.driver .av img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+/* A logo is fitted on a white disc, not cropped to fill -- a wide wordmark
+   cropped to a circle loses the company's name, which is the one thing the
+   customer is trying to read. */
+.driver .av.logo{background:#fff;padding:0;overflow:hidden;position:relative}
+/* The initial is always in the DOM underneath. If the logo 404s the img simply
+   renders nothing and the letter is already there — no onerror handler, and
+   nothing interpolated into an attribute that a company name could break. */
+.driver .av.logo img{position:absolute;inset:0}
+.driver .revlink{color:inherit;text-decoration:underline;text-underline-offset:2px}
+
+/* ── REVIEWS ─────────────────────────────────────────────────────────────
+   Inline rather than a modal: this page has no modal anywhere else, and a
+   customer sitting on a hard shoulder should never have to find a close
+   button to get back to their ETA. */
+.revs{background:var(--wash);border-radius:12px;padding:16px;margin-top:10px}
+.revs .head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+.revs .avg{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.revs .of{font-size:13px;color:var(--ink-3);font-weight:600}
+.revs .close{margin-left:auto;background:none;border:0;color:var(--ink-3);
+  font-size:13px;font-weight:700;cursor:pointer;padding:4px}
+.revs .bars{margin-bottom:14px}
+.revs .brow{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3);margin:3px 0}
+.revs .brow .n{width:34px;flex-shrink:0}
+.revs .brow .t{flex:1;height:6px;background:var(--line);border-radius:99px;overflow:hidden}
+.revs .brow .f{height:100%;background:var(--accent);border-radius:99px}
+.revs .brow .c{width:26px;text-align:right;flex-shrink:0}
+.revs .r{border-top:1px solid var(--line);padding:11px 0}
+.revs .r .s{font-size:13px;color:var(--accent);font-weight:700}
+.revs .r .w{font-size:14px;margin-top:3px;line-height:1.45}
+.revs .r .m{font-size:12px;color:var(--ink-3);margin-top:3px}
+.revs .none{font-size:13.5px;color:var(--ink-3);padding:6px 0}
 .driver .nm{font-weight:750;font-size:15.5px}
 .driver .rt{font-size:13px;color:var(--ink-3)}
 .driver a{
   margin-left:auto;background:var(--green);color:#fff;padding:11px 17px;
   border-radius:10px;text-decoration:none;font-weight:700;font-size:14.5px;
+}
+
+/* ── ARRIVAL BAR ────────────────────────────────────────────────────────
+   Replaces the spinner once a driver is actually coming. A spinner means
+   "working on it", which is true while we are still looking for a truck and
+   a lie afterwards -- at that point the customer does not want to know that
+   something is happening, they want to know how much longer. */
+.arrival{margin:4px auto 2px;max-width:340px}
+.arrival .track{
+  height:8px;border-radius:99px;background:var(--wash);overflow:hidden;
+  border:1px solid var(--line);
+}
+.arrival .fill{
+  height:100%;border-radius:99px;background:var(--accent);
+  /* Slow, because the underlying position updates in steps. A bar that snaps
+     between values looks like it is guessing; one that eases looks like it is
+     watching something. */
+  transition:width 1200ms cubic-bezier(.4,0,.2,1);
+  min-width:6px;
+}
+.arrival .fill.done{background:var(--green)}
+.arrival .cap{
+  font-size:12px;color:var(--ink-3);margin-top:7px;font-weight:600;
+  display:flex;justify-content:space-between;gap:10px;
 }
 
 .err{
@@ -688,6 +744,10 @@ input::placeholder{color:#aab4c4}
   <div class="card hide" id="trackCard">
     <div class="track-status">
       <div class="spinner" id="trkSpin"></div>
+      <div class="arrival hide" id="trkBar">
+        <div class="track"><div class="fill" id="trkFill" style="width:0%"></div></div>
+        <div class="cap"><span id="trkCapL"></span><span id="trkCapR"></span></div>
+      </div>
       <div class="big" id="trkBig" data-i18n="c.finding">Finding you a truck</div>
       <div class="sm" id="trkSm" data-i18n="c.finding_sub">Sending your job to nearby drivers…</div>
     </div>
@@ -696,6 +756,7 @@ input::placeholder{color:#aab4c4}
       <div class="map-eta" id="mapEta"></div>
     </div>
     <div id="driverBox"></div>
+    <div id="reviewBox"></div>
     <!-- Only ever filled once the job is finished. See renderRating(). -->
     <div id="rateBox"></div>
     <div class="timeline" id="trkTimeline"></div>
@@ -1537,7 +1598,20 @@ async function poll(){
 
   $('trkBig').textContent = r.status_text;
   const done = ['completed','goa','canceled','expired'].includes(r.status);
-  $('trkSpin').classList.toggle('hide', done);
+
+  // The spinner belongs to ONE state: still looking for a truck. The moment a
+  // company has accepted, it is replaced by a bar showing how close the driver
+  // actually is. Leaving a spinner up for the whole journey tells a stranded
+  // customer nothing they did not already know.
+  const searching = r.status === 'open';
+  $('trkSpin').classList.toggle('hide', done || !searching);
+
+  // Kept so the MAP timer can repaint the bar the moment progress arrives.
+  // The bar's number comes from the tracking feed and its painter runs on the
+  // status poll -- two timers, and on a fresh load the painter always ran
+  // first, saw no progress yet and hid the bar until the NEXT status poll.
+  LAST_TRACK = r;
+  paintArrival(r, done);
   $('cancelBtn').classList.toggle('hide', done);
   // The live ETA wins when there is one. r.eta_minutes is what the driver
   // typed at accept time and never changes, so it is only the stand-in until
@@ -1553,16 +1627,26 @@ async function poll(){
       ? t('c.finding_sub')
       : etaLine(r, liveEta);
 
+  // The marker the map should use. Set from the STATUS poll rather than the
+  // tracking feed because this is a fact about the company, not about where it
+  // currently is -- and it must be known before the first position lands or the
+  // first marker drawn is the generic truck.
+  MAP.pinUrl = (r.tower && r.tower.pin_url) ? r.tower.pin_url : null;
+  applyTruckIcon();
+
   $('driverBox').innerHTML = r.tower ? `
     <div class="driver">
-      <div class="av">${r.tower.name.charAt(0)}</div>
+      <div class="av${r.tower.logo_url ? ' logo' : ''}">${esc(r.tower.name.charAt(0))}${
+          r.tower.logo_url ? `<img src="${esc(r.tower.logo_url)}" alt="">` : ''}</div>
       <div>
-        <div class="nm">${r.tower.name}${r.tower.verified ? `<span class="vbadge">✓ ${t('c.verified')}</span>` : ''}</div>
+        <div class="nm">${esc(r.tower.name)}${r.tower.verified ? `<span class="vbadge">✓ ${t('c.verified')}</span>` : ''}</div>
         <div class="rt">${r.tower.jobs > 0
-            ? `★ ${r.tower.rating.toFixed(1)} · ${r.tower.jobs} ${t('c.jobs')}`
+            ? `${r.tower.reviews_available > 0
+                 ? `<a class="revlink" href="#" onclick="showReviews();return false;">★ ${r.tower.rating.toFixed(1)} · ${r.tower.reviews_available} ${t('c.reviews')}</a>`
+                 : `★ ${r.tower.rating.toFixed(1)}`} · ${r.tower.jobs} ${t('c.jobs')}`
             : t('c.new_company')}</div>
       </div>
-      <a href="tel:${r.tower.phone}">${t('c.call')}</a>
+      <a href="tel:${esc(r.tower.phone)}">${t('c.call')}</a>
     </div>` : '';
 
   renderRating(r);
@@ -1585,19 +1669,142 @@ async function poll(){
     `<div class="line total"><span>${r.payment_status==='captured'?t('c.charged'):t('c.total')}</span><span>${money(r.total)}</span></div>`;
 }
 
+/* What other customers said about the company that is on its way.
+
+   Fetched with the tracking token, not a login: the person who most needs to
+   know whether this company is any good is the one who has just been assigned
+   it, and they have no account. The server checks the token maps to this job
+   and returns nothing that identifies who left which review. */
+let REVIEWS_OPEN = false;
+/* The last /consumer/track payload. Only ever read for repainting -- the status
+   poll remains the one thing that writes it. */
+let LAST_TRACK = null;
+
+async function showReviews(){
+  const box = $('reviewBox');
+  if(REVIEWS_OPEN){ REVIEWS_OPEN = false; box.innerHTML = ''; return; }
+  REVIEWS_OPEN = true;
+  box.innerHTML = `<div class="revs"><div class="none">${t('c.rev_loading')}</div></div>`;
+
+  let r;
+  try { r = await api('/company/reviews?token=' + S.token + '&limit=20'); }
+  catch(e){ r = null; }
+  if(!REVIEWS_OPEN) return;                 // closed again while it was loading
+  if(!r || !r.success){
+    box.innerHTML = `<div class="revs"><div class="none">${t('c.rev_failed')}</div></div>`;
+    return;
+  }
+
+  const total = r.company.rating_count || 0;
+  const bars = [5,4,3,2,1].map(n => {
+    const c = (r.breakdown && r.breakdown[n]) || 0;
+    const pct = total ? Math.round(c / total * 100) : 0;
+    return `<div class="brow"><span class="n">${n} ★</span>
+              <span class="t"><span class="f" style="width:${pct}%"></span></span>
+              <span class="c">${c}</span></div>`;
+  }).join('');
+
+  // Only the ones with words. A five-star with no comment already counted
+  // towards the average and the bars above; repeating it as an empty card
+  // pads the list with nothing to read.
+  const written = (r.reviews || []).filter(x => x.comment);
+  const list = written.length
+    ? written.map(x => `
+        <div class="r">
+          <div class="s">${'★'.repeat(x.stars)}<span style="color:var(--line)">${'★'.repeat(5-x.stars)}</span></div>
+          <div class="w">${esc(x.comment)}</div>
+          <div class="m">${[x.area ? esc(x.area) : '', fmtMonth(x.created_at)].filter(Boolean).join(' · ')}</div>
+        </div>`).join('')
+    : `<div class="none">${t('c.rev_none_written')}</div>`;
+
+  box.innerHTML = `
+    <div class="revs">
+      <div class="head">
+        <span class="avg">${(r.company.rating_avg || 0).toFixed(1)}</span>
+        <span class="of">${total} ${t('c.reviews')}</span>
+        <button class="close" onclick="showReviews()">${t('c.rev_close')}</button>
+      </div>
+      ${total ? `<div class="bars">${bars}</div>` : ''}
+      ${list}
+    </div>`;
+}
+
+/* Month and year only. A review is about a company, not about a Tuesday, and
+   a precise timestamp next to a complaint narrows down who wrote it. */
+function fmtMonth(ts){
+  if(!ts) return '';
+  const d = new Date(String(ts).replace(' ','T'));
+  if(isNaN(d)) return '';
+  return d.toLocaleDateString(tlLang() === 'es' ? 'es-US' : 'en-US', {month:'long', year:'numeric'});
+}
+
+/* Arrival progress. MAP.progress is whatever the tracking feed last said, and
+   the feed decides it from the same position it drew the marker with — so the
+   bar and the truck can never disagree.
+
+   Null is a real answer, not a zero: a job accepted before this shipped, or one
+   where the truck's position at accept was unknown, has no baseline to measure
+   against. Drawing an empty bar there would say "he has not started", which we
+   do not know. Hide it and let the ETA line speak. */
+function paintArrival(r, done){
+  const bar = $('trkBar');
+  const pct = MAP.progress;
+  const arrived = ['on_scene','in_progress','completed','goa'].includes(r.status);
+
+  if(r.status === 'open' || done || pct === null || pct === undefined){
+    bar.classList.add('hide');
+    return;
+  }
+  bar.classList.remove('hide');
+  $('trkFill').style.width = Math.max(0, Math.min(100, pct)) + '%';
+  $('trkFill').classList.toggle('done', arrived);
+  $('trkCapL').textContent = arrived ? t('c.bar_here') : t('c.bar_on_way');
+  // The percentage is deliberately not shown. It is derived from a straight
+  // line and would invite "it said 80% ten minutes ago"; the ETA is the number
+  // worth standing behind.
+  $('trkCapR').textContent = arrived ? '' : (MAP.lastEta ? MAP.lastEta + ' ' + t('c.map_min') : '');
+}
+
 /* ── live map ─────────────────────────────────────────────────────────────
    Drawn only when the server sends a position it is willing to stand behind.
    Everything about staleness is decided server-side; this just renders what it
    is told, so the browser can never talk itself into showing a stale truck as
    live. */
 const MAP = { map:null, truck:null, pin:null, drop:null, lastEta:null,
-              fitted:false, pickup:null, loading:null, api:null };
+              fitted:false, pickup:null, loading:null, api:null,
+              progress:null, pinUrl:null };
 
 /* The markers are SVG data URIs rather than styled HTML.
    Google's HTML marker (AdvancedMarkerElement) needs a Map ID provisioned in
    the Cloud console, and a missing one fails at runtime rather than degrading
    — not a dependency worth taking for a coloured circle on the one screen a
    stranded customer is watching. */
+/* The company's own badge if it has uploaded one, the generic truck if not.
+   Built through the same {url, scaledSize, anchor} shape as svgIcon so the
+   marker is positioned identically either way — a logo anchored at its
+   top-left instead of its centre sits half a block up the road. */
+function truckIcon(){
+  return MAP.pinUrl
+    ? { url: MAP.pinUrl,
+        scaledSize: new MAP.api.Size(40, 40),
+        anchor:     new MAP.api.Point(20, 20) }
+    : svgIcon(TRUCK_ICON, 40);
+}
+
+/* Swap the marker only when the logo has actually changed.
+
+   Called from BOTH timers on purpose. The position arrives on the map poll and
+   the logo arrives on the status poll, so whichever runs first would otherwise
+   leave the customer looking at the generic truck for a full cycle before it
+   flicked to the company's mark. Calling setIcon on every poll instead would
+   make Google re-fetch and re-rasterise it once a second, which flickers. */
+function applyTruckIcon(){
+  if(!MAP.truck || !MAP.api) return;
+  if(MAP.truckIconUrl === MAP.pinUrl) return;
+  MAP.truck.setIcon(truckIcon());
+  MAP.truckIconUrl = MAP.pinUrl;
+}
+
 function svgIcon(svg, size){
   return {
     url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
@@ -1678,6 +1885,17 @@ async function pollMap(){
   try { r = await api('/tracking/feed?token=' + S.token); } catch(e){ return; }
   if(!r || !r.success || !r.tracking_enabled) return;
 
+  // Kept here rather than read straight into the bar: the tracking feed and the
+  // status poll run on separate timers, and the bar is painted by the status
+  // poll. Undefined from an older server stays undefined, which paintArrival
+  // reads as "no bar".
+  MAP.progress = (r.arrival_progress === undefined) ? null : r.arrival_progress;
+  // Repaint immediately rather than waiting for the next status tick.
+  if(LAST_TRACK){
+    paintArrival(LAST_TRACK,
+      ['completed','goa','canceled','expired'].includes(LAST_TRACK.status));
+  }
+
   // No truck position yet — the driver has been assigned but has not set off,
   // so his phone has sent nothing. There is still something honest to show:
   // where the customer is. Hiding the map entirely meant a customer who had
@@ -1718,11 +1936,13 @@ async function drawTruck(lat, lng, etaMinutes, stale, approximate){
 
   if(!MAP.truck){
     MAP.truck = new MAP.api.Marker({
-      map: m, position: {lat, lng}, icon: svgIcon(TRUCK_ICON, 40),
+      map: m, position: {lat, lng}, icon: truckIcon(),
       zIndex: 1000, optimized: false,
     });
+    MAP.truckIconUrl = MAP.pinUrl;
   } else {
     MAP.truck.setPosition({lat, lng});
+    applyTruckIcon();
   }
 
   if(MAP.pickup && !MAP.pin){

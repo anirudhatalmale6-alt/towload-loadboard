@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/helpers.php';
 require_once __DIR__ . '/../includes/matching.php';
+require_once __DIR__ . '/../includes/branding.php';
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  THE COMPANY'S OWN RECORD
@@ -74,7 +75,8 @@ if ($method === 'GET' && ($action === 'overview' || $action === '')) {
                 p.has_wheel_lift, p.has_winch_recovery, p.has_lockout, p.has_jumpstart,
                 p.has_tire_change, p.has_fuel_delivery, p.has_motorcycle, p.has_ev_certified,
                 p.has_lowclearance, p.is_24_7, p.trucks_count, p.accepts_auto_dispatch,
-                p.is_available, p.available_changed_at
+                p.is_available, p.available_changed_at,
+                a.logo_url, a.rating_avg, a.rating_count
            FROM accounts a
            JOIN tower_profiles p ON p.account_id = a.id
           WHERE a.id = :a"
@@ -101,6 +103,12 @@ if ($method === 'GET' && ($action === 'overview' || $action === '')) {
     $row['phone_verified'] = verifiedFor($row, 'phone');
     unset($row['email_verified_value'], $row['phone_verified_value'],
           $row['email_verified_at'], $row['phone_verified_at']);
+
+    $row['rating_avg']   = (float)$row['rating_avg'];
+    $row['rating_count'] = (int)$row['rating_count'];
+    // Absolute, because the app is not served from the same origin as the
+    // site and a relative path there resolves against nothing.
+    $row['logo_url'] = absoluteUrl($row['logo_url']);
 
     successResponse([
         'company'      => $row,
@@ -225,6 +233,167 @@ if ($method === 'POST' && $action === 'availability') {
     )->execute([':v' => $on ? 1 : 0, ':a' => $user['account_id']]);
 
     successResponse(['available' => $on], t($on ? 'ok.now_available' : 'ok.now_unavailable'));
+}
+
+// ═══ COMPANY LOGO ════════════════════════════════════════════════════════════
+//
+// Shown to a stranded customer: beside the company name on the tracking screen,
+// and as the marker on the map. Public by design — see includes/branding.php
+// for why that is stored differently from a compliance document.
+if ($method === 'POST' && $action === 'logo') {
+    $user = requireAuth();
+    requireAccountType($user, 'tower');
+    requireRole($user, ['owner', 'dispatcher']);
+
+    $stored = storeCompanyLogo($_FILES['file'] ?? [], (int)$user['account_id']);
+    if (empty($stored['ok'])) errorResponse($stored['error'], 400);
+
+    $pdo = getDB();
+    // The old files go only after the new row is committed. Deleting first and
+    // then failing the UPDATE would leave a company pointing at nothing, which
+    // is worse than leaving two files on disk.
+    $prev = $pdo->prepare("SELECT logo_url FROM accounts WHERE id = :a");
+    $prev->execute([':a' => $user['account_id']]);
+    $old = $prev->fetch()['logo_url'] ?? null;
+
+    $pdo->prepare("UPDATE accounts SET logo_url = :u WHERE id = :a")
+        ->execute([':u' => $stored['logo_url'], ':a' => $user['account_id']]);
+
+    if ($old && $old !== $stored['logo_url']) deleteCompanyLogo($old);
+
+    successResponse([
+        'logo_url' => absoluteUrl($stored['logo_url']),
+        'pin_url'  => absoluteUrl($stored['pin_url']),
+    ], t('ok.logo_saved'));
+}
+
+if ($method === 'POST' && $action === 'logo-remove') {
+    $user = requireAuth();
+    requireAccountType($user, 'tower');
+    requireRole($user, ['owner', 'dispatcher']);
+
+    $pdo = getDB();
+    $prev = $pdo->prepare("SELECT logo_url FROM accounts WHERE id = :a");
+    $prev->execute([':a' => $user['account_id']]);
+    $old = $prev->fetch()['logo_url'] ?? null;
+
+    $pdo->prepare("UPDATE accounts SET logo_url = NULL WHERE id = :a")
+        ->execute([':a' => $user['account_id']]);
+    deleteCompanyLogo($old);
+
+    successResponse(['logo_url' => null], t('ok.logo_removed'));
+}
+
+// ═══ REVIEWS LEFT FOR A COMPANY ══════════════════════════════════════════════
+//
+// Two callers, one query. A signed-in operator reading his own reviews, and a
+// customer looking up the company that has just been assigned to them — the
+// second has no account, so it is keyed on the job's tracking token instead.
+//
+// Nothing here is private: a review is a public statement about a business.
+// What is NOT returned is who left it. The customer's name is on the job, and
+// pairing "★1, drove off without me" with a name and a pickup address is how a
+// review becomes an address for a reprisal.
+if ($method === 'GET' && $action === 'reviews') {
+    $accountId = 0;
+
+    if (!empty($_GET['token'])) {
+        if (!preg_match('/^[a-f0-9]{32}$/', $_GET['token'])) errorResponse(t('err.bad_tracking'), 404);
+        $s = getDB()->prepare("SELECT awarded_tower_account_id FROM calls WHERE tracking_token = :t");
+        $s->execute([':t' => $_GET['token']]);
+        $accountId = (int)($s->fetch()['awarded_tower_account_id'] ?? 0);
+        if (!$accountId) errorResponse(t('err.job_not_found'), 404);
+    } else {
+        $user = requireAuth();
+        requireAccountType($user, 'tower');
+        $accountId = (int)$user['account_id'];
+    }
+
+    $limit  = max(1, min(100, (int)($_GET['limit'] ?? 25)));
+    $offset = max(0, (int)($_GET['offset'] ?? 0));
+
+    $head = getDB()->prepare(
+        "SELECT name, rating_avg, rating_count, jobs_completed, logo_url, verification_status
+           FROM accounts WHERE id = :a"
+    );
+    $head->execute([':a' => $accountId]);
+    $company = $head->fetch();
+    if (!$company) errorResponse(t('err.account_not_found'), 404);
+
+    $stmt = getDB()->prepare(
+        "SELECT r.stars, r.comment, r.created_at, c.service_type, c.pickup_city, c.pickup_state
+           FROM ratings r
+           LEFT JOIN calls c ON c.id = r.call_id
+          WHERE r.rated_account_id = :a
+          ORDER BY r.created_at DESC
+          LIMIT $limit OFFSET $offset"
+    );
+    $stmt->execute([':a' => $accountId]);
+
+    $reviews = [];
+    foreach ($stmt->fetchAll() as $r) {
+        $reviews[] = [
+            'stars'        => (int)$r['stars'],
+            // Blank comments are common and a card with nothing in it is worse
+            // than no card. The client decides; it gets null, not "".
+            'comment'      => ($r['comment'] !== null && trim($r['comment']) !== '')
+                                ? trim($r['comment']) : null,
+            'created_at'   => $r['created_at'],
+            'service_type' => $r['service_type'],
+            'area'         => trim(($r['pickup_city'] ?? '') . ', ' . ($r['pickup_state'] ?? ''), ', ') ?: null,
+        ];
+    }
+
+    // The star breakdown is computed over ALL reviews, never over the page that
+    // was just fetched. "5 five-star reviews" under a company with two hundred
+    // is a different claim from the one the bars are meant to make.
+    $bd = getDB()->prepare(
+        "SELECT stars, COUNT(*) AS n FROM ratings
+          WHERE rated_account_id = :a GROUP BY stars"
+    );
+    $bd->execute([':a' => $accountId]);
+    $breakdown = [5 => 0, 4 => 0, 3 => 0, 2 => 0, 1 => 0];
+    foreach ($bd->fetchAll() as $b) $breakdown[(int)$b['stars']] = (int)$b['n'];
+
+    // Counted from the rows this endpoint can actually show, NOT from
+    // accounts.rating_count.
+    //
+    // Those two are supposed to be the same number — recalcRating() derives one
+    // from the other — but a seeded or hand-edited counter never passes through
+    // it. A screen that promises 63 reviews and then lists none reads as broken
+    // in a way that no amount of "no comments yet" copy rescues, so this screen
+    // only ever claims what it can display.
+    $realCount = array_sum($breakdown);
+
+    // How many carry words. A company with 40 ratings and 3 comments should not
+    // look like it has 40 written reviews further down the page.
+    $wc = getDB()->prepare(
+        "SELECT COUNT(*) FROM ratings
+          WHERE rated_account_id = :a AND comment IS NOT NULL AND TRIM(comment) <> ''"
+    );
+    $wc->execute([':a' => $accountId]);
+
+    successResponse([
+        'company' => [
+            'name'          => $company['name'],
+            // The average is still the stored one — it is what the board and
+            // the customer's driver card show, and disagreeing with them on the
+            // same screen is worse than either number alone.
+            'rating_avg'    => (float)$company['rating_avg'],
+            'rating_count'  => $realCount,
+            // What the rest of the product believes. Equal to rating_count on
+            // any account whose ratings came through saveCustomerRating().
+            // Different means somebody wrote the counter directly.
+            'rating_count_stored' => (int)$company['rating_count'],
+            'jobs_completed'=> (int)$company['jobs_completed'],
+            'verified'      => $company['verification_status'] === 'approved',
+            'logo_url'      => absoluteUrl($company['logo_url']),
+        ],
+        'reviews'        => $reviews,
+        'breakdown'      => $breakdown,
+        'with_comments'  => (int)$wc->fetchColumn(),
+        'has_more'       => ($offset + count($reviews)) < $realCount,
+    ]);
 }
 
 errorResponse('Unknown action', 404);

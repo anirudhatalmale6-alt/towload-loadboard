@@ -409,12 +409,27 @@ if ($method === 'POST' && $action === 'accept') {
             throw new RuntimeException(t('err.not_capable'));
         }
 
+        // How far the truck was when it said yes. Written once, here, and never
+        // updated -- it is the fixed point the customer's arrival bar measures
+        // against. Measured with the same yard-or-truck rule the board uses, so
+        // the bar starts from the distance he was actually offered the job at.
+        $startMeters = null;
+        $near = towerDistanceToJob(
+            (float)$profile['base_lat'] ?: null,
+            (float)$profile['base_lng'] ?: null,
+            freshDevicePosition((int)$user['account_id']),
+            (float)$call['pickup_lat'], (float)$call['pickup_lng']
+        );
+        if ($near !== null) $startMeters = (int)round($near['miles'] * 1609.344);
+
         $pdo->prepare(
             "UPDATE calls
                 SET status = 'awarded', awarded_tower_account_id = :t, awarded_amount = offer_amount,
-                    awarded_eta_minutes = :eta, awarded_at = NOW()
+                    awarded_eta_minutes = :eta, awarded_at = NOW(),
+                    track_start_meters = :start
               WHERE id = :id"
-        )->execute([':t' => $user['account_id'], ':eta' => $etaMinutes, ':id' => $callId]);
+        )->execute([':t' => $user['account_id'], ':eta' => $etaMinutes,
+                    ':start' => $startMeters, ':id' => $callId]);
 
         escrowAssignTower($callId, (int)$user['account_id']);
 

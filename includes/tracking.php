@@ -320,6 +320,42 @@ function customerTrackingView(array $call): ?array {
 }
 
 /**
+ * How far along the driver is between where he accepted from and the customer,
+ * 0-100, or null when there is nothing honest to draw.
+ *
+ * Straight-line at BOTH ends on purpose. The baseline written at accept is a
+ * straight line, and eta_meters is that same distance multiplied by a road
+ * factor — mixing them starts the bar at minus thirty-five percent, which
+ * clamps to zero and then sits there while the truck drives the first third of
+ * the way.
+ *
+ * Targets the PICKUP, never the drop-off. This bar answers one question — "how
+ * long until somebody is standing here with me" — and it is finished the moment
+ * he arrives. What happens to the car afterwards is a different screen.
+ */
+function arrivalProgress(array $call, ?float $lat, ?float $lng): ?int {
+    // Arrived is arrived. Leaving the bar at 96% while the driver is out of the
+    // cab in front of them is the sort of detail that makes a screen feel like
+    // it is not really connected to anything.
+    if (in_array($call['status'], ['on_scene', 'in_progress', 'completed'], true)) return 100;
+
+    $start = isset($call['track_start_meters']) ? (int)$call['track_start_meters'] : 0;
+    // No baseline: every job accepted before this shipped, and any accept where
+    // we did not know where the truck was. The screen falls back to the ETA
+    // line, which is why it must not be built to assume a bar.
+    if ($start <= 0 || $lat === null || $lng === null) return null;
+    if ($call['pickup_lat'] === null || $call['pickup_lng'] === null) return null;
+
+    $now = haversineMiles($lat, $lng, (float)$call['pickup_lat'], (float)$call['pickup_lng']) * 1609.344;
+
+    $pct = (int)round((1 - ($now / $start)) * 100);
+    // A driver who starts by going the wrong way, or who was closer at accept
+    // than the yard-based baseline suggested, must not push the bar backwards
+    // off either end.
+    return max(0, min(100, $pct));
+}
+
+/**
  * The coarse position of the phone belonging to the company that took this job.
  *
  * Only ever reached from customerTrackingView(), which has already established

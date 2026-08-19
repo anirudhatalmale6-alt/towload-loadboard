@@ -268,6 +268,13 @@ es: {
   'c.map_min':           'min de distancia',
   'c.map_close':         'La grúa está muy cerca',
   'c.map_updating':      'Actualizando ubicación…',
+  'c.reviews':           'reseñas',
+  'c.rev_loading':       'Cargando reseñas…',
+  'c.rev_failed':        'No pudimos cargar las reseñas.',
+  'c.rev_none_written':  'Aún nadie ha dejado un comentario escrito.',
+  'c.rev_close':         'Cerrar',
+  'c.bar_on_way':        'Su grúa viene en camino',
+  'c.bar_here':          'Su grúa ya llegó',
   'c.map_approx':        'Posición aproximada',
   'c.map_waiting':       'Esperando a que la grúa salga',
 
@@ -379,6 +386,18 @@ es: {
 
   /* ── company page, verification, fleet ─────────────────────────── */
   'o.company':           'Mi compañía',
+  'co.logo_h':           'Logo de la empresa',
+  'co.logo_sub':         'Se muestra al cliente junto al nombre de su empresa y sobre el mapa que está mirando. JPG, PNG o WEBP.',
+  'co.logo_pick':        'Subir un logo',
+  'co.logo_replace':     'Cambiar el logo',
+  'co.logo_remove':      'Quitar',
+  'co.logo_remove_confirm': '¿Quitar el logo? Los clientes volverán a ver el ícono genérico.',
+  'co.logo_saving':      'Subiendo…',
+  'co.logo_failed':      'No pudimos subir ese logo.',
+  'co.reviews_h':        'Reseñas de clientes',
+  'co.rev_count':        'reseñas',
+  'co.rev_none':         'Todavía no tiene reseñas. Aparecen cuando un cliente califica un trabajo terminado.',
+  'co.rev_no_words':     'Sus {n} reseñas son calificaciones sin comentario escrito.',
 
   /* ── money, support, closing an account ────────────────────────── */
   'duty.on':             'Tomando trabajos',
@@ -1085,6 +1104,13 @@ en: {
   'c.map_min':           'min away',
   'c.map_close':         'Your truck is very close',
   'c.map_updating':      'Updating location…',
+  'c.reviews':           'reviews',
+  'c.rev_loading':       'Loading reviews…',
+  'c.rev_failed':        'We could not load the reviews.',
+  'c.rev_none_written':  'Nobody has left a written comment yet.',
+  'c.rev_close':         'Close',
+  'c.bar_on_way':        'Your truck is on the way',
+  'c.bar_here':          'Your truck has arrived',
   'c.map_approx':        'Approximate position',
   'c.map_waiting':       'Waiting for your truck to set off',
 
@@ -1193,6 +1219,18 @@ en: {
 
   /* ── company page, verification, fleet ─────────────────────────── */
   'o.company':           'My company',
+  'co.logo_h':           'Company logo',
+  'co.logo_sub':         'Shown to the customer beside your company name and on the map they are watching. JPG, PNG or WEBP.',
+  'co.logo_pick':        'Upload a logo',
+  'co.logo_replace':     'Change logo',
+  'co.logo_remove':      'Remove',
+  'co.logo_remove_confirm': 'Remove your logo? Customers will see the generic icon again.',
+  'co.logo_saving':      'Uploading…',
+  'co.logo_failed':      'We could not upload that logo.',
+  'co.reviews_h':        'Customer reviews',
+  'co.rev_count':        'reviews',
+  'co.rev_none':         'No reviews yet. They appear when a customer rates a finished job.',
+  'co.rev_no_words':     'All {n} of your reviews are ratings with no written comment.',
 
   /* ── money, support, closing an account ────────────────────────── */
   'duty.on':             'Taking jobs',

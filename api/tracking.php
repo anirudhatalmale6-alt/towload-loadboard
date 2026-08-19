@@ -37,6 +37,11 @@ if ($action === 'feed') {
 
     $truck = customerTrackingView($call);
 
+    // Computed from whichever position the view settled on, so the bar and the
+    // marker can never disagree about where the truck is.
+    $progress = arrivalProgress($call,
+        $truck['lat'] ?? null, $truck['lng'] ?? null);
+
     successResponse([
         'status'  => $call['status'],
         // Only ever the pickup point. The truck's own depot, its other jobs and
@@ -50,6 +55,9 @@ if ($action === 'feed') {
             'lng' => (float)$call['dropoff_lng'],
         ] : null,
         'truck'   => $truck,
+        // 0-100, or null when there is no honest bar to draw. The screen shows
+        // the ETA line alone in that case rather than a bar stuck at zero.
+        'arrival_progress' => $progress,
         // What the driver promised at accept time, kept separate from the live
         // number so the screen can fall back to it before the first fix lands.
         'promised_eta_minutes' => $call['awarded_eta_minutes'] !== null
