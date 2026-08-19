@@ -131,6 +131,21 @@ if ($method === 'GET' && ($action === 'mine' || $action === '')) {
         'documents'           => $docs,
         'checklist'           => docChecklist((int)$user['account_id']),
         'verification_status' => $user['verification_status'],
+        // What the DOCUMENTS actually say, which is a different question from
+        // what the ACCOUNT says.
+        //
+        // A new tower account is created with verification_status = 'pending'
+        // (api/auth.php register), and maybeSubmitForReview() also sets
+        // 'pending' once the last document lands. So that one word covers both
+        // "brand new, nothing uploaded" and "everything is in, waiting on a
+        // human" — and a client that keys its banner off it tells a company
+        // which has uploaded nothing that nothing more is needed from them.
+        // They then stop, never get approved, and blame the platform when no
+        // work arrives.
+        //
+        // docsState() answers from the checklist itself:
+        // missing | rejected | expired | pending | approved.
+        'docs_state'          => docsState((int)$user['account_id']),
         'rejection_reason'    => (function () use ($user) {
             $s = getDB()->prepare("SELECT rejection_reason FROM accounts WHERE id = :a");
             $s->execute([':a' => $user['account_id']]);
