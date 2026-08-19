@@ -80,6 +80,13 @@ function applyZoneRates(array $rule, float $multiplier): array {
     return $rule;
 }
 
+// "What time is it" is a question about the customer on the shoulder, not
+// about the box in a datacentre. date('G') answered it in the server's zone,
+// which is three hours behind Florida: a 10pm Miami call read as 7pm and
+// missed the night rate the operator was owed, and a Friday 11pm call read as
+// Friday 8pm and missed the weekend rate too. Callers pass the pickup's own
+// hour and day — see localClock() in includes/timezone.php.
+
 function isAfterHours(?int $hour = null): bool {
     $hour = $hour ?? (int)date('G');
     $start = (int)setting('after_hours_start', 20);
@@ -89,8 +96,8 @@ function isAfterHours(?int $hour = null): bool {
                          : ($hour >= $start && $hour < $end);
 }
 
-function isWeekend(): bool {
-    $dow = (int)date('N');   // 6 = Saturday, 7 = Sunday
+function isWeekend(?int $dow = null): bool {
+    $dow = $dow ?? (int)date('N');   // 6 = Saturday, 7 = Sunday
     return $dow >= 6;
 }
 
@@ -164,13 +171,21 @@ function quoteConsumerJob(array $opts): array {
         }
     }
 
-    // Time-of-day and weekend multipliers, applied to everything above.
+    // Time-of-day and weekend multipliers, applied to everything above. Both
+    // read the clock where the customer is standing, not the server's.
+    // 'at' is only ever set by the test harness — without it this path can
+    // only be exercised at whatever hour it happens to be, which is how a
+    // night-rate bug survives every test run made during office hours.
+    $clock = localClock($lat, $lng, $opts['state'] ?? null, $opts['at'] ?? null);
+    $afterHours = isAfterHours($clock['hour']);
+    $weekend    = isWeekend($clock['dow']);
+
     $multiplier = 1.0;
     $multiplierLabel = null;
-    if (isAfterHours()) {
+    if ($afterHours) {
         $multiplier = (float)$rule['after_hours_multiplier'];
         $multiplierLabel = 'price.after_hours';
-    } elseif (isWeekend()) {
+    } elseif ($weekend) {
         $multiplier = (float)$rule['weekend_multiplier'];
         $multiplierLabel = 'price.weekend';
     }
@@ -232,8 +247,9 @@ function quoteConsumerJob(array $opts): array {
         'tower_receives' => round($total - $fee, 2),
         'billable_miles' => $billableMiles,
         'included_miles' => (float)$rule['included_miles'],
-        'after_hours'    => isAfterHours(),
-        'weekend'        => isWeekend(),
+        'after_hours'    => $afterHours,
+        'weekend'        => $weekend,
+        'local_tz'       => $clock['tz'],
         'surge'          => $surge,
         'zone_id'        => (int)$zone['id'],
         'zone_name'      => zoneName($zone),

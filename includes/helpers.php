@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/timezone.php';   // pins PHP's zone — must load early
 require_once __DIR__ . '/i18n.php';
 
 // ─── CORS ────────────────────────────────────────────────────────────────────
@@ -20,7 +21,10 @@ function setCorsHeaders(): void {
 // ─── RESPONSES ───────────────────────────────────────────────────────────────
 function jsonResponse(array $data, int $code = 200): void {
     http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    // Every DATETIME leaves here carrying its offset. See includes/timezone.php
+    // — a bare "2026-08-19 14:33:35" is read by the browser as the reader's own
+    // clock, which is how a Miami customer saw every time three hours behind.
+    echo json_encode(isoDeep($data), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -330,9 +334,22 @@ function uniqueSlug(string $base): string {
     }
 }
 
-function generateCallNumber(): string {
+function generateCallNumber(?float $lat = null, ?float $lng = null, ?string $state = null): string {
     // Sortable and human-readable on a dispatch screen: TL-260814-4821
-    return 'TL-' . date('ymd') . '-' . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
+    //
+    // Dated where the job is, not where the server is. On the server's own
+    // clock a call taken at 1am in Miami is still the previous evening in
+    // California, so it went out stamped with yesterday's date and a
+    // dispatcher reconciling a night shift found it filed under the wrong day.
+    $day = date('ymd');
+    if ($lat !== null || $lng !== null || $state !== null) {
+        try {
+            $day = (new DateTimeImmutable('now', serverTz()))
+                 ->setTimezone(new DateTimeZone(tzForPoint($lat, $lng, $state)))
+                 ->format('ymd');
+        } catch (Throwable $e) { /* keep the server's day */ }
+    }
+    return 'TL-' . $day . '-' . str_pad((string)random_int(0, 9999), 4, '0', STR_PAD_LEFT);
 }
 
 function normalizePhone(string $phone): string {

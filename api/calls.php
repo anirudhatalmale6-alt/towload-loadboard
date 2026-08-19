@@ -68,7 +68,11 @@ if ($method === 'POST' && $action === 'create') {
 
     $pdo->beginTransaction();
     try {
-        $callNumber = generateCallNumber();
+        $callNumber = generateCallNumber(
+            isset($in['pickup_lat']) ? (float)$in['pickup_lat'] : null,
+            isset($in['pickup_lng']) ? (float)$in['pickup_lng'] : null,
+            $in['pickup_state'] ?? null
+        );
         $pdo->prepare(
             "INSERT INTO calls (
                 call_number, provider_account_id, posted_by_user_id, service_type, vehicle_class,

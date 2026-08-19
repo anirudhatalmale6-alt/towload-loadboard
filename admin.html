@@ -255,6 +255,15 @@ const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+/* The API sends ISO-8601 with a real offset, so this reads in whoever is
+   looking at it — an admin in Miami and one in Denver both see their own
+   clock. Printing the raw string showed the server's zone to everyone. */
+const fmtLocal = ts => {
+  if(!ts) return '—';
+  const d = new Date(String(ts).replace(' ','T'));
+  return isNaN(d) ? '—' : d.toLocaleString(undefined,
+    {month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+};
 
 async function api(path, opts = {}){
   const r = await fetch(API + path, {
@@ -926,7 +935,7 @@ async function vMarkets(){
                 : (z.is_live ? '<span class="pill approved">live</span>' : '<span class="pill unverified">off</span>')}</td>
           <td>${z.surge_enabled ? 'on' : '<span style="color:var(--ink-3)">off</span>'}</td>
           <td>${z.manual_surge && new Date(z.manual_surge_until) > new Date()
-                ? `<span class="pill pending">${Number(z.manual_surge).toFixed(2)}x → ${z.manual_surge_until.slice(0,16).replace('T',' ')}</span>`
+                ? `<span class="pill pending">${Number(z.manual_surge).toFixed(2)}x → ${fmtLocal(z.manual_surge_until)}</span>`
                 : '<span style="color:var(--ink-3)">—</span>'}</td>
           <td style="text-align:right;white-space:nowrap">
             <button class="btn sec sm" onclick='editZone(${JSON.stringify(z)})'>Edit</button>

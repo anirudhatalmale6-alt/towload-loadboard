@@ -292,7 +292,7 @@ if ($method === 'POST' && $action === 'request') {
             $consumerId = (int)$pdo->lastInsertId();
         }
 
-        $callNumber    = generateCallNumber();
+        $callNumber    = generateCallNumber($lat, $lng, $opts['state'] ?? null);
         $trackingToken = bin2hex(random_bytes(16));
 
         $pdo->prepare(
