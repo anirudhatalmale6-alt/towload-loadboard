@@ -693,12 +693,15 @@ legend{
 
 /* ── company logo ── */
 .logo-row{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.logo-slot{flex:0 0 auto;align-self:flex-start;line-height:0}
 .logo-prev{
-  width:84px;height:84px;border-radius:14px;background:#fff;flex-shrink:0;
+  width:84px;height:84px;box-sizing:border-box;
+  border-radius:14px;background:#fff;
   border:1px solid var(--line);display:grid;place-items:center;overflow:hidden;
+  line-height:1;
 }
 .logo-prev img{width:100%;height:100%;object-fit:contain;display:block}
-.logo-prev.empty{background:var(--accent);color:#fff;font-size:32px;font-weight:800}
+.logo-prev.noimg{background:var(--accent);color:#fff;font-size:32px;font-weight:800;padding:0}
 .logo-act{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 /* ── reviews ── */
@@ -1613,10 +1616,9 @@ async function renderCompanyPane(){
       <div class="pane-b">
         <p class="push-fine">${t('co.logo_sub')}</p>
         <div class="logo-row">
-          <div class="logo-prev${c.logo_url ? '' : ' empty'}" id="logoPrev">
-            ${c.logo_url ? `<img src="${esc(c.logo_url)}" alt="">`
-                         : `<span>${esc((c.name||'?').charAt(0))}</span>`}
-          </div>
+          <div class="logo-slot"><div class="logo-prev${c.logo_url ? '' : ' noimg'}" id="logoPrev">${
+            c.logo_url ? `<img src="${esc(c.logo_url)}" alt="">`
+                       : `<span>${esc((c.name||'?').charAt(0))}</span>`}</div></div>
           <div class="logo-act">
             <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp" hidden
                    onchange="uploadLogo()">

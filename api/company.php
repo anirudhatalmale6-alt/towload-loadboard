@@ -104,8 +104,18 @@ if ($method === 'GET' && ($action === 'overview' || $action === '')) {
     unset($row['email_verified_value'], $row['phone_verified_value'],
           $row['email_verified_at'], $row['phone_verified_at']);
 
-    $row['rating_avg']   = (float)$row['rating_avg'];
-    $row['rating_count'] = (int)$row['rating_count'];
+    $row['rating_avg'] = (float)$row['rating_avg'];
+    // Counted from the ratings rows, exactly as /company/reviews does.
+    //
+    // accounts.rating_count is the denormalised copy and the two disagree
+    // wherever it was seeded or edited directly. Reporting the stored one here
+    // put "Customer reviews 2" as a heading directly above the sentence "No
+    // reviews yet" — the heading and the panel it labels contradicting each
+    // other on the same screen.
+    $row['rating_count_stored'] = (int)$row['rating_count'];
+    $rc = getDB()->prepare("SELECT COUNT(*) FROM ratings WHERE rated_account_id = :a");
+    $rc->execute([':a' => $user['account_id']]);
+    $row['rating_count'] = (int)$rc->fetchColumn();
     // Absolute, because the app is not served from the same origin as the
     // site and a relative path there resolves against nothing.
     $row['logo_url'] = absoluteUrl($row['logo_url']);
