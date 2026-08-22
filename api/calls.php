@@ -15,6 +15,7 @@ require_once __DIR__ . '/../includes/adminauth.php';
 require_once __DIR__ . '/../includes/geocode.php';   // requestIp()
 require_once __DIR__ . '/../includes/release.php';
 require_once __DIR__ . '/../includes/webpush.php';   // pushNewJobAfterResponse()
+require_once __DIR__ . '/../includes/review_jobs.php';
 setCorsHeaders();
 
 $method = $_SERVER['REQUEST_METHOD'];
@@ -211,6 +212,12 @@ if ($method === 'GET' && $action === 'board') {
     // refreshing his jobs is what releases a customer's card hold on a job
     // nobody took. Rate-limited inside; costs nothing when it is not due.
     runSweepIfDue();
+
+    // Same reasoning, same heartbeat: with no cron, the board load is the only
+    // thing that reliably happens. Off unless `review_jobs_enabled` is '1', and
+    // even then it can only write jobs belonging to the one demo account named
+    // in `review_jobs_provider_id`. See includes/review_jobs.php.
+    reviewJobsTopUp();
 
     // The union of a box around each origin. Still index-friendly, still
     // followed by an exact distance test below — it only widens what the
