@@ -217,7 +217,7 @@ if ($method === 'GET' && $action === 'board') {
     // thing that reliably happens. Off unless `review_jobs_enabled` is '1', and
     // even then it can only write jobs belonging to the one demo account named
     // in `review_jobs_provider_id`. See includes/review_jobs.php.
-    reviewJobsTopUp();
+    reviewJobsTopUp((int)$user['account_id']);
 
     // The union of a box around each origin. Still index-friendly, still
     // followed by an exact distance test below — it only widens what the

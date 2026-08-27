@@ -161,13 +161,26 @@ const REVIEW_JOB_TEMPLATES = [
  * a demo look right, and it must never be the reason a real company's board
  * fails to load.
  */
-function reviewJobsTopUp(): void
+function reviewJobsTopUp(int $requestingAccountId = 0): void
 {
     static $ranThisRequest = false;
     if ($ranThisRequest) return;
     $ranThisRequest = true;
 
     if ((string)setting('review_jobs_enabled', '0') !== '1') return;
+
+    // Demo jobs exist for exactly one pair of eyes, so they are created for
+    // exactly one account: whoever Apple signs in as. Any other company loading
+    // the board creates nothing.
+    //
+    // This is not a second safety net on top of the distance filter, it is what
+    // keeps the owner's own job list clean. The jobs are real rows in `calls`,
+    // and he sees every row on the platform whether or not the board shows it
+    // to anyone. Gating creation on the reviewer means his list stays empty
+    // until a reviewer actually looks, instead of carrying demo data around for
+    // the weeks between submitting and being reviewed.
+    $reviewerId = (int)setting('review_jobs_tower_id', 0);
+    if ($reviewerId > 0 && $requestingAccountId !== $reviewerId) return;
 
     $providerId = (int)setting('review_jobs_provider_id', 0);
     if ($providerId <= 0) return;
