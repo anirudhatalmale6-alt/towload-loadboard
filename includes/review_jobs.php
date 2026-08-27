@@ -23,9 +23,25 @@
  * It is called from the board endpoint rather than a cron because this host has
  * no cron — the expiry sweep already takes its heartbeat from the same place.
  *
- * On expiry: a job that nobody takes is expired by the sweep, which refunds its
- * escrow to the posting account. The demo balance therefore recycles rather
- * than draining, and the top-up here just posts a fresh one.
+ * ── Why this RECYCLES rather than reposts ───────────────────────────────────
+ *
+ * The first version of this file posted a fresh row whenever a demo job lapsed.
+ * That is the obvious way to write it and it is wrong, because the lapsed row
+ * does not go anywhere: it stays in `calls` as an `expired` job forever. Eight
+ * jobs on a 45 minute timer is eight new rows every 45 minutes — around 250 a
+ * day. After five days the calls table held 521 demo jobs and the owner of the
+ * platform, looking at his own job list, quite reasonably read it as a bot
+ * flooding his site.
+ *
+ * So the pool is fixed. There are exactly as many demo call rows as there are
+ * templates, they are found again by pickup address, and a lapsed one is put
+ * back on the board by resetting the row it already has — same id, same call
+ * number. The table stops growing entirely.
+ *
+ * The escrow needs the same care. A refunded hold has to be re-held to fund the
+ * revived job, but a hold that is still 'held' must be left alone: escrowHold()
+ * debits the balance every time it is called and upserts one row per call, so
+ * calling it twice on a live hold takes the money twice and never gives it back.
  */
 
 require_once __DIR__ . '/escrow.php';
@@ -204,10 +220,110 @@ function reviewJobsTopUp(): void
         foreach (REVIEW_JOB_TEMPLATES as $tpl) {
             if ($missing <= 0) break;
             if (in_array($tpl['pickup_address'], $standing, true)) continue;
+            // Revive this template's existing row if it has one; only post a new
+            // row when it genuinely has none, which is the first run and the
+            // occasional job a reviewer actually completed.
+            if (reviewJobRevive($pdo, $providerId, $tpl, $ttl)) { $missing--; continue; }
             if (reviewJobPost($pdo, $providerId, $tpl, $ttl)) $missing--;
         }
     } catch (Throwable $e) {
         error_log('[reviewjobs] top-up failed: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Put this template's existing row back on the board.
+ *
+ * Returns false if there is nothing to revive, which tells the caller to post a
+ * new one. Never throws — a demo must not be able to break a real board load.
+ *
+ * The row chosen is the LOWEST id for that pickup address, so the pool converges
+ * on the same eight rows and stays there instead of wandering through the table.
+ *
+ * A `completed`, `goa` or `disputed` job is deliberately NOT revivable: those
+ * have settled money and a payout behind them, and rewriting one back to `open`
+ * would falsify a financial record to save a row. Those are the only case that
+ * still inserts.
+ */
+function reviewJobRevive(PDO $pdo, int $providerId, array $tpl, int $ttlMinutes): bool
+{
+    try {
+        $find = $pdo->prepare(
+            "SELECT id, status, offer_amount FROM calls
+              WHERE provider_account_id = :p
+                AND pickup_address = :addr
+                AND status IN ('open','expired','canceled')
+                AND NOT (status = 'open' AND expires_at > NOW())
+              ORDER BY id ASC LIMIT 1"
+        );
+        $find->execute([':p' => $providerId, ':addr' => $tpl['pickup_address']]);
+        $row = $find->fetch();
+        if (!$row) return false;
+
+        $callId = (int)$row['id'];
+        $pdo->beginTransaction();
+
+        // Wipe every trace of the previous run round. Without the awarded_*
+        // columns being cleared, a job a reviewer accepted and abandoned comes
+        // back onto the board still carrying his company id, and the board
+        // filters it straight back out again — a job that can never be taken.
+        $pdo->prepare(
+            "UPDATE calls
+                SET status = 'open',
+                    expires_at = DATE_ADD(NOW(), INTERVAL :ttl MINUTE),
+                    awarded_tower_account_id = NULL, awarded_at = NULL,
+                    awarded_eta_minutes = NULL, awarded_amount = NULL,
+                    platform_fee = NULL, tower_net = NULL,
+                    en_route_at = NULL, on_scene_at = NULL, completed_at = NULL,
+                    canceled_at = NULL, cancel_reason = NULL,
+                    alert_rounds = 0, last_alert_at = NULL,
+                    payment_status = 'none'
+              WHERE id = :id AND provider_account_id = :p"
+        )->execute([':ttl' => $ttlMinutes, ':id' => $callId, ':p' => $providerId]);
+
+        // Stale bids from the last round would otherwise still be attached.
+        $pdo->prepare("UPDATE bids SET status = 'expired'
+                        WHERE call_id = :c AND status = 'pending'")->execute([':c' => $callId]);
+
+        // Re-fund it, but only if the hold is not already live. escrowHold()
+        // debits the balance on every call and keeps one row per call, so
+        // re-holding something already 'held' spends the money twice.
+        $h = $pdo->prepare("SELECT status FROM escrow_holds WHERE call_id = :c");
+        $h->execute([':c' => $callId]);
+        $holdStatus = $h->fetch()['status'] ?? null;
+
+        if ($holdStatus !== 'held') {
+            reviewJobsEnsureBalance($pdo, $providerId);
+            escrowHold($callId, $providerId, null, (float)$row['offer_amount'], 'balance');
+        }
+
+        $pdo->commit();
+        return true;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('[reviewjobs] could not revive ' . ($tpl['pickup_address'] ?? '?') . ': ' . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Keep the demo account solvent so a long review never quietly stops posting.
+ * Ring-fenced to the one account id the caller passes — no real provider's
+ * balance is reachable from here.
+ */
+function reviewJobsEnsureBalance(PDO $pdo, int $providerId): void
+{
+    $bal = $pdo->prepare("SELECT available FROM provider_balances WHERE account_id = :a FOR UPDATE");
+    $bal->execute([':a' => $providerId]);
+    $row = $bal->fetch();
+    if (!$row) {
+        $pdo->prepare("INSERT INTO provider_balances (account_id, available, lifetime_funded)
+                       VALUES (:a, 5000.00, 5000.00)")->execute([':a' => $providerId]);
+    } elseif ((float)$row['available'] < 1000.00) {
+        $pdo->prepare("UPDATE provider_balances
+                          SET available = available + 5000.00,
+                              lifetime_funded = lifetime_funded + 5000.00
+                        WHERE account_id = :a")->execute([':a' => $providerId]);
     }
 }
 
@@ -217,22 +333,8 @@ function reviewJobPost(PDO $pdo, int $providerId, array $tpl, int $ttlMinutes): 
     try {
         $pdo->beginTransaction();
 
-        // The escrow below spends from the demo account's balance. Top it up
-        // when it runs low so a week of review never silently stops posting
-        // jobs. Ring-fenced to this one account id by the caller — no real
-        // provider's balance is reachable from here.
-        $bal = $pdo->prepare("SELECT available FROM provider_balances WHERE account_id = :a FOR UPDATE");
-        $bal->execute([':a' => $providerId]);
-        $row = $bal->fetch();
-        if (!$row) {
-            $pdo->prepare("INSERT INTO provider_balances (account_id, available, lifetime_funded)
-                           VALUES (:a, 5000.00, 5000.00)")->execute([':a' => $providerId]);
-        } elseif ((float)$row['available'] < 1000.00) {
-            $pdo->prepare("UPDATE provider_balances
-                              SET available = available + 5000.00,
-                                  lifetime_funded = lifetime_funded + 5000.00
-                            WHERE account_id = :a")->execute([':a' => $providerId]);
-        }
+        // The escrow below spends from the demo account's balance.
+        reviewJobsEnsureBalance($pdo, $providerId);
 
         $pdo->prepare(
             "INSERT INTO calls

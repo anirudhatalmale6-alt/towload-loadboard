@@ -505,11 +505,48 @@ if ($method === 'POST' && $action === 'confirm-payment') {
 if ($method === 'POST' && $action === 'lead') {
     $in = jsonInput();
     if (empty($in['phone']) && empty($in['email'])) errorResponse(t('err.need_contact'));
+
+    // Anyone can reach this, with no account and no payment, so it needs a
+    // ceiling. A real person who cannot get a truck fills this in once, maybe
+    // twice if they mistyped their number. Six in an hour from one address is
+    // not a person.
+    //
+    // It answers 200 rather than 429 on purpose: a bot that is told it was
+    // blocked comes back from somewhere else, and a human who has somehow
+    // tripped it should not be handed an error on top of "we cannot help you".
+    // Nothing is stored either way.
+    if (leadRateLimited()) {
+        successResponse([], t('ok.lead_saved'));
+    }
+
     saveCoverageLead($in,
         isset($in['pickup_lat']) ? (float)$in['pickup_lat'] : null,
         isset($in['pickup_lng']) ? (float)$in['pickup_lng'] : null,
         (int)($in['trucks_nearby'] ?? 0));
     successResponse([], t('ok.lead_saved'));
+}
+
+/**
+ * True when this address has already filed more leads than a person plausibly
+ * would in the window.
+ *
+ * Counted off the leads table itself rather than a separate counter table, so
+ * there is nothing that can drift out of step with what was actually saved.
+ * Fails OPEN — if the count cannot be run, the lead is kept. Losing a real
+ * customer's details to a broken limiter is worse than keeping a junk row.
+ */
+function leadRateLimited(): bool {
+    $max = max(1, (int)setting('lead_max_per_hour', 5));
+    try {
+        $stmt = getDB()->prepare(
+            "SELECT COUNT(*) n FROM coverage_leads
+              WHERE ip = :ip AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)"
+        );
+        $stmt->execute([':ip' => clientIp()]);
+        return (int)$stmt->fetch()['n'] >= $max;
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks,
@@ -519,8 +556,8 @@ function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks,
             "INSERT INTO coverage_leads
                 (kind, name, phone, email, service_type, vehicle_class, reason,
                  pickup_address, city, state, zip,
-                 lat, lng, trucks_nearby, utm_source, lang)
-             VALUES (:k, :n, :p, :e, :s, :vc, :rsn, :addr, :c, :st, :z, :lat, :lng, :tn, :utm, :lang)"
+                 lat, lng, trucks_nearby, utm_source, lang, ip)
+             VALUES (:k, :n, :p, :e, :s, :vc, :rsn, :addr, :c, :st, :z, :lat, :lng, :tn, :utm, :lang, :ip)"
         )->execute([
             // WHY it failed, and for what vehicle. Without these a saved lead
             // reads as "somebody wanted a tow here", which is already covered.
@@ -544,6 +581,7 @@ function saveCoverageLead(array $in, ?float $lat, ?float $lng, int $trucks,
             ':z'   => $in['pickup_zip'] ?? $in['zip'] ?? null,
             ':lat' => $lat, ':lng' => $lng, ':tn' => $trucks,
             ':utm' => $in['utm_source'] ?? null, ':lang' => currentLang(),
+            ':ip'  => clientIp(),
         ]);
     } catch (Throwable $e) {
         // A failed lead insert must never surface as an error to someone who is
